@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+uploads/
+backups/
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+coverage/
+.alethe/
+*.log
