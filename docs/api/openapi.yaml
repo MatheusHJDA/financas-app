@@ -1,0 +1,1658 @@
+openapi: 3.1.0
+info:
+  title: Finanças API
+  version: 0.1.0
+  description: >-
+    Contrato da API do app Finanças (congelado em U0). Dinheiro sempre em centavos (inteiro,
+    sufixo `_cents`). Datas em ISO 8601; fuso de apresentação America/Sao_Paulo.
+servers:
+  - url: /api
+security:
+  - cookieAuth: []
+tags:
+  - {name: health}
+  - {name: auth}
+  - {name: accounts}
+  - {name: categories}
+  - {name: transactions}
+  - {name: overview}
+  - {name: bills}
+  - {name: debts}
+  - {name: goals}
+  - {name: ingest}
+  - {name: push}
+  - {name: plan}
+  - {name: admin}
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      operationId: getHealth
+      summary: Liveness (não consulta o banco)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Health"}
+
+  /auth/users:
+    get:
+      tags: [auth]
+      operationId: listLoginUsers
+      summary: Usuários exibidos na tela de PIN
+      security: []
+      responses:
+        "200":
+          description: Lista de usuários
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/LoginUser"}
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Login com PIN; define o cookie `session`
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginRequest"}
+      responses:
+        "200":
+          description: Autenticado
+          headers:
+            Set-Cookie:
+              description: Cookie `session` (HttpOnly, SameSite=Lax)
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Me"}
+        "401": {$ref: "#/components/responses/Error"}
+        "423": {$ref: "#/components/responses/Error"}
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Encerra a sessão atual
+      responses:
+        "204": {description: Sessão encerrada}
+        "401": {$ref: "#/components/responses/Error"}
+  /auth/me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      summary: Usuário autenticado
+      responses:
+        "200":
+          description: Usuário
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Me"}
+        "401": {$ref: "#/components/responses/Error"}
+  /auth/sessions:
+    get:
+      tags: [auth]
+      operationId: listSessions
+      summary: Sessões (aparelhos) do usuário
+      responses:
+        "200":
+          description: Sessões
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Session"}
+        "401": {$ref: "#/components/responses/Error"}
+  /auth/sessions/{id}:
+    delete:
+      tags: [auth]
+      operationId: revokeSession
+      summary: Revoga uma sessão
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "204": {description: Revogada}
+        "401": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+
+  /accounts:
+    get:
+      tags: [accounts]
+      operationId: listAccounts
+      summary: Lista contas
+      parameters:
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Contas
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AccountPage"}
+        "401": {$ref: "#/components/responses/Error"}
+    post:
+      tags: [accounts]
+      operationId: createAccount
+      summary: Cria conta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AccountCreate"}
+      responses:
+        "201":
+          description: Criada
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Account"}
+        "401": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+  /accounts/{id}:
+    parameters: [{$ref: "#/components/parameters/Id"}]
+    get:
+      tags: [accounts]
+      operationId: getAccount
+      summary: Detalhe da conta
+      responses:
+        "200":
+          description: Conta
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Account"}
+        "404": {$ref: "#/components/responses/Error"}
+    patch:
+      tags: [accounts]
+      operationId: updateAccount
+      summary: Altera conta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AccountUpdate"}
+      responses:
+        "200":
+          description: Atualizada
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Account"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+    delete:
+      tags: [accounts]
+      operationId: deleteAccount
+      summary: Remove conta (409 se houver lançamentos)
+      responses:
+        "204": {description: Removida}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+
+  /categories:
+    get:
+      tags: [categories]
+      operationId: listCategories
+      summary: Lista categorias
+      parameters:
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Categorias
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CategoryPage"}
+    post:
+      tags: [categories]
+      operationId: createCategory
+      summary: Cria categoria
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CategoryCreate"}
+      responses:
+        "201":
+          description: Criada
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Category"}
+        "403": {$ref: "#/components/responses/Error"}
+  /categories/{id}:
+    parameters: [{$ref: "#/components/parameters/Id"}]
+    patch:
+      tags: [categories]
+      operationId: updateCategory
+      summary: Altera categoria
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CategoryUpdate"}
+      responses:
+        "200":
+          description: Atualizada
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Category"}
+        "404": {$ref: "#/components/responses/Error"}
+    delete:
+      tags: [categories]
+      operationId: deleteCategory
+      summary: Remove categoria (409 se em uso)
+      responses:
+        "204": {description: Removida}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+
+  /transactions:
+    get:
+      tags: [transactions]
+      operationId: listTransactions
+      summary: Lista lançamentos
+      parameters:
+        - {$ref: "#/components/parameters/TxOwner"}
+        - {$ref: "#/components/parameters/TxAccountId"}
+        - {$ref: "#/components/parameters/TxCategoryId"}
+        - {$ref: "#/components/parameters/TxKind"}
+        - {$ref: "#/components/parameters/DateFrom"}
+        - {$ref: "#/components/parameters/DateTo"}
+        - {$ref: "#/components/parameters/Q"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Lançamentos
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TransactionPage"}
+    post:
+      tags: [transactions]
+      operationId: createTransaction
+      summary: Cria lançamento manual
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/TransactionCreate"}
+      responses:
+        "201":
+          description: Criado
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Transaction"}
+        "403": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+  /transactions/export.csv:
+    get:
+      tags: [transactions]
+      operationId: exportTransactionsCsv
+      summary: Exporta lançamentos em CSV (mesmos filtros da listagem)
+      parameters:
+        - {$ref: "#/components/parameters/TxOwner"}
+        - {$ref: "#/components/parameters/TxAccountId"}
+        - {$ref: "#/components/parameters/TxCategoryId"}
+        - {$ref: "#/components/parameters/TxKind"}
+        - {$ref: "#/components/parameters/DateFrom"}
+        - {$ref: "#/components/parameters/DateTo"}
+        - {$ref: "#/components/parameters/Q"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: CSV
+          content:
+            text/csv:
+              schema: {type: string}
+  /transactions/{id}:
+    parameters: [{$ref: "#/components/parameters/Id"}]
+    get:
+      tags: [transactions]
+      operationId: getTransaction
+      summary: Detalhe do lançamento
+      responses:
+        "200":
+          description: Lançamento
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Transaction"}
+        "404": {$ref: "#/components/responses/Error"}
+    patch:
+      tags: [transactions]
+      operationId: updateTransaction
+      summary: Altera lançamento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/TransactionUpdate"}
+      responses:
+        "200":
+          description: Atualizado
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Transaction"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+    delete:
+      tags: [transactions]
+      operationId: deleteTransaction
+      summary: Remove lançamento
+      responses:
+        "204": {description: Removido}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+
+  /overview:
+    get:
+      tags: [overview]
+      operationId: getOverview
+      summary: Visão geral (saldos, faturas, dívidas, contas a pagar)
+      responses:
+        "200":
+          description: Visão geral
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Overview"}
+
+  /recurring-bills:
+    get:
+      tags: [bills]
+      operationId: listRecurringBills
+      summary: Lista contas recorrentes
+      parameters:
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Contas recorrentes
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RecurringBillPage"}
+    post:
+      tags: [bills]
+      operationId: createRecurringBill
+      summary: Cria conta recorrente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RecurringBillCreate"}
+      responses:
+        "201":
+          description: Criada
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RecurringBill"}
+        "403": {$ref: "#/components/responses/Error"}
+  /recurring-bills/{id}:
+    parameters: [{$ref: "#/components/parameters/Id"}]
+    patch:
+      tags: [bills]
+      operationId: updateRecurringBill
+      summary: Altera conta recorrente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RecurringBillUpdate"}
+      responses:
+        "200":
+          description: Atualizada
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RecurringBill"}
+        "404": {$ref: "#/components/responses/Error"}
+    delete:
+      tags: [bills]
+      operationId: deleteRecurringBill
+      summary: Remove conta recorrente
+      responses:
+        "204": {description: Removida}
+        "404": {$ref: "#/components/responses/Error"}
+  /bill-instances:
+    get:
+      tags: [bills]
+      operationId: listBillInstances
+      summary: Lista instâncias mensais de contas a pagar
+      parameters:
+        - name: status
+          in: query
+          schema: {$ref: "#/components/schemas/BillStatus"}
+        - {$ref: "#/components/parameters/DateFrom"}
+        - {$ref: "#/components/parameters/DateTo"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Instâncias
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/BillInstancePage"}
+  /bill-instances/{id}/pay:
+    post:
+      tags: [bills]
+      operationId: payBillInstance
+      summary: Marca como paga (vincula ou cria o lançamento)
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/BillPayRequest"}
+      responses:
+        "200":
+          description: Paga
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/BillInstance"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+
+  /debts:
+    get:
+      tags: [debts]
+      operationId: listDebts
+      summary: Lista dívidas
+      parameters:
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Dívidas
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DebtPage"}
+    post:
+      tags: [debts]
+      operationId: createDebt
+      summary: Cria dívida
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DebtCreate"}
+      responses:
+        "201":
+          description: Criada
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Debt"}
+        "403": {$ref: "#/components/responses/Error"}
+  /debts/{id}:
+    parameters: [{$ref: "#/components/parameters/Id"}]
+    get:
+      tags: [debts]
+      operationId: getDebt
+      summary: Detalhe da dívida
+      responses:
+        "200":
+          description: Dívida
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Debt"}
+        "404": {$ref: "#/components/responses/Error"}
+    patch:
+      tags: [debts]
+      operationId: updateDebt
+      summary: Altera dívida
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DebtUpdate"}
+      responses:
+        "200":
+          description: Atualizada
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Debt"}
+        "404": {$ref: "#/components/responses/Error"}
+    delete:
+      tags: [debts]
+      operationId: deleteDebt
+      summary: Remove dívida
+      responses:
+        "204": {description: Removida}
+        "404": {$ref: "#/components/responses/Error"}
+
+  /goals:
+    get:
+      tags: [goals]
+      operationId: listGoals
+      summary: Lista metas com progresso
+      parameters:
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Metas
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/GoalPage"}
+    post:
+      tags: [goals]
+      operationId: createGoal
+      summary: Cria meta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/GoalCreate"}
+      responses:
+        "201":
+          description: Criada
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Goal"}
+        "403": {$ref: "#/components/responses/Error"}
+  /goals/{id}:
+    parameters: [{$ref: "#/components/parameters/Id"}]
+    get:
+      tags: [goals]
+      operationId: getGoal
+      summary: Detalhe da meta com progresso
+      responses:
+        "200":
+          description: Meta
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Goal"}
+        "404": {$ref: "#/components/responses/Error"}
+    patch:
+      tags: [goals]
+      operationId: updateGoal
+      summary: Altera meta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/GoalUpdate"}
+      responses:
+        "200":
+          description: Atualizada
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Goal"}
+        "404": {$ref: "#/components/responses/Error"}
+    delete:
+      tags: [goals]
+      operationId: deleteGoal
+      summary: Remove meta
+      responses:
+        "204": {description: Removida}
+        "404": {$ref: "#/components/responses/Error"}
+  /goals/{id}/entries:
+    post:
+      tags: [goals]
+      operationId: createGoalEntry
+      summary: Registra aporte na meta
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/GoalEntryCreate"}
+      responses:
+        "201":
+          description: Aporte registrado
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/GoalEntry"}
+        "404": {$ref: "#/components/responses/Error"}
+
+  /ingest:
+    post:
+      tags: [ingest]
+      operationId: ingest
+      summary: Envia texto e/ou arquivo (até 10 MB) para extração por IA; gera rascunhos
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                text: {type: string}
+                file: {type: string, format: binary, description: "Até 10 MB"}
+      responses:
+        "200":
+          description: Rascunhos extraídos
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/IngestResult"}
+        "413": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/AiUnavailable"}
+  /ingest/{extraction_id}:
+    get:
+      tags: [ingest]
+      operationId: getIngest
+      summary: Resultado de uma extração
+      parameters:
+        - name: extraction_id
+          in: path
+          required: true
+          schema: {type: integer, format: int64}
+      responses:
+        "200":
+          description: Extração
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/IngestResult"}
+        "404": {$ref: "#/components/responses/Error"}
+  /drafts/{id}/confirm:
+    post:
+      tags: [ingest]
+      operationId: confirmDraft
+      summary: Confirma o rascunho (opcionalmente editado) e cria o lançamento
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ProposedTransaction"}
+      responses:
+        "200":
+          description: Lançamento criado
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Transaction"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+  /drafts/{id}/discard:
+    post:
+      tags: [ingest]
+      operationId: discardDraft
+      summary: Descarta o rascunho
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "204": {description: Descartado}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+  /drafts/confirm-batch:
+    post:
+      tags: [ingest]
+      operationId: confirmDraftsBatch
+      summary: Confirma vários rascunhos de uma vez
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [draft_ids]
+              properties:
+                draft_ids:
+                  type: array
+                  items: {type: integer, format: int64}
+      responses:
+        "200":
+          description: Lançamentos criados
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Transaction"}
+        "409": {$ref: "#/components/responses/Error"}
+  /attachments/{id}:
+    get:
+      tags: [ingest]
+      operationId: getAttachment
+      summary: Baixa o anexo (binário)
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "200":
+          description: Arquivo
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        "404": {$ref: "#/components/responses/Error"}
+
+  /push/vapid-public-key:
+    get:
+      tags: [push]
+      operationId: getVapidPublicKey
+      summary: Chave pública VAPID
+      responses:
+        "200":
+          description: Chave
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [public_key]
+                properties:
+                  public_key: {type: string}
+  /push/subscriptions:
+    get:
+      tags: [push]
+      operationId: listPushSubscriptions
+      summary: Inscrições de push do usuário
+      responses:
+        "200":
+          description: Inscrições
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/PushSubscription"}
+    post:
+      tags: [push]
+      operationId: createPushSubscription
+      summary: Registra inscrição de push deste aparelho
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PushSubscriptionCreate"}
+      responses:
+        "201":
+          description: Registrada
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PushSubscription"}
+  /push/subscriptions/{id}:
+    delete:
+      tags: [push]
+      operationId: deletePushSubscription
+      summary: Remove inscrição de push
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "204": {description: Removida}
+        "404": {$ref: "#/components/responses/Error"}
+
+  /plan/assumptions:
+    get:
+      tags: [plan]
+      operationId: getPlanAssumptions
+      summary: Premissas do plano
+      responses:
+        "200":
+          description: Premissas
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlanAssumptions"}
+    put:
+      tags: [plan]
+      operationId: putPlanAssumptions
+      summary: Substitui as premissas do plano
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PlanAssumptions"}
+      responses:
+        "200":
+          description: Premissas salvas
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlanAssumptions"}
+        "403": {$ref: "#/components/responses/Error"}
+  /plan/projection:
+    get:
+      tags: [plan]
+      operationId: getPlanProjection
+      summary: Projeção mensal do plano
+      parameters:
+        - name: scenario
+          in: query
+          required: true
+          schema: {type: string, enum: [amortize_now, no_amortization]}
+      responses:
+        "200":
+          description: Projeção
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlanProjection"}
+
+  /admin/users:
+    get:
+      tags: [admin]
+      operationId: adminListUsers
+      summary: Usuários (somente admin)
+      responses:
+        "200":
+          description: Usuários
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/AdminUser"}
+        "403": {$ref: "#/components/responses/Error"}
+  /admin/users/{id}/reset-pin:
+    post:
+      tags: [admin]
+      operationId: adminResetPin
+      summary: Redefine o PIN de um usuário
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_pin]
+              properties:
+                new_pin: {type: string, minLength: 4, maxLength: 12}
+      responses:
+        "204": {description: PIN redefinido}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+  /admin/users/{id}/sessions:
+    delete:
+      tags: [admin]
+      operationId: adminRevokeUserSessions
+      summary: Revoga todas as sessões de um usuário
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "204": {description: Sessões revogadas}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+  /admin/settings:
+    get:
+      tags: [admin]
+      operationId: adminGetSettings
+      summary: Configurações (horários, antecedência, modelo de IA, reserva mínima...)
+      responses:
+        "200":
+          description: Configurações
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AppSettings"}
+        "403": {$ref: "#/components/responses/Error"}
+    put:
+      tags: [admin]
+      operationId: adminPutSettings
+      summary: Substitui as configurações
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AppSettings"}
+      responses:
+        "200":
+          description: Configurações salvas
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AppSettings"}
+        "403": {$ref: "#/components/responses/Error"}
+  /admin/notifications/test:
+    post:
+      tags: [admin]
+      operationId: adminTestNotification
+      summary: Envia notificação de teste
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id: {type: integer, format: int64}
+      responses:
+        "200":
+          description: Resultado do envio
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sent]
+                properties:
+                  sent: {type: integer}
+        "403": {$ref: "#/components/responses/Error"}
+  /admin/push-subscriptions:
+    get:
+      tags: [admin]
+      operationId: adminListPushSubscriptions
+      summary: Todas as inscrições de push
+      responses:
+        "200":
+          description: Inscrições
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/PushSubscription"}
+        "403": {$ref: "#/components/responses/Error"}
+  /admin/ai/calls:
+    get:
+      tags: [admin]
+      operationId: adminListAiCalls
+      summary: Chamadas de IA (custo e tokens)
+      parameters:
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Chamadas
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AiCallPage"}
+        "403": {$ref: "#/components/responses/Error"}
+  /admin/audit:
+    get:
+      tags: [admin]
+      operationId: adminListAudit
+      summary: Log de auditoria
+      parameters:
+        - name: entity
+          in: query
+          schema: {type: string}
+        - name: user_id
+          in: query
+          schema: {type: integer, format: int64}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Offset"}
+      responses:
+        "200":
+          description: Eventos
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AuditPage"}
+        "403": {$ref: "#/components/responses/Error"}
+  /admin/system:
+    get:
+      tags: [admin]
+      operationId: adminSystem
+      summary: Saúde do sistema (banco, agendador, último backup)
+      responses:
+        "200":
+          description: Estado
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SystemStatus"}
+        "403": {$ref: "#/components/responses/Error"}
+  /admin/backups/latest:
+    get:
+      tags: [admin]
+      operationId: adminDownloadLatestBackup
+      summary: Baixa o backup mais recente
+      responses:
+        "200":
+          description: Arquivo de backup
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: {type: integer, format: int64}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+    Offset:
+      name: offset
+      in: query
+      schema: {type: integer, minimum: 0, default: 0}
+    TxOwner:
+      name: owner
+      in: query
+      schema: {$ref: "#/components/schemas/Owner"}
+    TxAccountId:
+      name: account_id
+      in: query
+      schema: {type: integer, format: int64}
+    TxCategoryId:
+      name: category_id
+      in: query
+      schema: {type: integer, format: int64}
+    TxKind:
+      name: kind
+      in: query
+      schema: {$ref: "#/components/schemas/TxKind"}
+    DateFrom:
+      name: date_from
+      in: query
+      schema: {type: string, format: date}
+    DateTo:
+      name: date_to
+      in: query
+      schema: {type: string, format: date}
+    Q:
+      name: q
+      in: query
+      description: Busca textual na descrição
+      schema: {type: string}
+  responses:
+    Error:
+      description: Erro padrão
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    AiUnavailable:
+      description: IA indisponível ou limite atingido
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/AiError"}
+  schemas:
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail: {type: string}
+    AiError:
+      type: object
+      required: [detail, code]
+      properties:
+        detail: {type: string}
+        code: {type: string, enum: [ai_limit_reached, ai_unavailable]}
+    Health:
+      type: object
+      required: [status, version]
+      properties:
+        status: {type: string, const: ok}
+        version: {type: string}
+    Owner:
+      type: string
+      enum: [RUTH, MATHEUS, AMBOS]
+    Role:
+      type: string
+      enum: [admin, member]
+    AccountType:
+      type: string
+      enum: [checking, savings, cash, meal_voucher, credit_card, loan]
+    CategoryKind:
+      type: string
+      enum: [income, expense]
+    TxKind:
+      type: string
+      enum: [income, expense, transfer]
+    TxSource:
+      type: string
+      enum: [chat, manual, import]
+    DraftStatus:
+      type: string
+      enum: [pending, confirmed, discarded]
+    BillStatus:
+      type: string
+      enum: [open, paid]
+    LoginUser:
+      type: object
+      required: [id, name]
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string}
+    LoginRequest:
+      type: object
+      required: [user_id, pin, device_label]
+      properties:
+        user_id: {type: integer, format: int64}
+        pin: {type: string}
+        device_label: {type: string}
+    Me:
+      type: object
+      required: [id, name, role, owner]
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string}
+        role: {$ref: "#/components/schemas/Role"}
+        owner: {$ref: "#/components/schemas/Owner"}
+    Session:
+      type: object
+      required: [id, device_label, created_at, expires_at, current]
+      properties:
+        id: {type: integer, format: int64}
+        device_label: {type: string}
+        created_at: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time}
+        current: {type: boolean}
+
+    Account:
+      type: object
+      required: [id, owner, created_by, name, type, initial_balance_cents, initial_balance_date, active, current_balance_cents]
+      properties:
+        id: {type: integer, format: int64}
+        owner: {$ref: "#/components/schemas/Owner"}
+        created_by: {type: integer, format: int64}
+        name: {type: string}
+        type: {$ref: "#/components/schemas/AccountType"}
+        institution: {type: [string, "null"]}
+        last4: {type: [string, "null"], maxLength: 4}
+        initial_balance_cents: {type: integer, format: int64}
+        initial_balance_date: {type: string, format: date}
+        closing_day: {type: [integer, "null"], minimum: 1, maximum: 31}
+        due_day: {type: [integer, "null"], minimum: 1, maximum: 31}
+        active: {type: boolean}
+        current_balance_cents:
+          type: integer
+          format: int64
+          readOnly: true
+          description: initial_balance_cents + lançamentos confirmados desde initial_balance_date
+    AccountCreate:
+      type: object
+      required: [owner, name, type, initial_balance_cents, initial_balance_date]
+      properties:
+        owner: {$ref: "#/components/schemas/Owner"}
+        name: {type: string}
+        type: {$ref: "#/components/schemas/AccountType"}
+        institution: {type: [string, "null"]}
+        last4: {type: [string, "null"], maxLength: 4}
+        initial_balance_cents: {type: integer, format: int64}
+        initial_balance_date: {type: string, format: date}
+        closing_day: {type: [integer, "null"], minimum: 1, maximum: 31}
+        due_day: {type: [integer, "null"], minimum: 1, maximum: 31}
+        active: {type: boolean, default: true}
+    AccountUpdate:
+      type: object
+      properties:
+        owner: {$ref: "#/components/schemas/Owner"}
+        name: {type: string}
+        type: {$ref: "#/components/schemas/AccountType"}
+        institution: {type: [string, "null"]}
+        last4: {type: [string, "null"], maxLength: 4}
+        initial_balance_cents: {type: integer, format: int64}
+        initial_balance_date: {type: string, format: date}
+        closing_day: {type: [integer, "null"], minimum: 1, maximum: 31}
+        due_day: {type: [integer, "null"], minimum: 1, maximum: 31}
+        active: {type: boolean}
+    AccountPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/Account"}
+        total: {type: integer}
+
+    Category:
+      type: object
+      required: [id, name, kind, is_recurring_card_allowed]
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string}
+        kind: {$ref: "#/components/schemas/CategoryKind"}
+        parent_id: {type: [integer, "null"], format: int64}
+        is_recurring_card_allowed: {type: boolean}
+    CategoryCreate:
+      type: object
+      required: [name, kind]
+      properties:
+        name: {type: string}
+        kind: {$ref: "#/components/schemas/CategoryKind"}
+        parent_id: {type: [integer, "null"], format: int64}
+        is_recurring_card_allowed: {type: boolean, default: false}
+    CategoryUpdate:
+      type: object
+      properties:
+        name: {type: string}
+        kind: {$ref: "#/components/schemas/CategoryKind"}
+        parent_id: {type: [integer, "null"], format: int64}
+        is_recurring_card_allowed: {type: boolean}
+    CategoryPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/Category"}
+        total: {type: integer}
+
+    Transaction:
+      type: object
+      required: [id, kind, amount_cents, date, description, account_id, owner, created_by, status, source]
+      properties:
+        id: {type: integer, format: int64}
+        kind: {$ref: "#/components/schemas/TxKind"}
+        amount_cents: {type: integer, format: int64, minimum: 1}
+        date: {type: string, format: date}
+        description: {type: string}
+        account_id: {type: integer, format: int64}
+        to_account_id: {type: [integer, "null"], format: int64}
+        category_id: {type: [integer, "null"], format: int64}
+        owner: {$ref: "#/components/schemas/Owner"}
+        created_by: {type: integer, format: int64}
+        status: {type: string, enum: [confirmed]}
+        source: {$ref: "#/components/schemas/TxSource"}
+        attachment_id: {type: [integer, "null"], format: int64}
+        ai_extraction_id: {type: [integer, "null"], format: int64}
+        bill_instance_id: {type: [integer, "null"], format: int64}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    TransactionCreate:
+      type: object
+      required: [kind, amount_cents, date, description, account_id, owner]
+      properties:
+        kind: {$ref: "#/components/schemas/TxKind"}
+        amount_cents: {type: integer, format: int64, minimum: 1}
+        date: {type: string, format: date}
+        description: {type: string}
+        account_id: {type: integer, format: int64}
+        to_account_id: {type: [integer, "null"], format: int64}
+        category_id: {type: [integer, "null"], format: int64}
+        owner: {$ref: "#/components/schemas/Owner"}
+    TransactionUpdate:
+      type: object
+      properties:
+        kind: {$ref: "#/components/schemas/TxKind"}
+        amount_cents: {type: integer, format: int64, minimum: 1}
+        date: {type: string, format: date}
+        description: {type: string}
+        account_id: {type: integer, format: int64}
+        to_account_id: {type: [integer, "null"], format: int64}
+        category_id: {type: [integer, "null"], format: int64}
+        owner: {$ref: "#/components/schemas/Owner"}
+    TransactionPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/Transaction"}
+        total: {type: integer}
+
+    OwnerBalances:
+      type: object
+      required: [owner, accounts, total_cents]
+      properties:
+        owner: {$ref: "#/components/schemas/Owner"}
+        accounts:
+          type: array
+          items: {$ref: "#/components/schemas/Account"}
+        total_cents: {type: integer, format: int64}
+    CardInvoice:
+      type: object
+      required: [account_id, account_name, open_amount_cents]
+      properties:
+        account_id: {type: integer, format: int64}
+        account_name: {type: string}
+        open_amount_cents: {type: integer, format: int64}
+        due_date: {type: [string, "null"], format: date}
+    Overview:
+      type: object
+      required: [balances_by_owner, couple_total_cents, open_card_invoices, debts_balance_cents, upcoming_bills, overdue_bills]
+      properties:
+        balances_by_owner:
+          type: array
+          items: {$ref: "#/components/schemas/OwnerBalances"}
+        couple_total_cents: {type: integer, format: int64}
+        open_card_invoices:
+          type: array
+          items: {$ref: "#/components/schemas/CardInvoice"}
+        debts_balance_cents: {type: integer, format: int64}
+        upcoming_bills:
+          description: Contas a pagar dos próximos 15 dias
+          type: array
+          items: {$ref: "#/components/schemas/BillInstance"}
+        overdue_bills:
+          type: array
+          items: {$ref: "#/components/schemas/BillInstance"}
+
+    RecurringBill:
+      type: object
+      required: [id, owner, name, amount_cents, due_day, start_month]
+      properties:
+        id: {type: integer, format: int64}
+        owner: {$ref: "#/components/schemas/Owner"}
+        name: {type: string}
+        amount_cents: {type: integer, format: int64}
+        due_day: {type: integer, minimum: 1, maximum: 31}
+        start_month: {type: string, format: date, description: Primeiro dia do mês}
+        end_month: {type: [string, "null"], format: date}
+        account_id: {type: [integer, "null"], format: int64}
+        category_id: {type: [integer, "null"], format: int64}
+        payment_method: {type: [string, "null"]}
+    RecurringBillCreate:
+      type: object
+      required: [owner, name, amount_cents, due_day, start_month]
+      properties:
+        owner: {$ref: "#/components/schemas/Owner"}
+        name: {type: string}
+        amount_cents: {type: integer, format: int64}
+        due_day: {type: integer, minimum: 1, maximum: 31}
+        start_month: {type: string, format: date}
+        end_month: {type: [string, "null"], format: date}
+        account_id: {type: [integer, "null"], format: int64}
+        category_id: {type: [integer, "null"], format: int64}
+        payment_method: {type: [string, "null"]}
+    RecurringBillUpdate:
+      type: object
+      properties:
+        owner: {$ref: "#/components/schemas/Owner"}
+        name: {type: string}
+        amount_cents: {type: integer, format: int64}
+        due_day: {type: integer, minimum: 1, maximum: 31}
+        start_month: {type: string, format: date}
+        end_month: {type: [string, "null"], format: date}
+        account_id: {type: [integer, "null"], format: int64}
+        category_id: {type: [integer, "null"], format: int64}
+        payment_method: {type: [string, "null"]}
+    RecurringBillPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/RecurringBill"}
+        total: {type: integer}
+    BillInstance:
+      type: object
+      required: [id, recurring_bill_id, month, due_date, amount_cents, status]
+      properties:
+        id: {type: integer, format: int64}
+        recurring_bill_id: {type: integer, format: int64}
+        name: {type: string, description: Nome da conta recorrente (somente leitura)}
+        owner: {$ref: "#/components/schemas/Owner"}
+        month: {type: string, format: date}
+        due_date: {type: string, format: date}
+        amount_cents: {type: integer, format: int64}
+        status: {$ref: "#/components/schemas/BillStatus"}
+        paid_transaction_id: {type: [integer, "null"], format: int64}
+    BillInstancePage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/BillInstance"}
+        total: {type: integer}
+    BillPayRequest:
+      type: object
+      properties:
+        transaction_id:
+          type: [integer, "null"]
+          format: int64
+          description: Lançamento existente a vincular; se omitido, um lançamento é criado
+
+    Debt:
+      type: object
+      required: [id, owner, name, principal_cents, monthly_rate, installments, installment_cents, start_date, current_balance_cents]
+      properties:
+        id: {type: integer, format: int64}
+        owner: {$ref: "#/components/schemas/Owner"}
+        name: {type: string}
+        principal_cents: {type: integer, format: int64}
+        monthly_rate:
+          type: string
+          description: Taxa mensal (fração decimal, Numeric(8,6)) como string
+        installments: {type: integer}
+        installment_cents: {type: integer, format: int64}
+        start_date: {type: string, format: date}
+        current_balance_cents: {type: integer, format: int64}
+    DebtCreate:
+      type: object
+      required: [owner, name, principal_cents, monthly_rate, installments, installment_cents, start_date, current_balance_cents]
+      properties:
+        owner: {$ref: "#/components/schemas/Owner"}
+        name: {type: string}
+        principal_cents: {type: integer, format: int64}
+        monthly_rate: {type: string}
+        installments: {type: integer}
+        installment_cents: {type: integer, format: int64}
+        start_date: {type: string, format: date}
+        current_balance_cents: {type: integer, format: int64}
+    DebtUpdate:
+      type: object
+      properties:
+        owner: {$ref: "#/components/schemas/Owner"}
+        name: {type: string}
+        principal_cents: {type: integer, format: int64}
+        monthly_rate: {type: string}
+        installments: {type: integer}
+        installment_cents: {type: integer, format: int64}
+        start_date: {type: string, format: date}
+        current_balance_cents: {type: integer, format: int64}
+    DebtPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/Debt"}
+        total: {type: integer}
+
+    GoalLevel:
+      type: object
+      required: [name, target_cents]
+      properties:
+        name: {type: string}
+        target_cents: {type: integer, format: int64}
+    GoalProgress:
+      type: object
+      required: [current_cents, target_cents, percent]
+      properties:
+        current_cents: {type: integer, format: int64}
+        target_cents: {type: integer, format: int64}
+        percent: {type: number}
+        level:
+          type: [string, "null"]
+          description: Nível atingido (metas com níveis)
+    Goal:
+      type: object
+      required: [id, owner, type, name, target_cents, active, progress]
+      properties:
+        id: {type: integer, format: int64}
+        owner: {$ref: "#/components/schemas/Owner"}
+        type: {type: string}
+        name: {type: string}
+        target_cents: {type: integer, format: int64}
+        period: {type: [string, "null"]}
+        levels: {type: [array, "null"], items: {$ref: "#/components/schemas/GoalLevel"}}
+        due_date: {type: [string, "null"], format: date}
+        linked_account_id: {type: [integer, "null"], format: int64}
+        linked_category_id: {type: [integer, "null"], format: int64}
+        active: {type: boolean}
+        progress: {$ref: "#/components/schemas/GoalProgress"}
+    GoalCreate:
+      type: object
+      required: [owner, type, name, target_cents]
+      properties:
+        owner: {$ref: "#/components/schemas/Owner"}
+        type: {type: string}
+        name: {type: string}
+        target_cents: {type: integer, format: int64}
+        period: {type: [string, "null"]}
+        levels: {type: [array, "null"], items: {$ref: "#/components/schemas/GoalLevel"}}
+        due_date: {type: [string, "null"], format: date}
+        linked_account_id: {type: [integer, "null"], format: int64}
+        linked_category_id: {type: [integer, "null"], format: int64}
+        active: {type: boolean, default: true}
+    GoalUpdate:
+      type: object
+      properties:
+        owner: {$ref: "#/components/schemas/Owner"}
+        type: {type: string}
+        name: {type: string}
+        target_cents: {type: integer, format: int64}
+        period: {type: [string, "null"]}
+        levels: {type: [array, "null"], items: {$ref: "#/components/schemas/GoalLevel"}}
+        due_date: {type: [string, "null"], format: date}
+        linked_account_id: {type: [integer, "null"], format: int64}
+        linked_category_id: {type: [integer, "null"], format: int64}
+        active: {type: boolean}
+    GoalPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/Goal"}
+        total: {type: integer}
+    GoalEntryCreate:
+      type: object
+      required: [amount_cents, date]
+      properties:
+        amount_cents: {type: integer, format: int64}
+        date: {type: string, format: date}
+        transaction_id: {type: [integer, "null"], format: int64}
+    GoalEntry:
+      type: object
+      required: [id, goal_id, amount_cents, date]
+      properties:
+        id: {type: integer, format: int64}
+        goal_id: {type: integer, format: int64}
+        amount_cents: {type: integer, format: int64}
+        date: {type: string, format: date}
+        transaction_id: {type: [integer, "null"], format: int64}
+
+    ProposedTransaction:
+      type: object
+      required: [kind, amount_cents, date, description]
+      properties:
+        kind: {$ref: "#/components/schemas/TxKind"}
+        amount_cents: {type: integer, format: int64, minimum: 1}
+        date: {type: string, format: date}
+        description: {type: string}
+        account_id: {type: [integer, "null"], format: int64}
+        to_account_id: {type: [integer, "null"], format: int64}
+        category_id: {type: [integer, "null"], format: int64}
+        owner: {anyOf: [{$ref: "#/components/schemas/Owner"}, {type: "null"}]}
+    Draft:
+      type: object
+      required: [id, status, payload, confidence, low_confidence_fields]
+      properties:
+        id: {type: integer, format: int64}
+        status: {$ref: "#/components/schemas/DraftStatus"}
+        payload: {$ref: "#/components/schemas/ProposedTransaction"}
+        confidence: {type: number, minimum: 0, maximum: 1}
+        low_confidence_fields:
+          type: array
+          items: {type: string}
+        duplicate_of_transaction_id: {type: [integer, "null"], format: int64}
+        plan_rule_warning: {type: [string, "null"]}
+        suggested_bill_instance_id: {type: [integer, "null"], format: int64}
+    IngestResult:
+      type: object
+      required: [extraction_id, document_type, warnings, drafts]
+      properties:
+        extraction_id: {type: integer, format: int64}
+        document_type: {type: string}
+        warnings:
+          type: array
+          items: {type: string}
+        drafts:
+          type: array
+          items: {$ref: "#/components/schemas/Draft"}
+
+    PushSubscriptionCreate:
+      type: object
+      required: [endpoint, keys]
+      properties:
+        endpoint: {type: string}
+        keys:
+          type: object
+          required: [p256dh, auth]
+          properties:
+            p256dh: {type: string}
+            auth: {type: string}
+        device_label: {type: [string, "null"]}
+    PushSubscription:
+      type: object
+      required: [id, user_id, endpoint, created_at]
+      properties:
+        id: {type: integer, format: int64}
+        user_id: {type: integer, format: int64}
+        endpoint: {type: string}
+        device_label: {type: [string, "null"]}
+        created_at: {type: string, format: date-time}
+        last_ok_at: {type: [string, "null"], format: date-time}
+
+    PlanAssumptions:
+      type: object
+      required: [monthly_income_cents, monthly_expense_cents, monthly_amortization_cents, reserve_start_cents, reserve_minimum_cents]
+      properties:
+        monthly_income_cents: {type: integer, format: int64}
+        monthly_expense_cents: {type: integer, format: int64}
+        monthly_amortization_cents: {type: integer, format: int64}
+        reserve_start_cents: {type: integer, format: int64}
+        reserve_minimum_cents: {type: integer, format: int64}
+    PlanMonth:
+      type: object
+      required: [month, income_cents, expense_cents, amortization_cents, debt_balance_cents, reserve_cents]
+      properties:
+        month: {type: string, format: date}
+        income_cents: {type: integer, format: int64}
+        expense_cents: {type: integer, format: int64}
+        amortization_cents: {type: integer, format: int64}
+        debt_balance_cents: {type: integer, format: int64}
+        reserve_cents: {type: integer, format: int64}
+    PlanProjection:
+      type: object
+      required: [months, payoff_month, total_interest_cents]
+      properties:
+        months:
+          type: array
+          items: {$ref: "#/components/schemas/PlanMonth"}
+        payoff_month: {type: [string, "null"], format: date}
+        total_interest_cents: {type: integer, format: int64}
+
+    AdminUser:
+      type: object
+      required: [id, name, role, failed_attempts]
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string}
+        role: {$ref: "#/components/schemas/Role"}
+        failed_attempts: {type: integer}
+        locked_until: {type: [string, "null"], format: date-time}
+    AppSettings:
+      type: object
+      description: Mapa chave -> valor JSON (horários, antecedência, modelo de IA, reserva mínima...)
+      additionalProperties: true
+    AiCall:
+      type: object
+      required: [id, user_id, model, status, created_at]
+      properties:
+        id: {type: integer, format: int64}
+        user_id: {type: integer, format: int64}
+        input_kind: {type: string}
+        model: {type: string}
+        prompt_version: {type: string}
+        usage_tokens: {type: [integer, "null"]}
+        est_cost_cents: {type: [integer, "null"], format: int64}
+        status: {type: string}
+        error_code: {type: [string, "null"]}
+        created_at: {type: string, format: date-time}
+    AiCallPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/AiCall"}
+        total: {type: integer}
+    AuditEvent:
+      type: object
+      required: [id, entity, entity_id, action, at]
+      properties:
+        id: {type: integer, format: int64}
+        user_id: {type: [integer, "null"], format: int64}
+        entity: {type: string}
+        entity_id: {type: string}
+        action: {type: string}
+        before: {type: [object, "null"], additionalProperties: true}
+        after: {type: [object, "null"], additionalProperties: true}
+        at: {type: string, format: date-time}
+    AuditPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/AuditEvent"}
+        total: {type: integer}
+    SystemStatus:
+      type: object
+      required: [database_ok, scheduler_ok]
+      properties:
+        database_ok: {type: boolean}
+        scheduler_ok: {type: boolean}
+        last_backup_at: {type: [string, "null"], format: date-time}
+        last_backup_size_bytes: {type: [integer, "null"], format: int64}
