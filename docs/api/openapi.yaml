@@ -68,7 +68,7 @@ paths:
           description: Autenticado
           headers:
             Set-Cookie:
-              description: Cookie `session` (HttpOnly, SameSite=Lax)
+              description: Cookie `session` (HttpOnly, Secure, SameSite=Strict, Max-Age 30 dias)
               schema: {type: string}
           content:
             application/json:
@@ -118,6 +118,7 @@ paths:
       responses:
         "204": {description: Revogada}
         "401": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
         "404": {$ref: "#/components/responses/Error"}
 
   /accounts:
@@ -301,7 +302,7 @@ paths:
         - {$ref: "#/components/parameters/DateFrom"}
         - {$ref: "#/components/parameters/DateTo"}
         - {$ref: "#/components/parameters/Q"}
-        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/ExportLimit"}
         - {$ref: "#/components/parameters/Offset"}
       responses:
         "200":
@@ -998,6 +999,11 @@ components:
       name: limit
       in: query
       schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+    ExportLimit:
+      name: limit
+      in: query
+      description: Sem `limit`, exporta tudo o que casa com os filtros.
+      schema: {type: integer, minimum: 1, maximum: 200}
     Offset:
       name: offset
       in: query

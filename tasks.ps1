@@ -1,4 +1,4 @@
-param([string]$Task = "check")
+param([string]$Task = "check", [string]$Arg = "")
 
 $ErrorActionPreference = "Stop"
 $Root = $PSScriptRoot
@@ -56,8 +56,31 @@ function Invoke-Size {
     }
 }
 
+function Invoke-TestDb {
+    # Postgres de teste (só localhost, dados descartáveis). Idempotente.
+    $name = "financas-pgtest"
+    $running = docker ps --filter "name=^$name$" --format "{{.Names}}"
+    if ($running -ne $name) {
+        $exists = docker ps -a --filter "name=^$name$" --format "{{.Names}}"
+        if ($exists -eq $name) { docker start $name | Out-Null }
+        else {
+            docker run -d --name $name -e POSTGRES_USER=financas_test -e POSTGRES_PASSWORD=financas_test `
+                -e POSTGRES_DB=postgres -p 127.0.0.1:55432:5432 postgres:16-alpine | Out-Null
+        }
+        if ($LASTEXITCODE -ne 0) { Write-Host "FALHOU: subir $name (Docker ligado?)" -ForegroundColor Red; exit 1 }
+    }
+    for ($i = 0; $i -lt 30; $i++) {
+        docker exec $name pg_isready -U financas_test -d postgres 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) { Write-Host "testdb: pronto em 127.0.0.1:55432"; return }
+        Start-Sleep -Seconds 1
+    }
+    Write-Host "FALHOU: $name nao ficou pronto" -ForegroundColor Red
+    exit 1
+}
+
 switch ($Task) {
     "check" {
+        Invoke-TestDb
         Invoke-Step "api: ruff check" $Api { uv run ruff check . }
         Invoke-Step "api: ruff format --check" $Api { uv run ruff format --check . }
         Invoke-Step "api: pytest" $Api { uv run pytest }
@@ -70,11 +93,20 @@ switch ($Task) {
     "e2e" { Write-Host "definido em U11" }
     "ai-live" { Invoke-Step "api: pytest -m live" $Api { uv run pytest -m live } }
     "size" { Invoke-Size }
+    "testdb" { Invoke-TestDb }
+    "setup" {
+        Invoke-Step "api: uv sync" $Api { uv sync }
+        Invoke-Step "web: npm install" $Web { npm install }
+    }
+    "web" {
+        if (-not $Arg) { Write-Host "Uso: ./tasks.ps1 web <script do package.json>" -ForegroundColor Red; exit 2 }
+        Invoke-Step "web: npm run $Arg" $Web { npm run $Arg }
+    }
     "up" { Invoke-Step "docker compose up" $Root { docker compose -f infra/docker-compose.yml --env-file .env up -d --build } }
     "down" { Invoke-Step "docker compose down" $Root { docker compose -f infra/docker-compose.yml --env-file .env down } }
     "vapid" { Invoke-Step "gen-vapid" $Api { uv run python ../../infra/scripts/gen-vapid.py } }
     default {
-        Write-Host "Tarefa desconhecida: $Task. Use: check, e2e, ai-live, size, up, down, vapid." -ForegroundColor Red
+        Write-Host "Tarefa desconhecida: $Task. Use: check, e2e, ai-live, size, up, down, vapid, testdb, setup, web <script>." -ForegroundColor Red
         exit 2
     }
 }

@@ -1,38 +1,44 @@
 :root {
+  color-scheme: light dark;
   --color-bg: #ffffff;
   --color-surface: #f5f7f7;
+  --color-border: #d5dddc;
   --color-text: #12201f;
-  --color-muted: #5b6b6a;
+  --color-muted: #55645f;
   --color-primary: #0f766e;
+  --color-on-primary: #ffffff;
   --color-danger: #b42318;
   --color-ok: #067647;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 16px;
   --space-4: 24px;
+  --space-5: 32px;
   --radius: 12px;
+  --radius-pill: 999px;
+  --tap: 56px; /* alvo de toque mínimo é 48px; teclas do PIN usam 56px */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --tabbar-h: 64px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --color-bg: #0e1514;
     --color-surface: #172220;
+    --color-border: #2a3a37;
     --color-text: #e8f0ef;
     --color-muted: #9bb0ae;
     --color-primary: #2dd4bf;
+    --color-on-primary: #04211e;
+    --color-danger: #f97066;
+    --color-ok: #47cd89;
   }
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: var(--font);
-  color: var(--color-text);
-  background: var(--color-bg);
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-    env(safe-area-inset-left);
 }

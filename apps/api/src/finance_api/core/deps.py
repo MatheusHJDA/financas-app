@@ -10,8 +10,16 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 
 def get_current_user(request: Request, db: DbSession) -> CurrentUser:
-    # U1 implementa: ler o cookie `session`, validar o hash do token e devolver o usuário.
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Não autenticado.")
+    # Import local: auth.service não depende de deps, mas evita ciclo na carga dos módulos.
+    from finance_api.auth import service
+    from finance_api.core.config import get_settings
+
+    user = service.authenticate_token(
+        db, request.cookies.get(service.SESSION_COOKIE), get_settings()
+    )
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Não autenticado.")
+    return user
 
 
 def require_admin(user: Annotated[CurrentUser, Depends(get_current_user)]) -> CurrentUser:

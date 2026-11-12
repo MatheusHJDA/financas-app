@@ -1,0 +1,72 @@
+# Carga inicial (ORQUESTRACAO.md, seção 11). Valores em centavos inteiros.
+# NÃO cria usuários nem contas bancárias (D5): cada um cadastra na interface.
+# Idempotente: o loader (`python -m finance_api.seed`) pula o que já existe (por nome).
+#
+# PENDENTE DE CONFIRMAÇÃO COM O MATHEUS (a seção 11 não traz estes dados):
+#  - due_day de cada conta fixa está como 10 (PLACEHOLDER). Ajustar pela interface/admin.
+#  - start_date do empréstimo e as parcelas dos cartões Santander/Sicredi (ver notas abaixo).
+
+categories:
+  # Receitas
+  - {name: Salário, kind: income}
+  - {name: Uber/99, kind: income}
+  - {name: IPTV, kind: income}
+  - {name: Vale-alimentação, kind: income}
+  # Despesas. is_recurring_card_allowed marca as categorias das contas "Cartão (recorrente permitido)":
+  # Carro (Seguro Loovi), Saúde (Academia, Cartão de Todos), Assinaturas (Assinaturas, Hostinger).
+  - {name: Moradia, kind: expense}
+  - {name: Carro, kind: expense, is_recurring_card_allowed: true}
+  - {name: Combustível, kind: expense}
+  - {name: Mercado, kind: expense}
+  - {name: Farmácia, kind: expense}
+  - {name: Alimentação fora, kind: expense}
+  - {name: Contas da casa, kind: expense}
+  - {name: Assinaturas, kind: expense, is_recurring_card_allowed: true}
+  - {name: Saúde, kind: expense, is_recurring_card_allowed: true}
+  - {name: Igreja, kind: expense}
+  - {name: MEI/Impostos, kind: expense}
+  - {name: Dívidas/Empréstimo, kind: expense}
+  - {name: Transferência interna, kind: expense}
+  - {name: Outros, kind: expense}
+
+# Todas AMBOS (D20). Sem conta bancária (account_id nulo): o pagamento pede a conta no uso.
+recurring_bills:
+  - {name: Parcela do apartamento, owner: AMBOS, amount_cents: 75000, due_day: 10, category: Moradia, payment_method: Boleto/Pix}
+  - {name: Financiamento do carro (Banco Volkswagen), owner: AMBOS, amount_cents: 166703, due_day: 10, category: Carro, payment_method: Boleto}
+  - {name: Condomínio, owner: AMBOS, amount_cents: 18000, due_day: 10, category: Moradia, payment_method: Boleto}
+  - {name: Luz (CEMIG), owner: AMBOS, amount_cents: 20000, due_day: 10, category: Contas da casa, payment_method: Pix}
+  - {name: Internet Vero, owner: AMBOS, amount_cents: 8990, due_day: 10, category: Contas da casa, payment_method: Boleto}
+  - {name: Vero (mãe), owner: AMBOS, amount_cents: 3000, due_day: 10, category: Contas da casa, payment_method: Pix}
+  - {name: Mesa igreja, owner: AMBOS, amount_cents: 5000, due_day: 10, category: Igreja, payment_method: Pix}
+  - {name: Guia MEI (DAS), owner: AMBOS, amount_cents: 9000, due_day: 10, category: MEI/Impostos, payment_method: Boleto}
+  - {name: Amil (odontológico), owner: AMBOS, amount_cents: 5780, due_day: 10, category: Saúde, payment_method: Boleto}
+  - {name: Seguro Loovi, owner: AMBOS, amount_cents: 28423, due_day: 10, category: Carro, payment_method: Cartão}
+  - {name: Academia (Contorno do Corpo), owner: AMBOS, amount_cents: 12990, due_day: 10, category: Saúde, payment_method: Cartão}
+  - {name: Cartão de Todos, owner: AMBOS, amount_cents: 3340, due_day: 10, category: Saúde, payment_method: Cartão}
+  - {name: "Assinaturas (Apple, Google One, Spotify, Claude)", owner: AMBOS, amount_cents: 17202, due_day: 10, category: Assinaturas, payment_method: Cartão}
+  # Nota: confirmar se é mensal (a planilha não deixa claro).
+  - {name: Hostinger, owner: AMBOS, amount_cents: 6499, due_day: 10, category: Assinaturas, payment_method: "Cartão Reginaldo (confirmar se é mensal)"}
+
+debts:
+  # D14: saldo devedor é informado no primeiro uso; até lá usa-se o principal (sem amortização feita).
+  # start_date é PLACEHOLDER (início da carga) até o Matheus informar a data do contrato.
+  - {name: Empréstimo, owner: AMBOS, principal_cents: 2200000, monthly_rate: "0.034500", installments: 24, installment_cents: 136282, start_date: "2026-11-01", current_balance_cents: 2200000}
+  # Parcelas sem juros, valores estimados. Quantidade de parcelas desconhecida: 1 parcela = total.
+  - {name: Cartão Santander (Reginaldo), owner: AMBOS, principal_cents: 490000, monthly_rate: "0", installments: 1, installment_cents: 490000, start_date: "2026-11-01", current_balance_cents: 490000}
+  - {name: Cartão Sicredi (Midea), owner: AMBOS, principal_cents: 302500, monthly_rate: "0", installments: 1, installment_cents: 302500, start_date: "2026-11-01", current_balance_cents: 302500}
+
+goals:
+  # Quitar dívida: a dívida é achada pelo nome ("Empréstimo" está contido no nome da meta).
+  - {name: Quitar o empréstimo, owner: AMBOS, type: debt_payoff, target_cents: 2200000}
+  - {name: Reserva mínima, owner: AMBOS, type: accumulate, target_cents: 200000}
+  - {name: "Plano de saúde (R$ 580/mês a partir de mai/27)", owner: AMBOS, type: accumulate, target_cents: 58000, period: monthly, due_date: "2027-05-01"}
+  - name: Uber diário
+    owner: MATHEUS
+    type: income_period
+    period: daily
+    category: Uber/99
+    target_cents: 13000
+    levels:
+      - {name: Piso, target_cents: 10000}
+      - {name: Meta, target_cents: 13000}
+      - {name: Desafio, target_cents: 16000}
