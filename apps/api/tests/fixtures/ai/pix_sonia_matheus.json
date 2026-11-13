@@ -1,0 +1,23 @@
+{
+  "model": "fixture-gravada",
+  "usage_tokens": 980,
+  "output": {
+    "transactions": [
+      {
+        "kind": "transfer",
+        "amount_cents": 150000,
+        "date": "2026-11-11",
+        "description": "Pix Sonia para Matheus",
+        "account_hint": "Sonia",
+        "to_account_hint": "Matheus",
+        "category_hint": null,
+        "owner_hint": null,
+        "is_credit_card": false,
+        "confidence": 0.92,
+        "notes": "Comprovante de Pix entre duas contas da lista."
+      }
+    ],
+    "document_type": "receipt",
+    "warnings": []
+  }
+}

@@ -207,6 +207,30 @@ def test_pagar_vinculando_lancamento_existente(db, users, client_as, make_bill, 
     assert _audit(db, "transactions", "create") == []  # nada novo foi criado
 
 
+def test_pagar_com_lancamento_que_nao_e_despesa_da_422(db, users, client_as, make_bill, account):
+    bill = make_bill()
+    inst = _instance(db, bill, today_sp())
+    tx = Transaction(
+        kind="income",
+        amount_cents=18000,
+        date=today_sp(),
+        description="Salário",
+        account_id=account.id,
+        owner="AMBOS",
+        created_by=users["ruth"].id,
+        source="manual",
+    )
+    db.add(tx)
+    db.flush()
+    resp = client_as(users["ruth"]).post(
+        f"/api/bill-instances/{inst.id}/pay", json={"transaction_id": tx.id}
+    )
+    assert resp.status_code == 422
+    db.refresh(tx)
+    assert tx.bill_instance_id is None
+    assert db.get(BillInstance, inst.id).status == "open"
+
+
 def test_pagar_erros(db, users, client_as, make_bill):
     bill = make_bill()  # sem conta bancária
     inst = _instance(db, bill, today_sp())

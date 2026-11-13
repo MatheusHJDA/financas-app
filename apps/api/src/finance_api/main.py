@@ -10,6 +10,7 @@ from finance_api.categories.router import router as categories_router
 from finance_api.debts.router import router as debts_router
 from finance_api.goals.router import router as goals_router
 from finance_api.health.router import router as health_router
+from finance_api.ingest.router import router as ingest_router
 from finance_api.overview.router import router as overview_router
 from finance_api.transactions.router import router as transactions_router
 
@@ -25,6 +26,7 @@ MODULE_ROUTERS = (
     bills_router,  # U4
     debts_router,  # U4
     goals_router,  # U4
+    ingest_router,  # U5 (/ingest, /drafts, /attachments)
 )
 
 

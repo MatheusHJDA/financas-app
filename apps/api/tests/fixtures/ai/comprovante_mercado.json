@@ -1,0 +1,23 @@
+{
+  "model": "fixture-gravada",
+  "usage_tokens": 1180,
+  "output": {
+    "transactions": [
+      {
+        "kind": "expense",
+        "amount_cents": 4590,
+        "date": "2026-11-10",
+        "description": "Supermercado Exemplo BH",
+        "account_hint": "Nubank Ruth",
+        "to_account_hint": null,
+        "category_hint": "Mercado",
+        "owner_hint": null,
+        "is_credit_card": false,
+        "confidence": 0.93,
+        "notes": "Cupom fiscal de supermercado pago no debito."
+      }
+    ],
+    "document_type": "receipt",
+    "warnings": []
+  }
+}

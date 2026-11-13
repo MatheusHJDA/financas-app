@@ -1,0 +1,62 @@
+{
+  "model": "fixture-gravada",
+  "usage_tokens": 2410,
+  "output": {
+    "transactions": [
+      {
+        "kind": "expense",
+        "amount_cents": 3290,
+        "date": "2026-11-10",
+        "description": "Farmacia Exemplo",
+        "account_hint": "Nubank Ruth",
+        "to_account_hint": null,
+        "category_hint": "Farmácia",
+        "owner_hint": null,
+        "is_credit_card": false,
+        "confidence": 0.9,
+        "notes": "Linha de debito do extrato."
+      },
+      {
+        "kind": "income",
+        "amount_cents": 15000,
+        "date": "2026-11-10",
+        "description": "Pix recebido Joao Exemplo",
+        "account_hint": "Nubank Ruth",
+        "to_account_hint": null,
+        "category_hint": null,
+        "owner_hint": null,
+        "is_credit_card": false,
+        "confidence": 0.55,
+        "notes": "Pix de pessoa fora da lista de contas; motivo desconhecido."
+      },
+      {
+        "kind": "expense",
+        "amount_cents": 18750,
+        "date": "2026-11-11",
+        "description": "Conta de luz CEMIG",
+        "account_hint": "Nubank Ruth",
+        "to_account_hint": null,
+        "category_hint": "Luz",
+        "owner_hint": "AMBOS",
+        "is_credit_card": false,
+        "confidence": 0.88,
+        "notes": "Pagamento de boleto de energia."
+      },
+      {
+        "kind": "expense",
+        "amount_cents": 1250,
+        "date": "2026-11-11",
+        "description": "Padaria Exemplo",
+        "account_hint": "Nubank Ruth",
+        "to_account_hint": null,
+        "category_hint": "Mercado",
+        "owner_hint": null,
+        "is_credit_card": false,
+        "confidence": 0.86,
+        "notes": "Compra no debito."
+      }
+    ],
+    "document_type": "statement",
+    "warnings": ["Saldo do dia ignorado."]
+  }
+}

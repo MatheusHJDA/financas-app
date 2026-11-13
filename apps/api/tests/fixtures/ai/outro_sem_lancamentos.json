@@ -1,0 +1,9 @@
+{
+  "model": "fixture-gravada",
+  "usage_tokens": 410,
+  "output": {
+    "transactions": [],
+    "document_type": "other",
+    "warnings": ["Nao encontrei lancamentos neste documento."]
+  }
+}

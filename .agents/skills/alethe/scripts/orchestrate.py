@@ -1381,15 +1381,23 @@ def probe_claude_quota(policy_path: Path) -> Optional[Dict[str, Any]]:
 def probe_agy_quota(policy_path: Path) -> Optional[Dict[str, Any]]:
     launch = launch_command(resolve_executable("agy"))
     args = [*launch, "-p", "/usage", "--output-format", "json", "--print-timeout", f"{AGY_PROBE_SECONDS}s"]
-    with tempfile.TemporaryDirectory(prefix="alethe-usage-") as folder:
-        try:
-            completed = subprocess.run(args, stdin=subprocess.DEVNULL, cwd=Path(folder),
-                env=worker_environment("agy", load_policy(policy_path)["trust"]), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                timeout=AGY_PROBE_SECONDS)
-        except subprocess.TimeoutExpired as error:
-            raise PlanError(f"Antigravity did not answer within {AGY_PROBE_SECONDS} seconds") from error
-        except OSError as error:
-            raise PlanError(f"could not start Antigravity: {error}") from error
+    # agy leaves a child process whose cwd is this folder for a moment after it exits; on Windows the
+    # folder cannot be removed then (WinError 32), so cleanup is best effort and never fails the probe.
+    folder = tempfile.mkdtemp(prefix="alethe-usage-")
+    try:
+        completed = subprocess.run(args, stdin=subprocess.DEVNULL, cwd=Path(folder),
+            env=worker_environment("agy", load_policy(policy_path)["trust"]), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            timeout=AGY_PROBE_SECONDS)
+    except subprocess.TimeoutExpired as error:
+        raise PlanError(f"Antigravity did not answer within {AGY_PROBE_SECONDS} seconds") from error
+    except OSError as error:
+        raise PlanError(f"could not start Antigravity: {error}") from error
+    finally:
+        for _ in range(5):
+            shutil.rmtree(folder, ignore_errors=True)
+            if not os.path.exists(folder):
+                break
+            time.sleep(1)
     quota = agy_quota(json_values(completed.stdout.decode("utf-8", errors="replace"), "json"), now_iso())
     save_usage(policy_path, quota)
     return quota

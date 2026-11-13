@@ -1,0 +1,23 @@
+{
+  "model": "fixture-gravada",
+  "usage_tokens": 640,
+  "output": {
+    "transactions": [
+      {
+        "kind": "expense",
+        "amount_cents": 3250,
+        "date": "2026-11-12",
+        "description": "Farmacia",
+        "account_hint": "Dinheiro",
+        "to_account_hint": null,
+        "category_hint": "Farmácia",
+        "owner_hint": null,
+        "is_credit_card": false,
+        "confidence": 0.85,
+        "notes": "Mensagem: gastei 32,50 na farmacia no dinheiro."
+      }
+    ],
+    "document_type": "free_text",
+    "warnings": []
+  }
+}

@@ -1,0 +1,87 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import { api } from "../../api/client";
+import { formatDate } from "./dates";
+import { formatCents } from "./money";
+import { emptyForm } from "./proposal";
+import { serverWarnings } from "./useDraftController";
+import { TransactionForm } from "./TransactionForm";
+import { KIND_LABEL, type Account, type Category, type Owner, type Proposal } from "./types";
+
+interface Props {
+  accounts: Account[];
+  categories: Category[];
+  owner: Owner;
+  /** Mensagem de contexto acima do formulário (ex.: a IA falhou). */
+  reason?: string | null;
+  onCreated: (summary: string) => void;
+  onCancel: () => void;
+}
+
+/** Lançamento sem IA: POST /transactions (o `source` é definido pelo servidor). */
+export function ManualEntry({ accounts, categories, owner, reason, onCreated, onCancel }: Props) {
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inflight = useRef(false);
+
+  const submit = async (p: Proposal) => {
+    if (inflight.current) return;
+    inflight.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const { data, response, error: body } = await api.POST("/transactions", {
+        body: {
+          kind: p.kind,
+          amount_cents: p.amount_cents,
+          date: p.date,
+          description: p.description,
+          account_id: p.account_id as number,
+          to_account_id: p.to_account_id ?? null,
+          category_id: p.category_id ?? null,
+          owner: p.owner as Owner,
+        },
+      });
+      if (data) {
+        for (const key of ["transactions", "overview", "accounts"]) {
+          void queryClient.invalidateQueries({ queryKey: [key] });
+        }
+        const summary = `${KIND_LABEL[p.kind]} de ${formatCents(p.amount_cents)} em ${formatDate(p.date)}: ${p.description}`;
+        const warning = serverWarnings(response);
+        onCreated(warning ? `${summary}. ${warning}` : summary);
+      } else if (response.status === 403) {
+        setError("Você não pode lançar nessa conta.");
+      } else {
+        const detail = (body as { detail?: unknown } | undefined)?.detail;
+        setError(
+          response.status === 422 && typeof detail === "string"
+            ? detail
+            : "Não foi possível salvar agora. Tente de novo.",
+        );
+      }
+    } catch {
+      setError("Sem conexão com o servidor. Tente de novo.");
+    } finally {
+      inflight.current = false;
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="card manual" aria-labelledby="manual-title">
+      <h2 id="manual-title">Lançar à mão</h2>
+      {reason ? <p className="muted">{reason}</p> : null}
+      <TransactionForm
+        initial={emptyForm(owner)}
+        accounts={accounts}
+        categories={categories}
+        submitLabel="Salvar lançamento"
+        busy={busy}
+        serverError={error}
+        onSubmit={(p) => void submit(p)}
+        onCancel={onCancel}
+      />
+    </section>
+  );
+}

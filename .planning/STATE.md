@@ -3,8 +3,42 @@
 > Mantido pelo lead. Workers leem; não editam (exceto quando o brief mandar).
 
 ## Fase atual
-Onda 0 commitada (`1abd9ee`). **Onda 1 (U1–U4) integrada e revisada** no checkout principal, sem commit:
-`tasks.ps1 check` verde (165 testes api + 7 web), `size` ~75 kB gzip. Aguarda o ok do Matheus para o commit.
+Onda 0 commitada (`1abd9ee`). Onda 1 (U1–U4) commitada (`32de996`).
+**Onda 2: U5 + U6 integradas e revisadas** (sem commit): `tasks.ps1 check` verde (271 testes api + 39 web), `size` 73,8 kB gzip. Próxima: commit da Onda 2 (com ok do Matheus).
+
+## Onde paramos (13/11/2026) — retomar daqui
+1. **U6 feita** (builder Claude Sonnet high, worktree isolado; integrada só `features/chat/**`), revisada no agy e corrigida pelo lead (ver seção U6 abaixo). Worktree removido.
+2. Orquestração alethe atual: `20261112-203856-onda-2-ia-u5-u6` (se `status` não achar: `orchestrate.py use <pasta>`; `list` mostra).
+3. Falta: **commit da Onda 2 (U5 + U6) com ok do Matheus** (fora `.claude/settings.json`), `report`.
+4. Sem commit no checkout agora: tudo da U5 (`ai/`, `attachments/`, `ingest/`, testes, fixtures),
+   `main.py`, `core/config.py`, `.env.example`, `.planning/U5-ingestao.md`, `.planning/U6-chat.md`,
+   `features/chat/**`, `ChatTab.tsx`, `bills/router.py` + `tests/bills/test_api.py`, este arquivo.
+5. Pendências do Matheus: Galaxy A13 (Tailscale + PWA); confirmar `due_day`/`start_date` da carga
+   inicial; conferir as decisões "permissão de lançamento" e "empréstimo num lugar só"; pôr
+   `OPENAI_API_KEY` no `.env` para o lead escolher o modelo e rodar `./tasks.ps1 ai-live`.
+
+## U6 — Tela de chat (13/11/2026)
+- Builder Claude Sonnet high seguindo `.planning/U6-chat.md` (8 min, US$ 1,29); Docker estava desligado no worker, o lead rodou o `check` completo.
+- Revisão (agy gemini flash, gerador `geradores/gen_onda2_u6_review.py`): spec FAIL (cabeçalhos de aviso não lidos; testes faltando), qualidade FAIL → corrigido pelo lead:
+  - high: "Marcar como paga" aparecia com cartão editado para receita/transferência → só para despesa; **API**: `POST /bill-instances/{id}/pay` com `transaction_id` que não é despesa → 422.
+  - high: 409 num cartão editado mostrava a edição local como "Confirmado" → limpa a edição.
+  - high: 409 no "Confirmar todos" deixava o item ainda pendente sem aviso → aviso "nada foi gravado".
+  - high→low: barra travava em "Enviando…" durante a leitura da IA → `xhr.upload.onload` = 100%.
+  - spec: cabeçalhos `X-Possible-Duplicate-Of` / `X-Plan-Rule-Warning` agora aparecem após confirmar e no lançamento manual.
+  - medium/low: anexo recusado limpa o anterior; lote liga transação também pela descrição; `payBill` invalida `["transactions"]`.
+- Aceitos/adiados: sem botão de cancelar envio (timeout 180 s); caixa de mensagem no meio da tela vazia e `label` de arquivo sem estilo desabilitado → U11 (Playwright, 360–412 px); aparência em celular real não conferida.
+- Decisões do builder (spec: conformes): editados no "Confirmar todos" vão um a um; lote→transação por posição + formato; rascunho sem conta fica fora do lote; 409 relê `GET /ingest/{id}`; 401 via `setMe(null)`. Chaves de cache: `["transactions"]`, `["overview"]`, `["accounts"]`, `["bill-instances"]` — U8 deve usar os mesmos prefixos.
+
+## U5 — Ingestão por IA (12/11/2026)
+- Builder Claude Opus high seguindo `.planning/U5-ingestao.md`; integrada pelo lead.
+- Revisão (agy): spec **PASS**; qualidade FAIL → corrigido pelo lead:
+  - high: imagem de PDF escaneado que não decodifica derrubava o envio (500) → imagem pulada.
+  - high: 429 `insufficient_quota` (saldo pré-pago zerado) era repetido → tratado como limite (não repete, mensagem de limite).
+  - medium: temporário de upload com nome único (envios simultâneos do mesmo arquivo).
+  - low: item extraído com valor/data fora dos limites vira aviso em `IngestResult.warnings` (guardado em `ai_extractions.raw_output_json.server_warnings`).
+- Decisões da U5 (handoff): saída inválida da IA → 503 `ai_unavailable` com `error_code="ai_invalid_output"`; confirm/discard: 404 → 403 (só quem enviou ou admin) → 409; despesa entre duas contas do app vira `transfer`; transferência com só um lado no app vira despesa/receita com aviso; `GET /attachments/{id}` devolve o tipo detectado + `nosniff`; `/drafts/{id}/confirm` devolve os mesmos cabeçalhos de duplicata/regra do plano que `POST /transactions`; imagens com `detail: "high"`; `est_cost_cents` nulo até escolher o modelo.
+- Pendente: **escolher o modelo da OpenAI** (docs e preços atuais) e rodar `./tasks.ps1 ai-live` com a chave no `.env`; HEIC de iPhone real; aviso ao admin quando o limite da IA estoura → U7/U9.
+- Para a U6: confirmar **não** marca conta a pagar como paga; o cartão oferece "marcar como paga" via `POST /bill-instances/{id}/pay` quando `suggested_bill_instance_id` vier preenchido.
 
 ## Revisão da Onda 1 (12/11/2026, agy gemini-3.8-flash-high, só leitura)
 - U1 spec: tudo implementado; NOT_PROVEN só porque o CLI `finance_api.auth.bootstrap` não tem teste. U1 qualidade: PASS (5 achados low, ver abaixo).
@@ -65,4 +99,4 @@ Onda 0 commitada (`1abd9ee`). **Onda 1 (U1–U4) integrada e revisada** no check
 ## Pendências abertas
 - Galaxy A13: app Tailscale + abrir o PWA (iPhone já ok).
 - U7: confirmar que o `sw.js` gerado (clássico) aceita o handler de push.
-- `usage --refresh-agy` falhou (erro de arquivo temporário preso no Windows); sem leitura de cota do agy.
+- ~~`usage --refresh-agy` falhou~~ **resolvido em 13/11/2026**: o agy deixa um processo filho com o cwd na pasta temporária por um instante (WinError 32 ao apagar). `probe_agy_quota` em `.agents/skills/alethe/scripts/orchestrate.py` agora usa `mkdtemp` + limpeza tolerante (5 tentativas). Leitura do agy funcionando.

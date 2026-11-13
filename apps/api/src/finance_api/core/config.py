@@ -15,6 +15,10 @@ class Settings(BaseSettings):
 
     openai_api_key: str = ""
     openai_model: str = ""
+    openai_timeout_seconds: float = 60.0
+
+    upload_dir: str = "/data/uploads"
+    max_upload_bytes: int = 10 * 1024 * 1024
 
     vapid_public_key: str = ""
     vapid_private_key: str = ""

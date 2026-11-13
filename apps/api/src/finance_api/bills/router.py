@@ -255,6 +255,8 @@ def pay_bill_instance(
         tx = db.get(Transaction, tx_id)
         if tx is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Lançamento não encontrado.")
+        if tx.kind != "expense":
+            raise HTTPException(422, "Só uma despesa pode pagar uma conta.")
         already = db.scalar(
             select(BillInstance.id).where(
                 BillInstance.paid_transaction_id == tx.id, BillInstance.id != inst.id
