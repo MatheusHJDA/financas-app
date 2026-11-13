@@ -1,0 +1,178 @@
+/* Aba Plano (U10). Só tokens de styles/tokens.css; sem larguras fixas (360–412 px). */
+
+.plan {
+  min-width: 0;
+}
+
+.plan .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.plan h2 {
+  font-size: var(--text-lg);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.plan dl {
+  margin: 0;
+}
+.plan dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  border-top: 1px solid var(--color-border);
+}
+.plan dt {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+.plan dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Cenário: dois botões de mesmo peso, o escolhido em destaque */
+.plan-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.plan-toggle .btn {
+  padding: 0 var(--space-2);
+}
+.plan-toggle .btn[aria-pressed="true"] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* Resumo */
+.plan-d14 {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-left: 4px solid var(--color-primary);
+}
+
+/* Comparação */
+.plan-compare table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.plan-compare th,
+.plan-compare td {
+  text-align: left;
+  vertical-align: top;
+  padding: var(--space-2) var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  overflow-wrap: anywhere;
+}
+.plan-compare thead th {
+  color: var(--color-muted);
+  font-weight: 600;
+}
+.plan-compare tbody th {
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
+/* Mês a mês */
+.plan-months {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.plan-month {
+  margin: var(--space-2) 0;
+}
+.plan-month h3 {
+  font-size: var(--text-md);
+  margin: 0 0 var(--space-2);
+  text-transform: capitalize;
+}
+
+/* Formulário */
+.plan-assumptions > .btn {
+  width: 100%;
+}
+.plan-form fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin: 0 0 var(--space-3);
+  min-width: 0;
+}
+.plan-form legend {
+  font-weight: 600;
+  padding: 0 var(--space-1);
+}
+.plan-field {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+.plan-field label {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+.plan-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  font: inherit;
+  color: inherit;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-sizing: border-box;
+}
+.plan-field input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+.plan-field-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}
+.plan-card-row {
+  margin-bottom: var(--space-3);
+}
+.plan-card-row .btn {
+  width: 100%;
+}
+.plan-form > .btn,
+.plan-form fieldset > .btn {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+.plan-form-actions {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.plan-primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+  font-weight: 600;
+}
+.plan-reset {
+  margin-top: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+}
+.plan-reset .btn {
+  width: 100%;
+}

@@ -1,5 +1,2 @@
-import { Placeholder } from "../Placeholder";
-
-export default function PlanoTab() {
-  return <Placeholder title="Plano" />;
-}
+// A tela do Plano mora em features/plan (dono: U10).
+export { default } from "../../features/plan/PlanPage";

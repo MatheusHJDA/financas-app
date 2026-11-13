@@ -1572,32 +1572,69 @@ components:
 
     PlanAssumptions:
       type: object
-      required: [monthly_income_cents, monthly_expense_cents, monthly_amortization_cents, reserve_start_cents, reserve_minimum_cents]
+      description: >-
+        Premissas da aba Projeção da planilha v2 (seção 6.7). Valores em centavos; taxa como texto decimal.
+        Os padrões são os da planilha e reproduzem o teste de referência.
+      required: [start_month, months, salary_cents, other_income_cents, uber_monthly_cents, uber_fuel_percent,
+        fixed_bills_cents, daily_expenses_cents, contingency_cents, health_plan_cents, card_installments,
+        loan_principal_cents, loan_monthly_rate, loan_installments, loan_balance_cents, initial_amortization_cents,
+        cash_now_cents, upfront_payments_cents, reserve_minimum_cents]
       properties:
-        monthly_income_cents: {type: integer, format: int64}
-        monthly_expense_cents: {type: integer, format: int64}
-        monthly_amortization_cents: {type: integer, format: int64}
-        reserve_start_cents: {type: integer, format: int64}
-        reserve_minimum_cents: {type: integer, format: int64}
+        start_month: {type: string, format: date, description: "Primeiro mês da projeção (dia 1)."}
+        months: {type: integer, minimum: 1, maximum: 60}
+        salary_cents: {type: integer, format: int64, minimum: 0, description: "Salário líquido (Ruth)."}
+        other_income_cents: {type: integer, format: int64, minimum: 0, description: "Outras receitas fixas (IPTV líquido)."}
+        uber_monthly_cents: {type: integer, format: int64, minimum: 0, description: "Uber/99 bruto esperado no mês."}
+        uber_fuel_percent: {type: integer, minimum: 0, maximum: 100, description: "% do Uber gasto com combustível."}
+        fixed_bills_cents: {type: integer, format: int64, minimum: 0, description: "Total das contas fixas mensais."}
+        daily_expenses_cents: {type: integer, format: int64, minimum: 0, description: "Dia a dia (mercado, combustível pessoal, farmácia)."}
+        contingency_cents: {type: integer, format: int64, minimum: 0, description: "Imprevistos / Pix diversos."}
+        health_plan_cents: {type: integer, format: int64, minimum: 0, description: "Plano de saúde; entra no mês seguinte à quitação."}
+        card_installments:
+          type: array
+          maxItems: 20
+          items: {$ref: "#/components/schemas/PlanCardInstallment"}
+        loan_principal_cents: {type: integer, format: int64, minimum: 0, description: "Valor contratado (base da parcela Price)."}
+        loan_monthly_rate: {type: string, description: "Juros ao mês, decimal (ex.: \"0.0345\")."}
+        loan_installments: {type: integer, minimum: 1, maximum: 360}
+        loan_balance_cents: {type: integer, format: int64, minimum: 0, description: "Saldo devedor antes da amortização inicial."}
+        initial_amortization_cents: {type: integer, format: int64, minimum: 0, description: "Amortização feita já no início (reduz prazo)."}
+        cash_now_cents: {type: integer, format: int64, description: "Saldo em conta hoje."}
+        upfront_payments_cents: {type: integer, format: int64, minimum: 0, description: "Outras saídas imediatas (ex.: fatura já fechada)."}
+        reserve_minimum_cents: {type: integer, format: int64, minimum: 0, description: "Nunca amortizar abaixo disso."}
+    PlanCardInstallment:
+      type: object
+      required: [name, installment_cents, count, first_month]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        installment_cents: {type: integer, format: int64, minimum: 0}
+        count: {type: integer, minimum: 1, maximum: 120, description: "Parcelas restantes."}
+        first_month: {type: integer, minimum: 1, description: "Índice do mês da primeira parcela (1 = start_month)."}
     PlanMonth:
       type: object
-      required: [month, income_cents, expense_cents, amortization_cents, debt_balance_cents, reserve_cents]
+      required: [month, income_cents, expense_cents, loan_payment_cents, interest_cents, amortization_cents, debt_balance_cents, reserve_cents]
       properties:
         month: {type: string, format: date}
-        income_cents: {type: integer, format: int64}
-        expense_cents: {type: integer, format: int64}
-        amortization_cents: {type: integer, format: int64}
-        debt_balance_cents: {type: integer, format: int64}
-        reserve_cents: {type: integer, format: int64}
+        income_cents: {type: integer, format: int64, description: "Total de entradas."}
+        expense_cents: {type: integer, format: int64, description: "Total de saídas, inclusive a parcela do empréstimo."}
+        loan_payment_cents: {type: integer, format: int64}
+        interest_cents: {type: integer, format: int64}
+        amortization_cents: {type: integer, format: int64, description: "Amortização extra do mês (excedente acima da reserva)."}
+        debt_balance_cents: {type: integer, format: int64, description: "Saldo devedor no fim do mês."}
+        reserve_cents: {type: integer, format: int64, description: "Caixa no fim do mês."}
     PlanProjection:
       type: object
-      required: [months, payoff_month, total_interest_cents]
+      required: [scenario, months, payoff_month, total_interest_cents, interest_without_amortization_cents, interest_saved_cents, waiting_cost_per_month_cents]
       properties:
+        scenario: {type: string, enum: [amortize_now, no_amortization]}
         months:
           type: array
           items: {$ref: "#/components/schemas/PlanMonth"}
-        payoff_month: {type: [string, "null"], format: date}
-        total_interest_cents: {type: integer, format: int64}
+        payoff_month: {type: [string, "null"], format: date, description: "Mês em que o saldo devedor zera; null se não zera no período."}
+        total_interest_cents: {type: integer, format: int64, description: "Juros pagos no período projetado."}
+        interest_without_amortization_cents: {type: integer, format: int64, description: "Juros pagando todas as parcelas sem amortizar (parcela × nº de parcelas − valor contratado)."}
+        interest_saved_cents: {type: integer, format: int64}
+        waiting_cost_per_month_cents: {type: integer, format: int64, description: "Juros de cada mês que a amortização inicial espera (valor × taxa)."}
 
     AdminUser:
       type: object

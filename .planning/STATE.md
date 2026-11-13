@@ -5,16 +5,25 @@
 ## Fase atual
 Onda 0 commitada (`1abd9ee`). Onda 1 (U1–U4) commitada (`32de996`).
 Onda 2 (U5–U6) commitada (`af48d2f`).
-**Onda 3: U7 + U8 + U9 integradas e revisadas** (sem commit): `tasks.ps1 check` verde (370 testes api + 105 web), `size` 74,3 kB gzip. Próxima: commit da Onda 3 (com ok do Matheus), depois Onda 4 (U10, `cascade`).
+Onda 3 (U7–U9) commitada (`6189eda`).
+**Onda 4: U10 integrada e revisada** (sem commit): `tasks.ps1 check` verde (409 testes api + 130 web), teste de referência 5/5, `size` 74,0 kB gzip. Próxima: commit da Onda 4 (com ok do Matheus), depois Onda 5 (U11 E2E, U12 revisão de segurança/dinheiro, U13 deploy) e, por último, a carga de dados.
 
 ## Onde paramos (13/11/2026) — retomar daqui
-1. **Onda 3 feita**: base do lead + 3 builders Claude Sonnet high em paralelo (worktrees removidos), revisão no agy, correções do lead (ver seção "Onda 3" abaixo).
-2. Orquestração alethe atual: `20261113-111448-onda-3-telas-e-avisos-u7u9` (se `status` não achar: `orchestrate.py use <pasta>`; `list` mostra). Geradores: `~/.alethe-plans/financas/geradores/gen_onda3.py` e `gen_onda3_review.py`.
-3. Falta: **commit da Onda 3 com ok do Matheus** (fora `.claude/settings.json`), `report`.
+1. **Onda 4 feita** (cascade: Haiku medium passou de primeira; Sonnet/Opus não foram necessários). Revisão agy PASS. Worktree removido.
+2. Orquestração alethe atual: `20261113-124949-onda-4-plano-u10` (se `status` não achar: `orchestrate.py use <pasta>`). Geradores: `geradores/gen_onda4.py` (`<tier> [model] [effort] [arquivo-de-falha]`) e `gen_onda4_review.py`.
+3. Falta: **commit da Onda 4 com ok do Matheus** (fora `.claude/settings.json`).
 4. **Teste manual do push: PASSOU** (13/11/2026, Matheus, nos dois celulares; roteiro em `.planning/teste-push.md`). Usuários criados no banco do Docker com `auth.bootstrap`; seed ainda **não** carregado (banco sem categorias, contas fixas, dívidas e metas). **Decisão do Matheus (13/11): a carga da planilha e das contas/movimentações existentes fica para o final** (antes, confirmar `due_day` das contas fixas — todos em 10, provisório — e `start_date` do empréstimo; não há tela para editar conta fixa).
 5. Pendências do Matheus: Galaxy A13 (Tailscale + PWA); confirmar `due_day`/`start_date` da carga
    inicial; conferir as decisões "permissão de lançamento" e "empréstimo num lugar só"; pôr
    `OPENAI_API_KEY` no `.env` para o lead escolher o modelo e rodar `./tasks.ps1 ai-live`.
+
+## Onda 4 — Plano: projeção e amortização (13/11/2026)
+- **Contrato do plano alterado pelo lead** (antes de qualquer código): `PlanAssumptions` agora traz as premissas da aba Projeção da planilha (salário, IPTV, Uber e % de combustível, contas fixas, dia a dia, imprevistos, plano de saúde, parcelas de cartão `PlanCardInstallment`, empréstimo, saldo em conta, saídas imediatas, amortização inicial, reserva mínima); `PlanMonth` ganhou `loan_payment_cents` e `interest_cents`; `PlanProjection` ganhou `scenario`, `interest_without_amortization_cents`, `interest_saved_cents`, `waiting_cost_per_month_cents` (D14). As 5 premissas agregadas antigas não reproduziam a planilha.
+- **Teste de referência do lead** (`apps/api/tests/plan/test_reference.py`, não editar): com as premissas padrão, quitação em abr/27, juros R$ 1.428,87, saldos e caixa mês a mês iguais à planilha (simulação em centavos bateu ao centavo); cenário sem amortizar.
+- **Builder**: Claude Haiku medium (US$ 0,50, 11 min). Premissas gravadas em `settings` (chave `plan.assumptions`), auditadas; os dois usuários editam. Motor puro em `plan/engine.py` (Decimal, meio-para-cima).
+- **Decisões do builder**: PUT recusa campos extras e amortização inicial maior que o saldo (422); taxa normalizada ao gravar; "juros economizados" vem sempre de amortizar agora; mês inicial e nº de meses editáveis.
+- **Revisão** (agy): PASS; 3 low aceitos sem mudança (taxa = 1 aceita como no brief; `first_month` sem teto é inócuo; nome de teste).
+- **Riscos**: padrões da planilha duplicados em `plan/defaults.py` e `features/plan/planDefaults.ts` (mudar nos dois); layout 360–412 px não conferido em aparelho (U11).
 
 ## Onda 3 — Telas e avisos (13/11/2026)
 - **Base do lead (congelada)**: `core/app_settings.py` (chaves `notify.daily_time` 21:00, `notify.bill_time` 09:00, `notify.bill_days_before` 2; PUT do admin substitui, ausente volta ao padrão); `notifications/lifecycle.py` (startup/shutdown/scheduler_ok) chamado no lifespan de `main.py` (`create_app(start_scheduler=False)` nos testes); `BACKUP_DIR`; rota `/mais/admin` com `AdminRoute`; aba Mais com `NotificationsCard` e link do admin; placeholders das telas.

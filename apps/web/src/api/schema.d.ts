@@ -1317,38 +1317,154 @@ export interface components {
             /** Format: date-time */
             last_ok_at?: string | null;
         };
+        /** @description Premissas da aba Projeção da planilha v2 (seção 6.7). Valores em centavos; taxa como texto decimal. Os padrões são os da planilha e reproduzem o teste de referência. */
         PlanAssumptions: {
-            /** Format: int64 */
-            monthly_income_cents: number;
-            /** Format: int64 */
-            monthly_expense_cents: number;
-            /** Format: int64 */
-            monthly_amortization_cents: number;
-            /** Format: int64 */
-            reserve_start_cents: number;
-            /** Format: int64 */
+            /**
+             * Format: date
+             * @description Primeiro mês da projeção (dia 1).
+             */
+            start_month: string;
+            months: number;
+            /**
+             * Format: int64
+             * @description Salário líquido (Ruth).
+             */
+            salary_cents: number;
+            /**
+             * Format: int64
+             * @description Outras receitas fixas (IPTV líquido).
+             */
+            other_income_cents: number;
+            /**
+             * Format: int64
+             * @description Uber/99 bruto esperado no mês.
+             */
+            uber_monthly_cents: number;
+            /** @description % do Uber gasto com combustível. */
+            uber_fuel_percent: number;
+            /**
+             * Format: int64
+             * @description Total das contas fixas mensais.
+             */
+            fixed_bills_cents: number;
+            /**
+             * Format: int64
+             * @description Dia a dia (mercado, combustível pessoal, farmácia).
+             */
+            daily_expenses_cents: number;
+            /**
+             * Format: int64
+             * @description Imprevistos / Pix diversos.
+             */
+            contingency_cents: number;
+            /**
+             * Format: int64
+             * @description Plano de saúde; entra no mês seguinte à quitação.
+             */
+            health_plan_cents: number;
+            card_installments: components["schemas"]["PlanCardInstallment"][];
+            /**
+             * Format: int64
+             * @description Valor contratado (base da parcela Price).
+             */
+            loan_principal_cents: number;
+            /** @description Juros ao mês, decimal (ex.: "0.0345"). */
+            loan_monthly_rate: string;
+            loan_installments: number;
+            /**
+             * Format: int64
+             * @description Saldo devedor antes da amortização inicial.
+             */
+            loan_balance_cents: number;
+            /**
+             * Format: int64
+             * @description Amortização feita já no início (reduz prazo).
+             */
+            initial_amortization_cents: number;
+            /**
+             * Format: int64
+             * @description Saldo em conta hoje.
+             */
+            cash_now_cents: number;
+            /**
+             * Format: int64
+             * @description Outras saídas imediatas (ex.: fatura já fechada).
+             */
+            upfront_payments_cents: number;
+            /**
+             * Format: int64
+             * @description Nunca amortizar abaixo disso.
+             */
             reserve_minimum_cents: number;
+        };
+        PlanCardInstallment: {
+            name: string;
+            /** Format: int64 */
+            installment_cents: number;
+            /** @description Parcelas restantes. */
+            count: number;
+            /** @description Índice do mês da primeira parcela (1 = start_month). */
+            first_month: number;
         };
         PlanMonth: {
             /** Format: date */
             month: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total de entradas.
+             */
             income_cents: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Total de saídas, inclusive a parcela do empréstimo.
+             */
             expense_cents: number;
             /** Format: int64 */
+            loan_payment_cents: number;
+            /** Format: int64 */
+            interest_cents: number;
+            /**
+             * Format: int64
+             * @description Amortização extra do mês (excedente acima da reserva).
+             */
             amortization_cents: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Saldo devedor no fim do mês.
+             */
             debt_balance_cents: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Caixa no fim do mês.
+             */
             reserve_cents: number;
         };
         PlanProjection: {
+            /** @enum {string} */
+            scenario: "amortize_now" | "no_amortization";
             months: components["schemas"]["PlanMonth"][];
-            /** Format: date */
+            /**
+             * Format: date
+             * @description Mês em que o saldo devedor zera; null se não zera no período.
+             */
             payoff_month: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Juros pagos no período projetado.
+             */
             total_interest_cents: number;
+            /**
+             * Format: int64
+             * @description Juros pagando todas as parcelas sem amortizar (parcela × nº de parcelas − valor contratado).
+             */
+            interest_without_amortization_cents: number;
+            /** Format: int64 */
+            interest_saved_cents: number;
+            /**
+             * Format: int64
+             * @description Juros de cada mês que a amortização inicial espera (valor × taxa).
+             */
+            waiting_cost_per_month_cents: number;
         };
         AdminUser: {
             /** Format: int64 */

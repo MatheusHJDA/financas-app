@@ -17,6 +17,7 @@ from finance_api.ingest.router import router as ingest_router
 from finance_api.notifications import lifecycle as notifications_lifecycle
 from finance_api.notifications.router import router as notifications_router
 from finance_api.overview.router import router as overview_router
+from finance_api.plan.router import router as plan_router
 from finance_api.transactions.router import router as transactions_router
 
 # Ligação dos módulos é do lead. Cada unidade só edita o `router.py` do próprio módulo
@@ -34,6 +35,7 @@ MODULE_ROUTERS = (
     ingest_router,  # U5 (/ingest, /drafts, /attachments)
     notifications_router,  # U7 (/push, /admin/notifications/test, /admin/push-subscriptions)
     admin_router,  # U9 (/admin/*)
+    plan_router,  # U10 (/plan/*)
 )
 
 
