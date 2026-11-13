@@ -3,6 +3,7 @@ import { api } from "../../api/client";
 import { ErrorState, LoadingState } from "../../ui/States";
 import { AccountsSection } from "../accounts/AccountsSection";
 import { BillsSection } from "../bills/BillsSection";
+import { FixedBillsSection } from "../bills/FixedBillsSection";
 import { BalancesSection } from "./BalancesSection";
 import { TransactionsSection } from "./TransactionsSection";
 import "../accounts/ui.css";
@@ -30,6 +31,7 @@ export default function OverviewPage() {
           <BillsSection upcoming={overview.data.upcoming_bills} overdue={overview.data.overdue_bills} />
         </>
       ) : null}
+      <FixedBillsSection />
       <TransactionsSection />
       <AccountsSection />
     </section>

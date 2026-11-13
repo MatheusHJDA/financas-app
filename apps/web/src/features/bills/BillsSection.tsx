@@ -84,6 +84,9 @@ export function BillsSection({ upcoming, overdue }: Props) {
           <ul className="u8-list">{upcoming.map((b) => renderBill(b, false))}</ul>
         </div>
       ) : null}
+      <p className="u8-small" style={{ marginTop: "var(--space-3)" }}>
+        <a href="#contas-fixas">Ajustar as contas fixas (vencimento, valor e conta bancária)</a>
+      </p>
     </section>
   );
 }
