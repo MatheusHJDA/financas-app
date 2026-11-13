@@ -94,7 +94,7 @@ def users(db: Session) -> dict[str, CurrentUser]:
 
 @pytest.fixture
 def app(db: Session) -> FastAPI:
-    application = create_app(web_dist=API_DIR / "__sem_pwa__")
+    application = create_app(web_dist=API_DIR / "__sem_pwa__", start_scheduler=False)
 
     def _db() -> Iterator[Session]:
         yield db

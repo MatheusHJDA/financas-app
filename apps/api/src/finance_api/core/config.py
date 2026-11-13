@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     upload_dir: str = "/data/uploads"
     max_upload_bytes: int = 10 * 1024 * 1024
+    backup_dir: str = "/data/backups"
 
     vapid_public_key: str = ""
     vapid_private_key: str = ""

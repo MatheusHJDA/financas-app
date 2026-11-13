@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider";
 import { detectPlatform } from "../../auth/deviceLabel";
+import { NotificationsCard } from "../../features/notifications/NotificationsCard";
 
 export default function MaisTab() {
   const { me, logout } = useAuth();
@@ -11,6 +13,14 @@ export default function MaisTab() {
     <section className="screen">
       <h1>Mais</h1>
       {me ? <p className="muted">Conectado como {me.name}</p> : null}
+
+      <NotificationsCard />
+
+      {me?.role === "admin" ? (
+        <Link to="/mais/admin" className="btn">
+          Painel admin
+        </Link>
+      ) : null}
 
       <section aria-labelledby="install-title" className="card">
         <h2 id="install-title">Como instalar no celular</h2>

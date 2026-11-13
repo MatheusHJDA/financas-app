@@ -4,18 +4,35 @@
 
 ## Fase atual
 Onda 0 commitada (`1abd9ee`). Onda 1 (U1–U4) commitada (`32de996`).
-**Onda 2: U5 + U6 integradas e revisadas** (sem commit): `tasks.ps1 check` verde (271 testes api + 39 web), `size` 73,8 kB gzip. Próxima: commit da Onda 2 (com ok do Matheus).
+Onda 2 (U5–U6) commitada (`af48d2f`).
+**Onda 3: U7 + U8 + U9 integradas e revisadas** (sem commit): `tasks.ps1 check` verde (370 testes api + 105 web), `size` 74,3 kB gzip. Próxima: commit da Onda 3 (com ok do Matheus), depois Onda 4 (U10, `cascade`).
 
 ## Onde paramos (13/11/2026) — retomar daqui
-1. **U6 feita** (builder Claude Sonnet high, worktree isolado; integrada só `features/chat/**`), revisada no agy e corrigida pelo lead (ver seção U6 abaixo). Worktree removido.
-2. Orquestração alethe atual: `20261112-203856-onda-2-ia-u5-u6` (se `status` não achar: `orchestrate.py use <pasta>`; `list` mostra).
-3. Falta: **commit da Onda 2 (U5 + U6) com ok do Matheus** (fora `.claude/settings.json`), `report`.
-4. Sem commit no checkout agora: tudo da U5 (`ai/`, `attachments/`, `ingest/`, testes, fixtures),
-   `main.py`, `core/config.py`, `.env.example`, `.planning/U5-ingestao.md`, `.planning/U6-chat.md`,
-   `features/chat/**`, `ChatTab.tsx`, `bills/router.py` + `tests/bills/test_api.py`, este arquivo.
+1. **Onda 3 feita**: base do lead + 3 builders Claude Sonnet high em paralelo (worktrees removidos), revisão no agy, correções do lead (ver seção "Onda 3" abaixo).
+2. Orquestração alethe atual: `20261113-111448-onda-3-telas-e-avisos-u7u9` (se `status` não achar: `orchestrate.py use <pasta>`; `list` mostra). Geradores: `~/.alethe-plans/financas/geradores/gen_onda3.py` e `gen_onda3_review.py`.
+3. Falta: **commit da Onda 3 com ok do Matheus** (fora `.claude/settings.json`), `report`.
+4. **Teste manual do push: PASSOU** (13/11/2026, Matheus, nos dois celulares; roteiro em `.planning/teste-push.md`). Usuários criados no banco do Docker com `auth.bootstrap`; seed ainda **não** carregado (banco sem categorias, contas fixas, dívidas e metas). **Decisão do Matheus (13/11): a carga da planilha e das contas/movimentações existentes fica para o final** (antes, confirmar `due_day` das contas fixas — todos em 10, provisório — e `start_date` do empréstimo; não há tela para editar conta fixa).
 5. Pendências do Matheus: Galaxy A13 (Tailscale + PWA); confirmar `due_day`/`start_date` da carga
    inicial; conferir as decisões "permissão de lançamento" e "empréstimo num lugar só"; pôr
    `OPENAI_API_KEY` no `.env` para o lead escolher o modelo e rodar `./tasks.ps1 ai-live`.
+
+## Onda 3 — Telas e avisos (13/11/2026)
+- **Base do lead (congelada)**: `core/app_settings.py` (chaves `notify.daily_time` 21:00, `notify.bill_time` 09:00, `notify.bill_days_before` 2; PUT do admin substitui, ausente volta ao padrão); `notifications/lifecycle.py` (startup/shutdown/scheduler_ok) chamado no lifespan de `main.py` (`create_app(start_scheduler=False)` nos testes); `BACKUP_DIR`; rota `/mais/admin` com `AdminRoute`; aba Mais com `NotificationsCard` e link do admin; placeholders das telas.
+- **Builders** (Sonnet high, ~10–15 min cada, US$ 5,0 no total): U7 notificações, U8 Geral/Metas/contas, U9 admin.
+- **Revisão** (agy gemini flash, 1 reviewer por unidade): U8 PASS; U7 e U9 FAIL → corrigido pelo lead:
+  - U7 high: `notificationclick` podia abrir URL de outra origem → só a própria origem.
+  - U7 high: desistência após 3 falhas contava linhas por aparelho → conta tentativas (ticks).
+  - U7 medium: permissão liberada nas configurações do aparelho não era relida → relê ao voltar ao app.
+  - U9 high: backup mais recente pegava qualquer arquivo (inclusive link simbólico) → só `financas-AAAAMMDD-HHMMSS.dump` regular, sem seguir link; `stat` uma vez só (sem 500 em corrida).
+  - U9 medium: PIN novo digitado duas vezes na tela.
+  - Recusado: "PUT parcial apaga configurações" (é a semântica de substituição do contrato; o front manda as 3 chaves).
+  - Adiados (low): troca de chaves VAPID exige desativar/reativar no aparelho; contadores de falha/429 da IA valem só para a página exibida; PIN trivial (000000) aceito.
+- **Decisões dos builders**: U7 rejeita endpoint de push que não seja `https://` (422, fora do contrato); `/admin/notifications/test` com usuário inexistente → `{sent: 0}`; um push por conta a pagar e por usuário. U8 edita lançamento com PATCH; aportes manuais só em meta de acumular sem conta vinculada; conta `loan` com saldo positivo é recusada no formulário; "Minhas contas" lista só as que o usuário pode alterar (sem excluir, só inativar). U9: reset do próprio PIN mantém a sessão atual; revogar as próprias sessões derruba também a atual (a tela avisa).
+- **Ponto aberto (U2)**: a busca por texto em `/transactions` é por prefixo da descrição, não por trecho → avaliar na U12/ajuste.
+- **Teste manual do push (Matheus)**: roteiro completo em `.planning/teste-push.md` (inclui pré-requisitos: chaves VAPID, PINs iniciais, `bootstrap` dos usuários e seed opcional).
+
+## Onda 3 — Testes:
+Notificações chegaram, porém a seção de contas está vazia.
 
 ## U6 — Tela de chat (13/11/2026)
 - Builder Claude Sonnet high seguindo `.planning/U6-chat.md` (8 min, US$ 1,29); Docker estava desligado no worker, o lead rodou o `check` completo.
