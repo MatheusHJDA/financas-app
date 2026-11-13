@@ -142,7 +142,16 @@ switch ($Task) {
         Invoke-Step "restore: subir a api" $Root { docker compose -f infra/docker-compose.yml --env-file .env up -d api }
         Write-Host "restore: concluido a partir de $arquivo" -ForegroundColor Green
     }
-    "ai-live" { Invoke-Step "api: pytest -m live" $Api { uv run pytest -m live } }
+    "ai-live" {
+        # A api le o .env da pasta atual (apps/api); aqui carregamos o .env da raiz no processo.
+        $envFile = Join-Path $Root ".env"
+        if (Test-Path $envFile) {
+            foreach ($line in Get-Content $envFile) {
+                if ($line -match "^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$") { Set-Item -Path "env:$($Matches[1])" -Value $Matches[2].Trim() }
+            }
+        }
+        Invoke-Step "api: pytest -m live" $Api { uv run pytest -m live -rs }
+    }
     "size" { Invoke-Size }
     "testdb" { Invoke-TestDb }
     "setup" {
