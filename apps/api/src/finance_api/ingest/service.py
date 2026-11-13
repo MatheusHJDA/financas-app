@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from finance_api.ai.client import AiCall, AiClient, AiFailure
 from finance_api.ai.context import build_context, today_sp
+from finance_api.ai.pricing import estimate_cost_cents
 from finance_api.ai.schemas import PROMPT_VERSION, ExtractionResult
 from finance_api.attachments.prepare import PreparedInput
 from finance_api.attachments.storage import FileKind, save_attachment
@@ -108,6 +109,13 @@ def ingest(
         prompt_version=PROMPT_VERSION,
         raw_output_json=call.raw if call else None,
         usage_tokens=call.usage_tokens if call else None,
+        est_cost_cents=(
+            estimate_cost_cents(
+                call.model, call.input_tokens, call.output_tokens, call.cached_input_tokens
+            )
+            if call
+            else None
+        ),
         status="ok" if call else "error",
         error_code=failure.code if failure else None,
     )

@@ -1,9 +1,8 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "../../ui/States";
-import { formatCents } from "../chat/money";
 import { aiKey, fetchAiCalls, fetchUsers, USERS_KEY, type AiCall } from "./adminApi";
-import { formatDateTime, formatInt } from "./format";
+import { formatDateTime, formatInt, formatUsdCents } from "./format";
 import { Pager } from "./Pager";
 
 // Códigos gravados por ai/client.py: "ai_limit_reached" = limite/429 da OpenAI.
@@ -58,7 +57,7 @@ export function AiSection() {
                 <th scope="col">Usuário</th>
                 <th scope="col">Modelo</th>
                 <th scope="col">Tokens</th>
-                <th scope="col">Custo estimado</th>
+                <th scope="col">Custo estimado (US$)</th>
                 <th scope="col">Status</th>
               </tr>
             </thead>
@@ -69,7 +68,7 @@ export function AiSection() {
                   <td>{nameOf.get(call.user_id) ?? `Usuário ${call.user_id}`}</td>
                   <td>{call.model}</td>
                   <td>{formatInt(call.usage_tokens)}</td>
-                  <td>{call.est_cost_cents === null || call.est_cost_cents === undefined ? "—" : formatCents(call.est_cost_cents)}</td>
+                  <td>{formatUsdCents(call.est_cost_cents)}</td>
                   <td className={isFailure(call) ? "admin-notice--error" : undefined}>
                     {isFailure(call) ? `Falha${call.error_code ? ` (${call.error_code})` : ""}` : "Ok"}
                   </td>

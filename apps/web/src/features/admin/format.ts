@@ -21,6 +21,13 @@ export function formatInt(value: number | null | undefined): string {
   return value === null || value === undefined ? "—" : integer.format(value);
 }
 
+/** Centavos de dólar -> "US$ 0,01" (a OpenAI cobra em dólar; sem conversão para reais). */
+export function formatUsdCents(cents: number | null | undefined): string {
+  if (cents === null || cents === undefined) return "—";
+  const abs = Math.abs(Math.trunc(cents));
+  return `${cents < 0 ? "-" : ""}US$ ${integer.format(Math.trunc(abs / 100))},${String(abs % 100).padStart(2, "0")}`;
+}
+
 /** Bytes -> "512 B", "12 KB", "3,4 MB" (uma casa a partir de MB). */
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

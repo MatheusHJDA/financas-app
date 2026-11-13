@@ -195,7 +195,7 @@ it("IA: tabela com modelo, tokens, custo e contagem de falhas e limites 429", as
   expect(rows).toHaveLength(4);
   expect(within(rows[1]).getByText("modelo-x")).toBeTruthy();
   expect(within(rows[1]).getByText("1.200")).toBeTruthy();
-  expect(within(rows[1]).getByText("R$ 1,50")).toBeTruthy();
+  expect(within(rows[1]).getByText("US$ 1,50")).toBeTruthy();
   expect(within(rows[1]).getByText("Ok")).toBeTruthy();
   expect(within(rows[2]).getByText("Falha (ai_limit_reached)")).toBeTruthy();
   expect(within(rows[2]).getAllByText("—")).toHaveLength(2);

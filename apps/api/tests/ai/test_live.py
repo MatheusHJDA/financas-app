@@ -92,3 +92,8 @@ def test_live_free_text() -> None:
     assert tx.kind == "expense"
     assert tx.amount_cents == 3250
     assert tx.date == dt.date(2026, 11, 12)
+    # A API devolve o uso separado (entrada/saída), base do custo estimado no painel admin.
+    from finance_api.ai.pricing import estimate_cost_cents
+
+    assert call.input_tokens and call.output_tokens
+    assert estimate_cost_cents(call.model, call.input_tokens, call.output_tokens) is not None

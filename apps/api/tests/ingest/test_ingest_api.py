@@ -293,3 +293,29 @@ def test_item_out_of_range_is_dropped_with_warning(db, users, world, use_ai, cli
     assert any("Item estranho" in w and "ignorado" in w for w in body["warnings"])
     again = client_as(users["ruth"]).get(f"/api/ingest/{body['extraction_id']}").json()
     assert again["warnings"] == body["warnings"]
+
+
+def test_extracao_grava_custo_estimado_em_centavos_de_dolar(
+    db: Session, users, world, app, client_as
+) -> None:
+    from finance_api.ai.client import AiCall, get_ai_client
+
+    data = load_fixture(FIXTURE_NAMES[0])
+
+    class _Terra:
+        def extract(self, *, context, text, images):
+            return AiCall(
+                result=ExtractionResult.model_validate(data["output"]),
+                raw=data,
+                model="gpt-6.1-terra-2026-10-01",
+                usage_tokens=1_500_000,
+                input_tokens=1_000_000,
+                output_tokens=500_000,
+                cached_input_tokens=0,
+            )
+
+    app.dependency_overrides[get_ai_client] = lambda: _Terra()
+    body = client_as(users["ruth"]).post("/api/ingest", data={"text": "x"}).json()
+    extraction = db.get(AiExtraction, body["extraction_id"])
+    # US$ 1,00 de entrada + US$ 2,50 de saída
+    assert extraction.est_cost_cents == 350

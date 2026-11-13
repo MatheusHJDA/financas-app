@@ -76,6 +76,9 @@ class AiCall:
     raw: dict[str, Any]
     model: str
     usage_tokens: int | None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cached_input_tokens: int | None = None
 
 
 class AiClient(Protocol):
@@ -182,6 +185,11 @@ class OpenAIClient:
                     },
                     model=str(getattr(response, "model", None) or model),
                     usage_tokens=getattr(usage, "total_tokens", None),
+                    input_tokens=getattr(usage, "input_tokens", None),
+                    output_tokens=getattr(usage, "output_tokens", None),
+                    cached_input_tokens=getattr(
+                        getattr(usage, "input_tokens_details", None), "cached_tokens", None
+                    ),
                 )
 
             if transient_retries >= len(self._retry_delays):
