@@ -12,7 +12,8 @@ Onda 4 (U10) commitada (`0a4fed5`).
 ## Onde paramos (13/11/2026) — retomar daqui
 1. **Onda 5 feita**: U11 (E2E) e U13 (deploy) por Sonnet high; U12 por Claude Opus (segurança) e agy (dinheiro), ambos FAIL → corrigido pelo lead (ver seção "Onda 5"). Worktrees removidos.
 2. Orquestração alethe atual: `20261113-140835-onda-5-fechamento-u11u13`. Gerador: `geradores/gen_onda5.py`.
-3. Falta: **commit da Onda 5 com ok do Matheus** (fora `.claude/settings.json`); depois a **carga de dados** (seed da planilha + contas e movimentações existentes; confirmar antes `due_day` das contas fixas e `start_date` do empréstimo).
+3. Onda 5 commitada (`7324b7e`). **Seed da planilha carregado no banco real (13/11/2026)**, com backup antes (`financas-20261113-150004.dump`): 18 categorias, 14 contas fixas (todas com vencimento dia 10, decisão do Matheus: ele ajusta depois), 3 dívidas, 4 metas. Empréstimo com `start_date` provisório 01/11/2026. O agendador gerou sozinho as contas de dezembro.
+   Pendente: **não há tela para editar conta fixa** (vencimento, valor, conta bancária) — só a API; as contas de novembro (vencidas em 10/11) aparecem como "vencidas". Contas bancárias e movimentações: cada um cadastra no app (D5).
 4. **Teste manual do push: PASSOU** (13/11/2026, Matheus, nos dois celulares; roteiro em `.planning/teste-push.md`). Usuários criados no banco do Docker com `auth.bootstrap`; seed ainda **não** carregado (banco sem categorias, contas fixas, dívidas e metas). **Decisão do Matheus (13/11): a carga da planilha e das contas/movimentações existentes fica para o final** (antes, confirmar `due_day` das contas fixas — todos em 10, provisório — e `start_date` do empréstimo; não há tela para editar conta fixa).
 5. Pendências do Matheus: Galaxy A13 (Tailscale + PWA); confirmar `due_day`/`start_date` da carga
    inicial; conferir as decisões "permissão de lançamento" e "empréstimo num lugar só"; pôr

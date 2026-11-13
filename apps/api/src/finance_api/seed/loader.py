@@ -15,8 +15,17 @@ from finance_api.core.audit import record_audit
 from finance_api.core.permissions import Owner
 from finance_api.db.models import Category, Debt, Goal, RecurringBill
 
-# apps/api/src/finance_api/seed/loader.py -> raiz do repositório
-DEFAULT_SEED_PATH = Path(__file__).resolve().parents[5] / "infra" / "seed" / "seed.yaml"
+
+def _default_seed_path() -> Path:
+    """No repositório: <raiz>/infra/seed/seed.yaml. Na imagem Docker (/app/src/...), a pasta é
+    rasa demais para isso; lá o arquivo vem de SEED_FILE (/app/seed/seed.yaml)."""
+    parents = Path(__file__).resolve().parents
+    if len(parents) > 5:
+        return parents[5] / "infra" / "seed" / "seed.yaml"
+    return Path("/app/seed/seed.yaml")
+
+
+DEFAULT_SEED_PATH = _default_seed_path()
 
 
 class _Level(BaseModel):
