@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from finance_api.core.audit import record_audit
 from finance_api.core.permissions import CurrentUser, Owner, ensure_can_write
-from finance_api.db.models import Account, Category, Transaction
+from finance_api.db.models import Account, BillInstance, Category, Transaction
 from finance_api.transactions.dedupe import compute_dedupe_hash, find_possible_duplicates
 
 # ASCII de propósito: vai num cabeçalho HTTP, que não é seguro para acentos.
@@ -179,6 +179,33 @@ def create_transaction(
     return TxResult(tx, duplicates, plan_rule_warning(data, account, category))
 
 
+def release_bill_instance(db: Session, user: CurrentUser, tx: Transaction) -> None:
+    """Desfaz o "pago" da conta a pagar que este lançamento quitava (reabre e audita).
+
+    Chamado ao excluir o lançamento ou quando ele deixa de ser despesa; sem isso a conta
+    ficaria "paga" para sempre sem dinheiro ter saído (e o pay devolveria 409).
+    """
+    if tx.bill_instance_id is None:
+        return
+    inst = db.get(BillInstance, tx.bill_instance_id)
+    tx.bill_instance_id = None
+    if inst is None or inst.paid_transaction_id != tx.id:
+        return
+    before = {"status": inst.status, "paid_transaction_id": inst.paid_transaction_id}
+    inst.status = "open"
+    inst.paid_transaction_id = None
+    db.flush()
+    record_audit(
+        db,
+        user_id=user.id,
+        entity="bill_instances",
+        entity_id=inst.id,
+        action="update",
+        before=before,
+        after={"status": "open", "paid_transaction_id": None},
+    )
+
+
 def update_transaction(
     db: Session, user: CurrentUser, tx: Transaction, changes: dict[str, Any]
 ) -> TxResult:
@@ -197,6 +224,8 @@ def update_transaction(
     ensure_can_move(user, account)
 
     before = snapshot(tx)
+    if data.kind != "expense":
+        release_bill_instance(db, user, tx)  # receita/transferência não paga conta
     _apply(tx, data)
     db.flush()
     record_audit(

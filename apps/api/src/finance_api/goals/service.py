@@ -39,14 +39,20 @@ def _category_ids(db: Session, category_id: int) -> list[int]:
     return [category_id, *children]
 
 
-def _sum_by_kind(db: Session, kind: str, category_id: int, start: date, end: date) -> int:
+def _sum_by_kind(
+    db: Session, kind: str, category_id: int, start: date, end: date, owner: str = "AMBOS"
+) -> int:
+    """Soma do período na categoria. Meta individual conta só o dono e o que é dos dois."""
+    conditions = [
+        Transaction.kind == kind,
+        Transaction.category_id.in_(_category_ids(db, category_id)),
+        Transaction.date >= start,
+        Transaction.date <= end,
+    ]
+    if owner != "AMBOS":
+        conditions.append(Transaction.owner.in_([owner, "AMBOS"]))
     total = db.scalar(
-        select(func.coalesce(func.sum(Transaction.amount_cents), 0)).where(
-            Transaction.kind == kind,
-            Transaction.category_id.in_(_category_ids(db, category_id)),
-            Transaction.date >= start,
-            Transaction.date <= end,
-        )
+        select(func.coalesce(func.sum(Transaction.amount_cents), 0)).where(*conditions)
     )
     return int(total or 0)
 
@@ -122,10 +128,10 @@ def compute_progress(db: Session, goal: Goal, today: date) -> dict[str, Any]:
             target = principal
     elif goal.type == "income_period" and goal.linked_category_id:
         start, end = period_range(goal.period, today)
-        current = _sum_by_kind(db, "income", goal.linked_category_id, start, end)
+        current = _sum_by_kind(db, "income", goal.linked_category_id, start, end, goal.owner)
     elif goal.type == "category_cap" and goal.linked_category_id:
         start, end = period_range("monthly", today)
-        current = _sum_by_kind(db, "expense", goal.linked_category_id, start, end)
+        current = _sum_by_kind(db, "expense", goal.linked_category_id, start, end, goal.owner)
     return {
         "current_cents": current,
         "target_cents": target,

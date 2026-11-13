@@ -90,7 +90,58 @@ switch ($Task) {
         Invoke-Step "web: build" $Web { npm run build }
         Write-Host "check: tudo verde." -ForegroundColor Green
     }
-    "e2e" { Write-Host "definido em U11" }
+    "e2e" {
+        Invoke-TestDb
+        Invoke-Step "web: build" $Web { npm run build }
+        Invoke-Step "e2e: playwright install chromium" $Api { uv run playwright install chromium }
+        Invoke-Step "e2e: pytest -m e2e" $Api { uv run pytest tests/e2e -m e2e }
+        Write-Host "e2e: tudo verde." -ForegroundColor Green
+    }
+    "backup" {
+        # Backup agora: pg_dump no volume `backups` (nome financas-AAAAMMDD-HHMMSS.dump, o mesmo do backup das 03:00)
+        # e copia para uma pasta do host. Uso: ./tasks.ps1 backup [pasta]   (padrao: ./backups, fora do git)
+        $destino = if ($Arg) { $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Arg) } else { Join-Path $Root "backups" }
+        New-Item -ItemType Directory -Force -Path $destino | Out-Null
+        Invoke-Step "backup: pg_dump no volume e copia para o host" $Root {
+            docker compose -f infra/docker-compose.yml --env-file .env run --rm -T -e COPY_TO=/host-backups -v "${destino}:/host-backups" backup sh /scripts/db-backup.sh once
+        }
+        Write-Host "backup: copia no host em $destino" -ForegroundColor Green
+    }
+    "restore" {
+        # Restaura um dump do host no banco REAL. Uso: ./tasks.ps1 restore <arquivo.dump> -Confirmar [-SemSeguranca]
+        # Sem -Confirmar so explica o que faria. (-Confirmar e -SemSeguranca chegam em $args.)
+        $confirmar = $args -contains "-Confirmar"
+        $semSeguranca = $args -contains "-SemSeguranca"
+        $desconhecidos = @($args | Where-Object { $_ -notin @("-Confirmar", "-SemSeguranca") })
+        if (-not $Arg -or $desconhecidos.Count -gt 0) {
+            Write-Host "Uso: ./tasks.ps1 restore <arquivo.dump> [-Confirmar] [-SemSeguranca]" -ForegroundColor Red
+            exit 2
+        }
+        $arquivo = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Arg)
+        if (-not (Test-Path -LiteralPath $arquivo -PathType Leaf)) {
+            Write-Host "FALHOU: arquivo nao encontrado: $arquivo" -ForegroundColor Red
+            exit 1
+        }
+        if (-not $confirmar) {
+            Write-Host "Isto SUBSTITUI todos os dados do banco atual pelo conteudo de:" -ForegroundColor Yellow
+            Write-Host "  $arquivo"
+            Write-Host "Passos: backup de seguranca do banco atual (no volume), parar a api, pg_restore --clean --if-exists --no-owner, subir a api."
+            Write-Host "Para executar de verdade, rode de novo com -Confirmar."
+            exit 0
+        }
+        if (-not $semSeguranca) {
+            Invoke-Step "restore: backup de seguranca do banco atual" $Root {
+                docker compose -f infra/docker-compose.yml --env-file .env run --rm -T backup sh /scripts/db-backup.sh once
+            }
+        }
+        Invoke-Step "restore: parar a api" $Root { docker compose -f infra/docker-compose.yml --env-file .env stop api }
+        Write-Host "Se o proximo passo falhar, o banco fica como estava (transacao unica), mas a api continua parada: suba com ./tasks.ps1 up" -ForegroundColor Yellow
+        Invoke-Step "restore: pg_restore" $Root {
+            docker compose -f infra/docker-compose.yml --env-file .env run --rm -T -v "${arquivo}:/restore/arquivo.dump:ro" backup sh /scripts/db-restore.sh /restore/arquivo.dump
+        }
+        Invoke-Step "restore: subir a api" $Root { docker compose -f infra/docker-compose.yml --env-file .env up -d api }
+        Write-Host "restore: concluido a partir de $arquivo" -ForegroundColor Green
+    }
     "ai-live" { Invoke-Step "api: pytest -m live" $Api { uv run pytest -m live } }
     "size" { Invoke-Size }
     "testdb" { Invoke-TestDb }
@@ -106,7 +157,7 @@ switch ($Task) {
     "down" { Invoke-Step "docker compose down" $Root { docker compose -f infra/docker-compose.yml --env-file .env down } }
     "vapid" { Invoke-Step "gen-vapid" $Api { uv run python ../../infra/scripts/gen-vapid.py } }
     default {
-        Write-Host "Tarefa desconhecida: $Task. Use: check, e2e, ai-live, size, up, down, vapid, testdb, setup, web <script>." -ForegroundColor Red
+        Write-Host "Tarefa desconhecida: $Task. Use: check, e2e, ai-live, size, up, down, vapid, backup, restore, testdb, setup, web <script>." -ForegroundColor Red
         exit 2
     }
 }

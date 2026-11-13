@@ -22,6 +22,7 @@ from sqlalchemy import func, select
 
 from finance_api.accounts.schemas import AccountOut
 from finance_api.accounts.service import compute_balances, to_out
+from finance_api.bills.service import ensure_upcoming_bill_instances
 from finance_api.core.deps import DbSession, get_current_user
 from finance_api.core.permissions import CurrentUser, Owner
 from finance_api.db.models import Account, BillInstance, Debt, RecurringBill
@@ -114,6 +115,8 @@ def _open_bills(db: DbSession, *conditions) -> list[BillInstanceOut]:
 @router.get("/overview", response_model=Overview)
 def get_overview(db: DbSession, _user: User) -> Overview:
     today = today_sao_paulo()
+    if ensure_upcoming_bill_instances(db, today):  # virada do mês: contas do mês já aparecem
+        db.commit()
     accounts = list(
         db.scalars(
             select(Account).where(Account.active.is_(True)).order_by(Account.name, Account.id)

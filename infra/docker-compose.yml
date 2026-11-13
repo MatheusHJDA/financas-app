@@ -35,6 +35,30 @@ services:
       - uploads:/data/uploads
       - backups:/data/backups
 
+  # Backup diário do banco: às 03:00 (São Paulo) grava /data/backups/financas-AAAAMMDD-HHMMSS.dump,
+  # o mesmo volume que a api lê (painel admin → Sistema). Mantém 14 dias. Se o PC estava desligado às 03:00,
+  # faz o backup assim que o serviço volta. Sob demanda: ./tasks.ps1 backup (veja infra/scripts/db-backup.sh).
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    init: true
+    command: ["sh", "/scripts/db-backup.sh", "loop"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-financas}
+      POSTGRES_DB: ${POSTGRES_DB:-financas}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      PGHOST: db
+      BACKUP_DIR: /data/backups
+      RETENTION_DAYS: "14"
+      BACKUP_HOUR: "3"
+      TZ: America/Sao_Paulo
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - backups:/data/backups
+      - ./scripts:/scripts:ro
+
 volumes:
   pgdata:
   uploads:

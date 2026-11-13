@@ -1,7 +1,7 @@
 """Regras de contas a pagar: geração das instâncias mensais e datas (America/Sao_Paulo)."""
 
 import calendar
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import or_, select
@@ -60,3 +60,15 @@ def ensure_bill_instances(db: Session, month: date) -> int:
             created += 1
     db.flush()
     return created
+
+
+def ensure_upcoming_bill_instances(db: Session, today: date | None = None) -> int:
+    """Garante as instâncias do mês corrente e do seguinte (janela de 15 dias e avisos).
+
+    Chamado pelo agendador a cada tick e pelas leituras de contas a pagar, para que a virada
+    do mês nunca deixe contas fixas sem instância. Idempotente; faz flush, não commit.
+    """
+    today = today or today_sp()
+    current = first_of_month(today)
+    following = (current.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return ensure_bill_instances(db, current) + ensure_bill_instances(db, following)

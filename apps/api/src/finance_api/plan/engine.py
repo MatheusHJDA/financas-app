@@ -160,6 +160,10 @@ def project(a: Assumptions, scenario: Scenario) -> Projection:
         payoff_month=payoff,
         total_interest_cents=total_interest,
         interest_without_amortization_cents=interest_without,
-        interest_saved_cents=interest_without - total_interest,
+        # Economia só existe ao amortizar; sem amortizar a projeção é truncada em `months`
+        # e a diferença viraria uma "economia" falsa.
+        interest_saved_cents=(
+            interest_without - total_interest if scenario == "amortize_now" else 0
+        ),
         waiting_cost_per_month_cents=round_cents(Decimal(a.initial_amortization_cents) * rate),
     )

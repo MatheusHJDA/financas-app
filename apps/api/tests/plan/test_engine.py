@@ -202,7 +202,17 @@ def test_juros_sem_amortizar_usam_pmt_vezes_parcelas_menos_principal():
     )
     proj = project(a, "no_amortization")
     assert proj.interest_without_amortization_cents == 136_282 * 24 - 2_200_000
-    assert (
-        proj.interest_saved_cents
-        == proj.interest_without_amortization_cents - proj.total_interest_cents
+    assert proj.interest_saved_cents == 0  # sem amortizar não há economia
+
+
+def test_sem_amortizar_nao_tem_economia():
+    a = make(
+        months=13,
+        salary_cents=1_000_000,
+        loan_principal_cents=2_200_000,
+        loan_monthly_rate=Decimal("0.0345"),
+        loan_installments=24,
+        loan_balance_cents=2_200_000,
     )
+    assert project(a, "no_amortization").interest_saved_cents == 0
+    assert project(a, "amortize_now").interest_saved_cents > 0

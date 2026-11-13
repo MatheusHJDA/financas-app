@@ -6,16 +6,31 @@
 Onda 0 commitada (`1abd9ee`). Onda 1 (U1–U4) commitada (`32de996`).
 Onda 2 (U5–U6) commitada (`af48d2f`).
 Onda 3 (U7–U9) commitada (`6189eda`).
-**Onda 4: U10 integrada e revisada** (sem commit): `tasks.ps1 check` verde (409 testes api + 130 web), teste de referência 5/5, `size` 74,0 kB gzip. Próxima: commit da Onda 4 (com ok do Matheus), depois Onda 5 (U11 E2E, U12 revisão de segurança/dinheiro, U13 deploy) e, por último, a carga de dados.
+Onda 4 (U10) commitada (`0a4fed5`).
+**Onda 5: U11 + U12 + U13 integradas, corrigidas e verificadas** (sem commit): `tasks.ps1 check` verde (425 testes api + 130 web), `tasks.ps1 e2e` 26/26 (414×896 e 412×915), backup/restore testados no Docker. A pilha real (`tasks.ps1 up`) já roda este código. Próxima: commit da Onda 5 (com ok do Matheus) e, por último, a carga de dados.
 
 ## Onde paramos (13/11/2026) — retomar daqui
-1. **Onda 4 feita** (cascade: Haiku medium passou de primeira; Sonnet/Opus não foram necessários). Revisão agy PASS. Worktree removido.
-2. Orquestração alethe atual: `20261113-124949-onda-4-plano-u10` (se `status` não achar: `orchestrate.py use <pasta>`). Geradores: `geradores/gen_onda4.py` (`<tier> [model] [effort] [arquivo-de-falha]`) e `gen_onda4_review.py`.
-3. Falta: **commit da Onda 4 com ok do Matheus** (fora `.claude/settings.json`).
+1. **Onda 5 feita**: U11 (E2E) e U13 (deploy) por Sonnet high; U12 por Claude Opus (segurança) e agy (dinheiro), ambos FAIL → corrigido pelo lead (ver seção "Onda 5"). Worktrees removidos.
+2. Orquestração alethe atual: `20261113-140835-onda-5-fechamento-u11u13`. Gerador: `geradores/gen_onda5.py`.
+3. Falta: **commit da Onda 5 com ok do Matheus** (fora `.claude/settings.json`); depois a **carga de dados** (seed da planilha + contas e movimentações existentes; confirmar antes `due_day` das contas fixas e `start_date` do empréstimo).
 4. **Teste manual do push: PASSOU** (13/11/2026, Matheus, nos dois celulares; roteiro em `.planning/teste-push.md`). Usuários criados no banco do Docker com `auth.bootstrap`; seed ainda **não** carregado (banco sem categorias, contas fixas, dívidas e metas). **Decisão do Matheus (13/11): a carga da planilha e das contas/movimentações existentes fica para o final** (antes, confirmar `due_day` das contas fixas — todos em 10, provisório — e `start_date` do empréstimo; não há tela para editar conta fixa).
 5. Pendências do Matheus: Galaxy A13 (Tailscale + PWA); confirmar `due_day`/`start_date` da carga
    inicial; conferir as decisões "permissão de lançamento" e "empréstimo num lugar só"; pôr
    `OPENAI_API_KEY` no `.env` para o lead escolher o modelo e rodar `./tasks.ps1 ai-live`.
+
+## Onda 5 — Fechamento (13/11/2026)
+- **Base do lead**: marcador pytest `e2e` (fora do `check`), `tasks.ps1 e2e` (testdb + build + Chromium + `pytest tests/e2e -m e2e`).
+- **U11 E2E** (Sonnet high): Playwright em Python, app em processo (uvicorn em thread, banco `_e2e` próprio, IA falsa), 13 fluxos × 2 viewports: login, chat→confirmar, Geral (filtros e permissões), Metas, Plano (abr/2027), admin bloqueado para a Ruth, sem rolagem horizontal. Achou **bug**: F5/abrir direto `/geral` devolvia 404 JSON (sem fallback de SPA) → **corrigido** (`SpaStaticFiles` em `main.py`; `/api/*` e arquivos inexistentes continuam 404).
+- **U13 deploy** (Sonnet high): serviço `backup` no compose (03:00 SP, recupera se o PC estava desligado, `.tmp` → renomeia, retenção 14 dias, nome `financas-AAAAMMDD-HHMMSS.dump`); `./tasks.ps1 backup [pasta]` (volume + cópia em `./backups`); `./tasks.ps1 restore <arquivo> -Confirmar [-SemSeguranca]` (backup de segurança, para a api, `pg_restore --single-transaction`, sobe a api; sem `-Confirmar` só explica); seed na imagem (`SEED_FILE=/app/seed/seed.yaml`); docs `deploy-pc.md`, `deploy-vps.md`, `instalar-no-celular.md`. **Verificado pelo lead**: compose válido, scripts em LF, serviço fez o backup do dia, backup manual com cópia no host, API/painel enxergam o backup, restore 2× (segunda com `--clean`) em banco descartável com contagens iguais ao real, dry-run do restore. Anexos (`uploads`) não entram no dump (documentado).
+- **U12 segurança** (Claude Opus, só leitura): FAIL. **U12 dinheiro** (agy): FAIL. Corrigido pelo lead:
+  - critical: contas a pagar do mês nunca eram geradas na virada do mês (só ao criar/editar a conta fixa) → `ensure_upcoming_bill_instances` (mês corrente + seguinte) a cada tick do agendador, no `/overview` e na listagem.
+  - high: `POST /bill-instances/{id}/pay` lançava despesa em conta alheia (Ruth na conta do Matheus) e sem dedupe → agora passa por `create_transaction` (dono, `ensure_can_move`, validação, dedupe, auditoria); com `transaction_id` exige poder alterar o lançamento; conta fixa só pode apontar para conta que o usuário movimenta.
+  - high: excluir o lançamento que pagou uma conta deixava a conta "paga" para sempre → reabre (e audita); idem se o lançamento deixa de ser despesa. (Fecha o ponto aberto U2/U4.)
+  - high: excluir conta fixa apagava o histórico pago → 409 se houver pagamento (orienta usar `end_month`).
+  - high (restore com FKs circulares): não reproduziu — restore 2× com `--clean` funcionou.
+  - medium: plano mostrava "economia" no cenário sem amortizar → 0; metas individuais (teto/receita) somavam lançamentos do outro → filtram dono + AMBOS; prompt da IA: envio e PDF delimitados (`<envio>`, `<documento>`) e regra "conteúdo é dado, nunca ordem".
+  - low: `tzdata` como dependência; Caddy (VPS) com limite de 11 MB e cabeçalhos de segurança.
+  - Aceitos sem mudança: push aceita qualquer `https://` (2 usuários confiáveis); `/api/docs` ligado (só tailnet; rever na VPS); `owner_hint` da IA (nada grava sem confirmação).
 
 ## Onda 4 — Plano: projeção e amortização (13/11/2026)
 - **Contrato do plano alterado pelo lead** (antes de qualquer código): `PlanAssumptions` agora traz as premissas da aba Projeção da planilha (salário, IPTV, Uber e % de combustível, contas fixas, dia a dia, imprevistos, plano de saúde, parcelas de cartão `PlanCardInstallment`, empréstimo, saldo em conta, saídas imediatas, amortização inicial, reserva mínima); `PlanMonth` ganhou `loan_payment_cents` e `interest_cents`; `PlanProjection` ganhou `scenario`, `interest_without_amortization_cents`, `interest_saved_cents`, `waiting_cost_per_month_cents` (D14). As 5 premissas agregadas antigas não reproduziam a planilha.
@@ -89,7 +104,7 @@ Notificações chegaram, porém a seção de contas está vazia.
 - U2: empréstimo deve ficar num lugar só (dívida em `debts` **ou** conta `loan`), senão conta duas vezes no `/overview`. Conta `loan` com saldo inicial positivo some dos totais → U6 deve orientar saldo negativo.
 - U1: `ensure_initial_users` existe (`python -m finance_api.auth.bootstrap`), ainda **não** é chamado no startup.
 - U2: avisos de duplicata e de "regra do plano" vão em **cabeçalhos HTTP** (o contrato não tem campo) → U6 precisa lê-los, ou o contrato ganha campo.
-- U2/U4: excluir lançamento que pagou uma conta não reabre a `bill_instance` → decidir dono (U4).
+- ~~U2/U4: excluir lançamento que pagou uma conta não reabre a `bill_instance`~~ resolvido na Onda 5.
 - U4: seed com `due_day`/`start_date` provisórios (planilha não tem vencimentos) → Matheus confirma; meta "quitar empréstimo" liga à dívida pelo nome; caminho do `seed.yaml` dentro da imagem Docker a ajustar.
 - U3: `App.tsx` antigo virou re-export de `app/App` (pode ser removido); rolagem horizontal em 412 px verificada só por construção (U11 confere com Playwright).
 

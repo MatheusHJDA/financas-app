@@ -62,7 +62,9 @@ def _ai_text(text: str | None, upload: Upload | None) -> str | None:
     if text:
         parts.append(text)
     if upload is not None and upload.prepared.text:
-        parts.append("TEXTO EXTRAÍDO DO PDF:\n" + upload.prepared.text)
+        # O texto do PDF é dado, não instrução: vai delimitado (ver INSTRUCTIONS da IA).
+        document = upload.prepared.text.replace("</documento>", "</ documento>")
+        parts.append("TEXTO EXTRAÍDO DO PDF:\n<documento>\n" + document + "\n</documento>")
     return "\n\n".join(parts) or None
 
 

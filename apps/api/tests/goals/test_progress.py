@@ -221,3 +221,35 @@ def test_lista_traz_progresso(users, client_as):
     _goal(client, name="B")
     page = client.get("/api/goals").json()
     assert page["total"] == 2 and all("progress" in g for g in page["items"])
+
+
+def test_meta_individual_nao_soma_lancamentos_do_outro(db, users, client_as, mk):
+    mercado = mk.category("Mercado")
+    acc = mk.account()
+    hoje = today_sp()
+    mk.tx("expense", 20000, hoje, acc, mercado)  # AMBOS: conta para os dois
+    alheio = mk.tx("expense", 70000, hoje, acc, mercado)
+    alheio.owner = "MATHEUS"  # gasto só do Matheus
+    db.flush()
+    client = client_as(users["ruth"])
+    goal = _goal(
+        client,
+        owner="RUTH",
+        type="category_cap",
+        name="Mercado Ruth",
+        target_cents=50000,
+        period="monthly",
+        linked_category_id=mercado.id,
+    )
+    assert _progress(client, goal["id"])["current_cents"] == 20000
+    # a meta do casal soma tudo
+    casal = _goal(
+        client,
+        owner="AMBOS",
+        type="category_cap",
+        name="Mercado casal",
+        target_cents=50000,
+        period="monthly",
+        linked_category_id=mercado.id,
+    )
+    assert _progress(client, casal["id"])["current_cents"] == 90000

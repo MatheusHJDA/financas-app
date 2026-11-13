@@ -19,6 +19,7 @@ dependencies = [
     "pillow",
     "pillow-heif",
     "python-multipart",
+    "tzdata>=2026.6",
 ]
 
 [dependency-groups]
@@ -28,6 +29,7 @@ dev = [
     "ruff",
     "openapi-spec-validator",
     "pyyaml",
+    "pytest-playwright>=0.10.0",
 ]
 
 [build-system]
@@ -47,5 +49,8 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-m 'not live'"
-markers = ["live: usa a API real da OpenAI (gasta crédito); desligado por padrão"]
+addopts = "-m 'not live and not e2e'"
+markers = [
+    "live: usa a API real da OpenAI (gasta crédito); desligado por padrão",
+    "e2e: navegador real (Playwright) contra o app; roda só em `tasks.ps1 e2e`",
+]

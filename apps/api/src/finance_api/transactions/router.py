@@ -31,6 +31,7 @@ from finance_api.transactions.service import (
     TxResult,
     create_transaction,
     ensure_can_move,
+    release_bill_instance,
     snapshot,
     update_transaction,
 )
@@ -240,6 +241,7 @@ def delete_transaction(tx_id: int, db: DbSession, user: User) -> Response:
     if account is not None:
         ensure_can_move(user, account)
     before = snapshot(tx)
+    release_bill_instance(db, user, tx)
     db.delete(tx)
     record_audit(
         db,

@@ -16,6 +16,7 @@ from finance_api.bills.schemas import (
 from finance_api.bills.service import (
     due_date_for,
     ensure_bill_instances,
+    ensure_upcoming_bill_instances,
     first_of_month,
     today_sp,
 )
@@ -29,6 +30,7 @@ from finance_api.db.models import (
     RecurringBill,
     Transaction,
 )
+from finance_api.transactions.service import TxData, create_transaction, ensure_can_move
 
 router = APIRouter(tags=["bills"])
 
@@ -55,9 +57,15 @@ def _inst_snap(inst: BillInstance) -> dict:
     }
 
 
-def _check_refs(db: DbSession, account_id: int | None, category_id: int | None) -> None:
-    if account_id is not None and db.get(Account, account_id) is None:
-        raise HTTPException(422, "Conta bancária inexistente.")
+def _check_refs(
+    db: DbSession, account_id: int | None, category_id: int | None, user: CurrentUser
+) -> None:
+    if account_id is not None:
+        account = db.get(Account, account_id)
+        if account is None:
+            raise HTTPException(422, "Conta bancária inexistente.")
+        # pagar a conta fixa debita esta conta: só quem pode movimentá-la a associa (D6)
+        ensure_can_move(user, account)
     if category_id is not None and db.get(Category, category_id) is None:
         raise HTTPException(422, "Categoria inexistente.")
 
@@ -98,7 +106,7 @@ def create_recurring_bill(body: RecurringBillCreate, db: DbSession, user: User) 
     start = first_of_month(body.start_month)
     end = first_of_month(body.end_month) if body.end_month else None
     _check_months(start, end)
-    _check_refs(db, body.account_id, body.category_id)
+    _check_refs(db, body.account_id, body.category_id, user)
     bill = RecurringBill(
         **body.model_dump(exclude={"start_month", "end_month", "owner"}),
         owner=body.owner.value,
@@ -143,7 +151,7 @@ def update_recurring_bill(
     if data.get("end_month"):
         data["end_month"] = first_of_month(data["end_month"])
     _check_months(data.get("start_month", bill.start_month), data.get("end_month", bill.end_month))
-    _check_refs(db, data.get("account_id"), data.get("category_id"))
+    _check_refs(db, data.get("account_id"), data.get("category_id"), user)
     for key, value in data.items():
         setattr(bill, key, value)
     db.flush()
@@ -190,8 +198,20 @@ def delete_recurring_bill(id: int, db: DbSession, user: User) -> Response:
     if bill is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
     ensure_can_write(user, Owner(bill.owner))
+    paid = db.scalar(
+        select(func.count())
+        .select_from(BillInstance)
+        .where(BillInstance.recurring_bill_id == bill.id, BillInstance.status == "paid")
+    )
+    if paid:
+        # Apagar levaria junto o histórico de pagamentos (e o vínculo dos lançamentos).
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Esta conta fixa já tem pagamentos registrados. Para parar de cobrá-la, "
+            "defina o mês final (end_month) em vez de excluir.",
+        )
     before = _snap(bill)
-    # Instâncias vão junto (lançamentos vinculados só perdem o vínculo: SET NULL).
+    # Só há instâncias em aberto: vão junto.
     db.execute(delete(BillInstance).where(BillInstance.recurring_bill_id == bill.id))
     db.delete(bill)
     record_audit(
@@ -217,6 +237,8 @@ def list_bill_instances(
     offset: Offset = 0,
 ) -> BillInstancePage:
     """Filtros de data valem para o vencimento (due_date). Vencida = open e due_date < hoje."""
+    if ensure_upcoming_bill_instances(db):
+        db.commit()
     conditions = []
     if status_ is not None:
         conditions.append(BillInstance.status == status_)
@@ -257,6 +279,8 @@ def pay_bill_instance(
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Lançamento não encontrado.")
         if tx.kind != "expense":
             raise HTTPException(422, "Só uma despesa pode pagar uma conta.")
+        # vincular mexe no lançamento: exige poder alterá-lo (D6/D12)
+        ensure_can_write(user, Owner(tx.owner))
         already = db.scalar(
             select(BillInstance.id).where(
                 BillInstance.paid_transaction_id == tx.id, BillInstance.id != inst.id
@@ -271,39 +295,23 @@ def pay_bill_instance(
                 422,
                 "A conta não tem conta bancária associada; informe transaction_id.",
             )
-        tx = Transaction(
-            kind="expense",
-            amount_cents=inst.amount_cents,
-            date=today_sp(),
-            description=bill.name,
-            account_id=bill.account_id,
-            category_id=bill.category_id,
-            owner=bill.owner,
-            created_by=user.id,
-            source="manual",
-            bill_instance_id=None,
-        )
-        db.add(tx)
-        db.flush()
-        tx.bill_instance_id = inst.id
-        record_audit(
+        # Mesmo caminho de qualquer lançamento: dono, conta de origem (D6), validação,
+        # dedupe e auditoria.
+        tx = create_transaction(
             db,
-            user_id=user.id,
-            entity="transactions",
-            entity_id=tx.id,
-            action="create",
-            after={
-                "kind": tx.kind,
-                "amount_cents": tx.amount_cents,
-                "date": tx.date.isoformat(),
-                "description": tx.description,
-                "account_id": tx.account_id,
-                "category_id": tx.category_id,
-                "owner": tx.owner,
-                "source": tx.source,
-                "bill_instance_id": inst.id,
-            },
-        )
+            user,
+            TxData(
+                kind="expense",
+                amount_cents=inst.amount_cents,
+                date=today_sp(),
+                description=bill.name,
+                account_id=bill.account_id,
+                to_account_id=None,
+                category_id=bill.category_id,
+                owner=bill.owner,
+            ),
+            bill_instance_id=inst.id,
+        ).transaction
 
     inst.paid_transaction_id = tx.id
     inst.status = "paid"

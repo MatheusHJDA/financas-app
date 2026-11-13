@@ -4,6 +4,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
+from starlette.types import Scope
 
 from finance_api.accounts.router import router as accounts_router
 from finance_api.admin.router import router as admin_router
@@ -39,6 +42,23 @@ MODULE_ROUTERS = (
 )
 
 
+class SpaStaticFiles(StaticFiles):
+    """Arquivos do PWA com fallback de SPA: rota do app (ex.: /geral, F5) devolve o index.html.
+
+    Só para caminhos sem extensão fora de /api; arquivo inexistente (ex.: /x.js) e /api/*
+    continuam 404.
+    """
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            last = path.rsplit("/", 1)[-1]
+            if exc.status_code != 404 or path.startswith("api") or "." in last:
+                raise
+            return await super().get_response("index.html", scope)
+
+
 def create_app(web_dist: Path | None = None, *, start_scheduler: bool = True) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -65,7 +85,7 @@ def create_app(web_dist: Path | None = None, *, start_scheduler: bool = True) ->
     dist = web_dist if web_dist is not None else _find_web_dist()
     if dist is not None and dist.is_dir():
         # Montado depois das rotas /api para não escondê-las.
-        app.mount("/", StaticFiles(directory=dist, html=True), name="web")
+        app.mount("/", SpaStaticFiles(directory=dist, html=True), name="web")
     return app
 
 

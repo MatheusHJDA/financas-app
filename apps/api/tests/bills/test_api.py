@@ -40,7 +40,8 @@ def test_criar_conta_gera_instancia_do_mes_e_audita(db, users, client_as):
     assert resp.status_code == 201
     bill_id = resp.json()["id"]
     insts = client.get("/api/bill-instances").json()
-    assert insts["total"] == 1
+    # mês corrente e o seguinte (a listagem garante os dois; ver ensure_upcoming_bill_instances)
+    assert insts["total"] == 2
     item = insts["items"][0]
     assert item["recurring_bill_id"] == bill_id
     assert item["name"] == "Luz" and item["owner"] == "AMBOS"

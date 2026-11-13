@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from finance_api.auth.identity import OWNER_BY_USER_NAME
+from finance_api.bills.service import ensure_upcoming_bill_instances
 from finance_api.core import app_settings
 from finance_api.core.permissions import Owner
 from finance_api.db.models import (
@@ -245,6 +246,8 @@ def run_tick(db: Session, now: datetime, channel: NotificationChannel) -> int:
     days_before = _parse_days(
         config[app_settings.BILL_DAYS_BEFORE], app_settings.DEFAULTS[app_settings.BILL_DAYS_BEFORE]
     )
+    if ensure_upcoming_bill_instances(db, now.astimezone(TZ).date()):
+        db.commit()  # virada do mês: as contas fixas do mês ganham instância (e aviso)
     users = list(db.scalars(select(User).order_by(User.id)))
     sent = _run_daily(db, now, channel, users, daily_time)
     sent += _run_bills(db, now, channel, users, bill_time, days_before)

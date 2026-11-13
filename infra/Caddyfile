@@ -1,4 +1,17 @@
 {$DOMAIN} {
 	encode zstd gzip
+
+	# Upload máximo do app é 10 MB (multipart com folga); recusa antes de chegar à API.
+	request_body {
+		max_size 11MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		Content-Security-Policy "frame-ancestors 'none'"
+	}
+
 	reverse_proxy api:8000
 }
