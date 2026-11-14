@@ -52,6 +52,7 @@ EXPECTED: dict[str, set[str]] = {
     "/admin/audit": {"get"},
     "/admin/system": {"get"},
     "/admin/backups/latest": {"get"},
+    "/reports/month": {"get"},
 }
 
 PUBLIC = {("/health", "get"), ("/auth/users", "get"), ("/auth/login", "post")}
@@ -99,3 +100,42 @@ def test_money_fields_are_integer_cents() -> None:
                 kind = definition.get("type")
                 assert kind in ("integer", ["integer", "null"]), (name, prop)
     assert seen > 10
+
+
+def test_month_report_contract() -> None:
+    spec = _spec()
+    op = spec["paths"]["/reports/month"]["get"]
+    assert op["operationId"] == "getMonthReport"
+    params = {p["name"]: p for p in op["parameters"]}
+    assert params["month"]["required"] is True
+    assert params["month"]["schema"]["pattern"] == r"^\d{4}-(0[1-9]|1[0-2])$"
+    assert params["owner"]["schema"] == {"$ref": "#/components/schemas/Owner"}
+    assert "422" in op["responses"]
+    schemas = spec["components"]["schemas"]
+    report = schemas["MonthReport"]
+    assert set(report["required"]) == {
+        "month",
+        "income_cents",
+        "expense_cents",
+        "balance_cents",
+        "bills",
+        "previous",
+        "expense_delta_cents",
+        "by_category",
+        "daily_cumulative_expense",
+    }
+    assert set(schemas["MonthBills"]["required"]) == {
+        "total_count",
+        "paid_count",
+        "paid_cents",
+        "open_count",
+        "open_cents",
+    }
+    assert set(schemas["CategoryShare"]["required"]) == {
+        "category_id",
+        "name",
+        "total_cents",
+        "share_bp",
+    }
+    assert set(schemas["DailyCumulative"]["required"]) == {"current", "previous"}
+    assert set(schemas["DailyPoint"]["required"]) == {"day", "cents"}

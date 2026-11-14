@@ -12,7 +12,14 @@ pytestmark = pytest.mark.e2e
 # Palavra sem dígitos por aparelho: a IA falsa lê o primeiro número do texto como o valor.
 WORD = {"iphone-11": "iphone", "galaxy-a13": "galaxy"}
 
-TABS = ("Chat", "Geral", "Metas", "Plano", "Mais")
+TABS = ("Início", "Transações", "Lançar com IA", "Relatórios", "Mais")
+# Título (h1) de cada destino da barra; o chat tem h1 "Chat" só para leitores de tela.
+TAB_HEADING = {
+    "Transações": "Transações",
+    "Lançar com IA": "Chat",
+    "Relatórios": "Relatórios",
+    "Mais": "Mais",
+}
 
 
 def tap_pin(page: Page, pin: str) -> None:
@@ -21,7 +28,15 @@ def tap_pin(page: Page, pin: str) -> None:
 
 
 def tab(page: Page, name: str) -> None:
-    page.get_by_role("navigation", name="Principal").get_by_role("link", name=name).tap()
+    """Toca um destino: direto na barra Principal ou, se não estiver nela, pela tela Mais."""
+    bar = page.get_by_role("navigation", name="Principal")
+    expect(bar.get_by_role("link", name="Mais", exact=True)).to_be_visible()
+    link = bar.get_by_role("link", name=name, exact=True)
+    if link.count() == 0:
+        bar.get_by_role("link", name="Mais", exact=True).tap()
+        expect(page.get_by_role("heading", name="Mais", exact=True)).to_be_visible()
+        link = page.get_by_role("main").get_by_role("link", name=name, exact=True)
+    link.tap()
 
 
 def open_route(page: Page, path: str) -> None:
@@ -66,7 +81,7 @@ def test_login_pin_errado_mostra_erro_e_pin_certo_entra_no_chat(
 
     tap_pin(page, PINS[user])
     expect(page).not_to_have_url(re.compile(r"/login"))
-    expect(page.get_by_role("region", name="Chat de lançamentos")).to_be_visible()
+    expect(page.get_by_role("heading", name="Início", exact=True)).to_be_visible()
     assert_layout(page)
 
 
@@ -79,6 +94,7 @@ def test_chat_rascunho_so_grava_ao_confirmar_e_aparece_em_movimentacoes(
     login_as("Ruth")
     description = f"Mercado do bairro {WORD[device]}"
     page.goto("/")
+    tab(page, "Lançar com IA")
     expect(page.get_by_role("region", name="Chat de lançamentos")).to_be_visible()
 
     page.get_by_label("Mensagem").fill(f"{description} 45,90 no Nubank Ruth")
@@ -95,7 +111,7 @@ def test_chat_rascunho_so_grava_ao_confirmar_e_aparece_em_movimentacoes(
     expect(draft.get_by_text("✓ Confirmado")).to_be_visible()
     assert transactions_total(context, description) == 1
 
-    tab(page, "Geral")
+    tab(page, "Transações")
     expect(page.get_by_role("heading", name="Movimentações")).to_be_visible()
     expect(page.get_by_text(description, exact=True)).to_be_visible()
     assert_layout(page)
@@ -220,13 +236,13 @@ def test_admin_bloqueado_para_a_ruth(
     login_as("Ruth")
     open_route(page, "/mais")
     expect(page.get_by_text("Conectado como Ruth")).to_be_visible()
-    expect(page.get_by_role("link", name="Painel admin")).to_have_count(0)
+    expect(page.get_by_role("link", name="Administração")).to_have_count(0)
     assert_layout(page)
 
-    open_route(page, "/mais/admin")
-    expect(page).to_have_url(re.compile(r"/mais$"))
-    expect(page.get_by_role("heading", name="Mais", exact=True)).to_be_visible()
-    expect(page.get_by_role("heading", name="Painel admin")).to_have_count(0)
+    open_route(page, "/admin/usuarios")
+    expect(page).to_have_url(re.compile(r"/$"))
+    expect(page.get_by_role("heading", name="Início", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="Usuários", exact=True)).to_have_count(0)
 
     resp = context.request.get("/api/admin/users")
     assert resp.status == 403, resp.status
@@ -235,17 +251,21 @@ def test_admin_bloqueado_para_a_ruth(
 def test_admin_liberado_para_o_matheus(page: Page, login_as: Callable[[str], None]) -> None:
     login_as("Matheus")
     open_route(page, "/mais")
-    link = page.get_by_role("link", name="Painel admin")
+    link = page.get_by_role("link", name="Administração")
     expect(link).to_be_visible()
     link.tap()
-    expect(page).to_have_url(re.compile(r"/mais/admin$"))
-    expect(page.get_by_role("heading", name="Painel admin")).to_be_visible()
-    secoes = page.get_by_role("navigation", name="Seções do painel")
-    for section in ("Usuários", "Configurações", "Notificações", "IA", "Auditoria", "Sistema"):
-        secoes.get_by_role("button", name=section, exact=True).tap()
-        expect(secoes.get_by_role("button", name=section, exact=True)).to_have_attribute(
-            "aria-current", "true"
-        )
+    expect(page).to_have_url(re.compile(r"/admin/usuarios$"))
+    expect(page.get_by_role("heading", name="Usuários", exact=True, level=1)).to_be_visible()
+    secoes = {
+        "configuracoes": "Configurações",
+        "avisos": "Avisos do sistema",
+        "ia": "IA",
+        "auditoria": "Auditoria",
+        "sistema": "Sistema",
+    }
+    for slug, title in secoes.items():
+        open_route(page, f"/admin/{slug}")
+        expect(page.get_by_role("heading", name=title, exact=True, level=1)).to_be_visible()
         assert_layout(page)
 
 
@@ -258,11 +278,17 @@ def test_todas_as_abas_sem_rolagem_horizontal_e_com_barra_de_abas(
 ) -> None:
     login_as(user)
     page.goto("/")
-    expect(page.get_by_role("region", name="Chat de lançamentos")).to_be_visible()
+    expect(page.get_by_role("heading", name="Início", exact=True)).to_be_visible()
     assert_layout(page)
     for name in TABS[1:]:
         tab(page, name)
-        expect(page.get_by_role("heading", name=name, exact=True).first).to_be_visible()
+        expect(
+            page.get_by_role("heading", name=TAB_HEADING[name], exact=True).first
+        ).to_be_attached()
+        assert_layout(page)
+    for name in ("Metas", "Plano", "Contas fixas", "Contas", "Preferências"):
+        tab(page, name)
+        expect(page.get_by_role("heading", name=name, exact=True, level=1)).to_be_visible()
         assert_layout(page)
 
 
@@ -271,10 +297,13 @@ def test_todas_as_abas_sem_rolagem_horizontal_e_com_barra_de_abas(
 
 def test_recarregar_rota_do_app_abre_a_tela(page: Page, login_as: Callable[[str], None]) -> None:
     login_as("Ruth")
-    page.goto("/geral")
-    expect(page.get_by_role("heading", name="Geral", exact=True)).to_be_visible()
+    page.goto("/transacoes")
+    expect(page.get_by_role("heading", name="Transações", exact=True)).to_be_visible()
     page.reload()
-    expect(page.get_by_role("heading", name="Geral", exact=True)).to_be_visible()
-    # rota de admin aberta direto pela Ruth: o app carrega e o roteador a manda para /mais
-    page.goto("/mais/admin")
-    expect(page).to_have_url(re.compile(r"/mais$"))
+    expect(page.get_by_role("heading", name="Transações", exact=True)).to_be_visible()
+    # endereço antigo continua valendo: /geral leva ao Início
+    page.goto("/geral")
+    expect(page.get_by_role("heading", name="Início", exact=True)).to_be_visible()
+    # rota de admin aberta direto pela Ruth: o app carrega e o roteador a manda para o Início
+    page.goto("/admin/ia")
+    expect(page).to_have_url(re.compile(r"/$"))

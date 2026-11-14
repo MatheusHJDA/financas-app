@@ -125,21 +125,27 @@ it("um 401 durante o uso redireciona para o login", async () => {
   expect(meCalls).toBe(1);
 });
 
-it("navega entre as 5 abas e Mais traz instalação e Sair", async () => {
+it("navega pela barra, Mais leva a Preferências e tem Sair", async () => {
   mockApi({ "GET /auth/me": () => json(ME) });
   renderApp();
   const nav = await screen.findByRole("navigation", { name: "Principal" });
   expect(nav.querySelectorAll("a")).toHaveLength(5);
-  expect(await screen.findByRole("heading", { name: "Chat" })).toBeTruthy();
-  for (const tab of ["Geral", "Metas", "Plano"]) {
-    fireEvent.click(screen.getByRole("link", { name: new RegExp(tab) }));
-    expect(await screen.findByRole("heading", { name: tab })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Início" })).toBeTruthy();
+  for (const [link, heading] of [
+    ["Transações", "Transações"],
+    ["Relatórios", "Relatórios"],
+  ]) {
+    fireEvent.click(screen.getByRole("link", { name: new RegExp(link) }));
+    expect(await screen.findByRole("heading", { name: heading, level: 1 })).toBeTruthy();
   }
+  fireEvent.click(screen.getByRole("link", { name: "Lançar com IA" }));
+  expect(await screen.findByRole("region", { name: "Chat de lançamentos" })).toBeTruthy();
   fireEvent.click(screen.getByRole("link", { name: /Mais/ }));
+  expect(await screen.findByRole("button", { name: "Sair" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("link", { name: /Preferências/ }));
   expect(await screen.findByRole("heading", { name: "Como instalar no celular" })).toBeTruthy();
   expect(screen.getByText(/Adicionar à Tela de Início/)).toBeTruthy();
   expect(screen.getByText(/Instalar app/)).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Sair" })).toBeTruthy();
 });
 
 it("Sair encerra a sessão e volta ao login", async () => {

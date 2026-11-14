@@ -16,10 +16,41 @@ body {
   color: var(--color-text);
   background: var(--color-bg);
   -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+.num,
+.money {
+  font-variant-numeric: tabular-nums;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 h1 {
   font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
   margin: 0 0 var(--space-3);
 }
 h2 {
@@ -54,9 +85,14 @@ button {
   min-height: 48px;
   padding: 0 var(--space-4);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
+  font-weight: 600;
   cursor: pointer;
+  transition: background-color 0.15s, box-shadow 0.15s;
+}
+.btn:hover:not(:disabled) {
+  background: var(--color-surface-2);
 }
 .btn--danger {
   color: var(--color-danger);
@@ -80,50 +116,16 @@ button {
   cursor: pointer;
 }
 
-/* Casca */
+/* Casca: ver shell/shell.css */
 .shell {
   min-height: 100dvh;
-}
-.shell-main {
-  padding: calc(var(--space-3) + var(--safe-top)) calc(var(--space-3) + var(--safe-right))
-    calc(var(--tabbar-h) + var(--safe-bottom) + var(--space-3)) calc(var(--space-3) + var(--safe-left));
-  max-width: 40rem;
-  margin: 0 auto;
-}
-.tabbar {
-  position: fixed;
-  inset: auto 0 0 0;
-  display: flex;
-  background: var(--color-surface);
-  border-top: 1px solid var(--color-border);
-  padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
-}
-.tab {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: var(--tabbar-h);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  font-size: var(--text-sm);
-  color: var(--color-muted);
-  text-decoration: none;
-}
-.tab-icon {
-  font-size: 1.25rem;
-  line-height: 1;
-}
-.tab[aria-current="page"] {
-  color: var(--color-primary);
-  font-weight: 600;
 }
 
 .card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   padding: var(--space-3);
   margin: var(--space-3) 0;
 }
@@ -220,11 +222,20 @@ button {
   min-height: var(--tap);
   font-size: var(--text-xl);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   cursor: pointer;
 }
 .pin-key:active:not(:disabled) {
   background: var(--color-primary);
   color: var(--color-on-primary);
+}
+.state-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--color-surface-2);
+  color: var(--color-muted);
 }

@@ -9,6 +9,24 @@ Onda 3 (U7–U9) commitada (`6189eda`).
 Onda 4 (U10) commitada (`0a4fed5`).
 **Onda 5: U11 + U12 + U13 integradas, corrigidas e verificadas** (sem commit): `tasks.ps1 check` verde (425 testes api + 130 web), `tasks.ps1 e2e` 26/26 (414×896 e 412×915), backup/restore testados no Docker. A pilha real (`tasks.ps1 up`) já roda este código. Próxima: commit da Onda 5 (com ok do Matheus) e, por último, a carga de dados.
 
+## Falta fazer (consolidado em 14/11/2026 — Matheus: "faremos os ajustes depois")
+Do Matheus:
+1. Testar o chat com envio real.
+2. Conferir D6 (permissão de lançamento) e "empréstimo num lugar só" (só a dívida em `debts`; sem conta `loan`).
+3. `start_date` real do empréstimo (provisório 01/11/2026).
+4. Vencimento real das 14 contas fixas (todas no dia 10; dá para editar na tela).
+5. Cada um cadastra contas bancárias e movimentações no app (D5).
+
+Pequenas, opcionais: índice único em `bill_instances.paid_transaction_id` (migração); `SpaStaticFiles` com `//api/...`; conta fixa aceita categoria de receita pela API; conta fixa com início no mês seguinte só gera a instância na próxima leitura; busca por prefixo; PIN trivial; desligar `/api/docs` antes da VPS; copiar backups para fora do PC.
+
+Próximo trabalho (14/11/2026): redesenho da interface, referência despezzas.com (`docs/referencia/visual/`).
+
+## Redesenho da interface (desde 14/11/2026)
+- Spec: `docs/superpowers/specs/2026-11-14-redesign-interface-design.md`. Plano: `docs/superpowers/plans/2026-11-14-redesign-interface.md` (ondas R0 → R1 U14–U15 → R2 U16–U23 → R3 U24–U25).
+- Branch `redesenho` (a partir de `ba0a4f2`). Ledger: `.superpowers/sdd/2026-11-14-redesign-interface/progress.md` (fora do git). Alethe: `20261114-165311-redesenho-r0-base`.
+- **R0 feita pelo lead (14/11), sem commit**: tokens/cores/fonte Inter (offline no PWA), kit `apps/web/src/ui/` (Button, IconButton, Card, StatCard, Chip, MonthSwitcher, Skeleton, Sheet, ListItem/Avatar, SparkleIcon, Money + olho global), casca responsiva (`shell/`: barra flutuante com ✦ < 1024px; menu lateral + cabeçalho ≥ 1024px), rotas novas (`/`, `/transacoes`, `/lancar`, `/relatorios`, `/mais`, `/preferencias`, `/contas-fixas`, `/contas`, `/metas`, `/plano`, `/admin/:secao`; `/geral` e `/mais/admin` redirecionam), contrato `GET /reports/month` + `features/reports/api.ts` (`useMonthReport`). Telas ainda provisórias (reaproveitam as seções antigas). `check` verde (api 431, web 182, build) e e2e 26/26.
+- Próximo: commit da R0 (ok do Matheus) → R1 via alethe.
+
 ## Onde paramos (13/11/2026) — retomar daqui
 1. **Onda 5 feita**: U11 (E2E) e U13 (deploy) por Sonnet high; U12 por Claude Opus (segurança) e agy (dinheiro), ambos FAIL → corrigido pelo lead (ver seção "Onda 5"). Worktrees removidos.
 2. Orquestração alethe atual: `20261113-140835-onda-5-fechamento-u11u13`. Gerador: `geradores/gen_onda5.py`.
@@ -18,7 +36,9 @@ Onda 4 (U10) commitada (`0a4fed5`).
 4. **Teste manual do push: PASSOU** (13/11/2026, Matheus, nos dois celulares; roteiro em `.planning/teste-push.md`). Usuários criados no banco do Docker com `auth.bootstrap`; seed ainda **não** carregado (banco sem categorias, contas fixas, dívidas e metas). **Decisão do Matheus (13/11): a carga da planilha e das contas/movimentações existentes fica para o final** (antes, confirmar `due_day` das contas fixas — todos em 10, provisório — e `start_date` do empréstimo; não há tela para editar conta fixa).
 5. **Modelo da IA escolhido (13/11/2026): `gpt-6.1-terra`** (docs oficiais da OpenAI: texto+imagem, structured outputs, Responses API; "visual reasoning"; US$ 1,00 entrada / US$ 5,00 saída por 1M tokens). Alternativa 10× mais barata: `gpt-6-luna` (US$ 0,10 / 0,50), se o custo pesar. `./tasks.ps1 ai-live` 3/3 (foto, PDF, texto) e agora carrega o `.env` da raiz sozinho. App reiniciado com o modelo. **Custo estimado** (13/11): `ai/pricing.py` com preços oficiais em centavos de US$ por 1M tokens (fonte e data no arquivo; atualizar ao trocar de modelo), arredondado para cima; o painel admin mostra em US$ (sem conversão para reais).
    Pendências do Matheus: testar o chat com envio real; conferir as decisões "permissão de lançamento" (D6) e "empréstimo num lugar só" (a dívida "Empréstimo" já está em `debts`: não criar também conta `loan`); `start_date` real do empréstimo (provisório 01/11/2026).
-   Gate final (seção 10): falta só a U12 dar PASS depois das correções (re-revisão).
+   **Gate final (seção 10) FECHADO em 13/11/2026**: check + e2e verdes, push nos dois celulares, backup/restore testados, **re-revisão U12 PASS** (agy: segurança e dinheiro, as 7 correções confirmadas pelos dois). Custo estimado da IA no admin commitado (`ba0a4f2`).
+   Lows da re-revisão (não corrigidos): sem índice único em `bill_instances.paid_transaction_id` (corrida improvável com 2 usuários; exige migração); `SpaStaticFiles` devolve o index para `//api/...` (só URL malformada); conta fixa aceita categoria de receita pela API (a tela já filtra); criar conta fixa com início no mês seguinte só gera a instância na próxima leitura.
+   Outras pendências pequenas: busca de lançamentos por prefixo; PIN trivial aceito; desligar `/api/docs` antes da VPS; copiar backups para fora do PC.
 
 ## Onda 5 — Fechamento (13/11/2026)
 - **Base do lead**: marcador pytest `e2e` (fora do `check`), `tasks.ps1 e2e` (testdb + build + Chromium + `pytest tests/e2e -m e2e`).

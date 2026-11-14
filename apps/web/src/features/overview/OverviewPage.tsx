@@ -15,12 +15,12 @@ async function loadOverview() {
 }
 
 // Dono: U8. Tela Geral: saldos, contas a pagar, movimentações e cadastro de contas.
-export default function OverviewPage() {
+export default function OverviewPage({ title = "Geral" }: { title?: string }) {
   const overview = useQuery({ queryKey: ["overview"], queryFn: loadOverview });
 
   return (
     <section className="u8-page">
-      <h1>Geral</h1>
+      <h1>{title}</h1>
       {overview.isLoading ? <LoadingState label="Carregando saldos…" /> : null}
       {overview.isError ? (
         <ErrorState message="Não foi possível carregar a visão geral." onRetry={() => void overview.refetch()} />

@@ -22,6 +22,7 @@ tags:
   - {name: ingest}
   - {name: push}
   - {name: plan}
+  - {name: reports}
   - {name: admin}
 
 paths:
@@ -811,6 +812,33 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/PlanProjection"}
 
+  /reports/month:
+    get:
+      tags: [reports]
+      operationId: getMonthReport
+      summary: Relatório do mês (totais, contas fixas, categorias, ritmo de gasto)
+      description: |
+        Agrega lançamentos e contas fixas de um mês, em centavos. Mesmas regras de leitura de
+        `GET /transactions` (só agrega o que o usuário já pode listar). Transferências não contam.
+        Datas no fuso America/Sao_Paulo.
+      parameters:
+        - name: month
+          in: query
+          required: true
+          description: Mês no formato AAAA-MM.
+          schema: {type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$'}
+        - name: owner
+          in: query
+          description: Sem `owner`, soma todos (visão do casal).
+          schema: {$ref: "#/components/schemas/Owner"}
+      responses:
+        "200":
+          description: Relatório do mês
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MonthReport"}
+        "422": {$ref: "#/components/responses/Error"}
+
   /admin/users:
     get:
       tags: [admin]
@@ -1301,6 +1329,66 @@ components:
           type: array
           items: {$ref: "#/components/schemas/BillInstance"}
 
+    MonthReport:
+      type: object
+      required: [month, income_cents, expense_cents, balance_cents, bills, previous, expense_delta_cents, by_category, daily_cumulative_expense]
+      properties:
+        month: {type: string, format: date, description: Primeiro dia do mês}
+        income_cents: {type: integer, format: int64, description: "Soma das receitas do mês."}
+        expense_cents: {type: integer, format: int64, description: "Soma das despesas do mês."}
+        balance_cents: {type: integer, format: int64, description: "income_cents − expense_cents."}
+        bills: {$ref: "#/components/schemas/MonthBills"}
+        previous: {$ref: "#/components/schemas/MonthTotals"}
+        expense_delta_cents: {type: integer, format: int64, description: "expense_cents − previous.expense_cents."}
+        by_category:
+          description: Despesas por categoria, da maior para a menor. Sem categoria = category_id null, nome "Sem categoria".
+          type: array
+          items: {$ref: "#/components/schemas/CategoryShare"}
+        daily_cumulative_expense: {$ref: "#/components/schemas/DailyCumulative"}
+    MonthTotals:
+      type: object
+      required: [income_cents, expense_cents]
+      properties:
+        income_cents: {type: integer, format: int64}
+        expense_cents: {type: integer, format: int64}
+    MonthBills:
+      type: object
+      description: Contas fixas (bill_instances) com vencimento no mês.
+      required: [total_count, paid_count, paid_cents, open_count, open_cents]
+      properties:
+        total_count: {type: integer}
+        paid_count: {type: integer}
+        paid_cents: {type: integer, format: int64}
+        open_count: {type: integer}
+        open_cents: {type: integer, format: int64}
+    CategoryShare:
+      type: object
+      required: [category_id, name, total_cents, share_bp]
+      properties:
+        category_id: {type: [integer, "null"], format: int64}
+        name: {type: string}
+        total_cents: {type: integer, format: int64}
+        share_bp: {type: integer, description: "Participação em pontos-base (1% = 100), meio-para-cima; a soma pode não dar 10000."}
+    DailyCumulative:
+      type: object
+      description: |
+        Despesa acumulada dia a dia. `current`: mês pedido, até hoje se for o mês corrente
+        (fuso de SP), completo se passado, vazio se futuro. `previous`: mês anterior completo.
+        Dia sem gasto repete o acumulado.
+      required: [current, previous]
+      properties:
+        current:
+          type: array
+          items: {$ref: "#/components/schemas/DailyPoint"}
+        previous:
+          type: array
+          items: {$ref: "#/components/schemas/DailyPoint"}
+    DailyPoint:
+      type: object
+      required: [day, cents]
+      properties:
+        day: {type: integer, minimum: 1, maximum: 31}
+        cents: {type: integer, format: int64}
     RecurringBill:
       type: object
       required: [id, owner, name, amount_cents, due_day, start_month]

@@ -5,33 +5,52 @@ import { AuthProvider } from "../auth/AuthProvider";
 import { LoginPage } from "../auth/LoginPage";
 import { RequireAuth } from "../auth/RequireAuth";
 import { Shell } from "../shell/Shell";
+import { HideValuesProvider } from "../ui";
 
-const ChatTab = lazy(() => import("../shell/tabs/ChatTab"));
-const GeralTab = lazy(() => import("../shell/tabs/GeralTab"));
+// Rotas do redesenho (plano 2026-11-14, "Rotas"). Rotas antigas redirecionam.
+const DashboardPage = lazy(() => import("../features/dashboard/DashboardPage"));
+const TransactionsPage = lazy(() => import("../features/transactions/TransactionsPage"));
+const ChatPage = lazy(() => import("../features/chat/ChatPage"));
+const ReportsPage = lazy(() => import("../features/reports/ReportsPage"));
+const MorePage = lazy(() => import("../features/settings/MorePage"));
+const PreferencesPage = lazy(() => import("../features/settings/PreferencesPage"));
+const FixedBillsPage = lazy(() => import("../features/bills/FixedBillsPage"));
+const AccountsPage = lazy(() => import("../features/accounts/AccountsPage"));
 const MetasTab = lazy(() => import("../shell/tabs/MetasTab"));
 const PlanoTab = lazy(() => import("../shell/tabs/PlanoTab"));
-const MaisTab = lazy(() => import("../shell/tabs/MaisTab"));
-const AdminPage = lazy(() => import("../features/admin/AdminPage"));
+const AdminSectionPage = lazy(() => import("../features/admin/routes"));
+const KitPage = import.meta.env.DEV ? lazy(() => import("../dev/KitPage")) : null;
 
 export default function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route element={<RequireAuth />}>
-          <Route element={<Shell />}>
-            <Route index element={<ChatTab />} />
-            <Route path="geral" element={<GeralTab />} />
-            <Route path="metas" element={<MetasTab />} />
-            <Route path="plano" element={<PlanoTab />} />
-            <Route path="mais" element={<MaisTab />} />
-            <Route element={<AdminRoute />}>
-              <Route path="mais/admin" element={<AdminPage />} />
+      <HideValuesProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route element={<RequireAuth />}>
+            <Route element={<Shell />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="transacoes" element={<TransactionsPage />} />
+              <Route path="lancar" element={<ChatPage />} />
+              <Route path="relatorios" element={<ReportsPage />} />
+              <Route path="mais" element={<MorePage />} />
+              <Route path="preferencias" element={<PreferencesPage />} />
+              <Route path="contas-fixas" element={<FixedBillsPage />} />
+              <Route path="contas" element={<AccountsPage />} />
+              <Route path="metas" element={<MetasTab />} />
+              <Route path="plano" element={<PlanoTab />} />
+              <Route path="geral" element={<Navigate to="/" replace />} />
+              <Route element={<AdminRoute />}>
+                <Route path="admin" element={<Navigate to="/admin/usuarios" replace />} />
+                <Route path="admin/:secao" element={<AdminSectionPage />} />
+                <Route path="mais/admin" element={<Navigate to="/admin/usuarios" replace />} />
+              </Route>
+              {KitPage ? <Route path="dev/kit" element={<KitPage />} /> : null}
             </Route>
           </Route>
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </HideValuesProvider>
     </AuthProvider>
   );
 }

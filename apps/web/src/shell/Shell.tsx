@@ -1,33 +1,36 @@
 import { Suspense } from "react";
-import { NavLink, Outlet } from "react-router-dom";
-import { LoadingState } from "../ui/States";
+import { Outlet } from "react-router-dom";
+import { BottomBar } from "./BottomBar";
+import { Header } from "./Header";
+import { RouteSkeleton } from "./RouteSkeleton";
+import { Sidebar } from "./Sidebar";
+import { DESKTOP_QUERY, useMediaQuery } from "./useMediaQuery";
+import "./shell.css";
 
-const TABS = [
-  { to: "/", label: "Chat", icon: "💬", end: true },
-  { to: "/geral", label: "Geral", icon: "📊", end: false },
-  { to: "/metas", label: "Metas", icon: "🎯", end: false },
-  { to: "/plano", label: "Plano", icon: "🗓️", end: false },
-  { to: "/mais", label: "Mais", icon: "⋯", end: false },
-];
-
+/** Casca responsiva: barra flutuante no celular; menu lateral + cabeçalho no computador (≥ 1024px). */
 export function Shell() {
+  const desktop = useMediaQuery(DESKTOP_QUERY);
+  const content = (
+    <Suspense fallback={<RouteSkeleton />}>
+      <Outlet />
+    </Suspense>
+  );
+
+  if (desktop) {
+    return (
+      <div className="shell shell--desktop">
+        <Sidebar />
+        <div className="shell__col">
+          <Header />
+          <main className="shell-main shell-main--desktop">{content}</main>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="shell">
-      <main className="shell-main">
-        <Suspense fallback={<LoadingState />}>
-          <Outlet />
-        </Suspense>
-      </main>
-      <nav className="tabbar" aria-label="Principal">
-        {TABS.map((t) => (
-          <NavLink key={t.to} to={t.to} end={t.end} className="tab">
-            <span aria-hidden="true" className="tab-icon">
-              {t.icon}
-            </span>
-            <span>{t.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      <main className="shell-main">{content}</main>
+      <BottomBar />
     </div>
   );
 }

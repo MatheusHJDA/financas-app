@@ -629,6 +629,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/month": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Relatório do mês (totais, contas fixas, categorias, ritmo de gasto)
+         * @description Agrega lançamentos e contas fixas de um mês, em centavos. Mesmas regras de leitura de
+         *     `GET /transactions` (só agrega o que o usuário já pode listar). Transferências não contam.
+         *     Datas no fuso America/Sao_Paulo.
+         */
+        get: operations["getMonthReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/users": {
         parameters: {
             query?: never;
@@ -1036,6 +1058,77 @@ export interface components {
             /** @description Contas a pagar dos próximos 15 dias */
             upcoming_bills: components["schemas"]["BillInstance"][];
             overdue_bills: components["schemas"]["BillInstance"][];
+        };
+        MonthReport: {
+            /**
+             * Format: date
+             * @description Primeiro dia do mês
+             */
+            month: string;
+            /**
+             * Format: int64
+             * @description Soma das receitas do mês.
+             */
+            income_cents: number;
+            /**
+             * Format: int64
+             * @description Soma das despesas do mês.
+             */
+            expense_cents: number;
+            /**
+             * Format: int64
+             * @description income_cents − expense_cents.
+             */
+            balance_cents: number;
+            bills: components["schemas"]["MonthBills"];
+            previous: components["schemas"]["MonthTotals"];
+            /**
+             * Format: int64
+             * @description expense_cents − previous.expense_cents.
+             */
+            expense_delta_cents: number;
+            /** @description Despesas por categoria, da maior para a menor. Sem categoria = category_id null, nome "Sem categoria". */
+            by_category: components["schemas"]["CategoryShare"][];
+            daily_cumulative_expense: components["schemas"]["DailyCumulative"];
+        };
+        MonthTotals: {
+            /** Format: int64 */
+            income_cents: number;
+            /** Format: int64 */
+            expense_cents: number;
+        };
+        /** @description Contas fixas (bill_instances) com vencimento no mês. */
+        MonthBills: {
+            total_count: number;
+            paid_count: number;
+            /** Format: int64 */
+            paid_cents: number;
+            open_count: number;
+            /** Format: int64 */
+            open_cents: number;
+        };
+        CategoryShare: {
+            /** Format: int64 */
+            category_id: number | null;
+            name: string;
+            /** Format: int64 */
+            total_cents: number;
+            /** @description Participação em pontos-base (1% = 100), meio-para-cima; a soma pode não dar 10000. */
+            share_bp: number;
+        };
+        /**
+         * @description Despesa acumulada dia a dia. `current`: mês pedido, até hoje se for o mês corrente
+         *     (fuso de SP), completo se passado, vazio se futuro. `previous`: mês anterior completo.
+         *     Dia sem gasto repete o acumulado.
+         */
+        DailyCumulative: {
+            current: components["schemas"]["DailyPoint"][];
+            previous: components["schemas"]["DailyPoint"][];
+        };
+        DailyPoint: {
+            day: number;
+            /** Format: int64 */
+            cents: number;
         };
         RecurringBill: {
             /** Format: int64 */
@@ -2851,6 +2944,32 @@ export interface operations {
                     "application/json": components["schemas"]["PlanProjection"];
                 };
             };
+        };
+    };
+    getMonthReport: {
+        parameters: {
+            query: {
+                /** @description Mês no formato AAAA-MM. */
+                month: string;
+                /** @description Sem `owner`, soma todos (visão do casal). */
+                owner?: components["schemas"]["Owner"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Relatório do mês */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthReport"];
+                };
+            };
+            422: components["responses"]["Error"];
         };
     };
     adminListUsers: {

@@ -1,28 +1,55 @@
+/* Tokens do redesenho (spec 2026-11-14). Claro por padrão; escuro pelo sistema ou por data-theme. */
 :root {
-  color-scheme: light dark;
-  --color-bg: #ffffff;
-  --color-surface: #f5f7f7;
-  --color-border: #d5dddc;
-  --color-text: #12201f;
-  --color-muted: #55645f;
-  --color-primary: #0f766e;
+  color-scheme: light;
+  --color-bg: #f4f6f5;
+  --color-surface: #ffffff;
+  --color-surface-2: #eef2f0;
+  --color-border: #e1e7e4;
+  --color-text: #101917;
+  --color-muted: #5b6863;
+  --color-primary: #15803d;
+  --color-primary-strong: #116932;
   --color-on-primary: #ffffff;
+  --color-income: #15803d;
+  --color-expense: #c81e1e;
+  --color-info: #1d5fd1;
+  --color-warning: #b45309;
   --color-danger: #b42318;
   --color-ok: #067647;
+  --tone-income-bg: #e3f6e9;
+  --tone-expense-bg: #fde7e7;
+  --tone-info-bg: #e3edfc;
+  --tone-warning-bg: #fdf0e1;
+  --tone-neutral-bg: #eef2f0;
+  --sparkle-a: #3b82f6;
+  --sparkle-b: #8b5cf6;
+  --sparkle-c: #22c55e;
+  --skeleton-a: #e6ebe9;
+  --skeleton-b: #f3f6f5;
+
+  --shadow-sm: 0 1px 2px rgb(16 25 23 / 0.06), 0 1px 3px rgb(16 25 23 / 0.05);
+  --shadow-md: 0 4px 16px rgb(16 25 23 / 0.08), 0 1px 3px rgb(16 25 23 / 0.06);
+
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 16px;
   --space-4: 24px;
   --space-5: 32px;
-  --radius: 12px;
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 24px;
   --radius-pill: 999px;
   --tap: 56px; /* alvo de toque mínimo é 48px; teclas do PIN usam 56px */
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-md: 1rem;
   --text-lg: 1.25rem;
   --text-xl: 1.75rem;
+  --text-hero: 2rem;
   --tabbar-h: 64px;
+  --sidebar-w: 248px;
+  --bp-desktop: 1024px; /* referência; media queries usam o valor literal */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -30,15 +57,59 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #0e1514;
-    --color-surface: #172220;
-    --color-border: #2a3a37;
-    --color-text: #e8f0ef;
-    --color-muted: #9bb0ae;
-    --color-primary: #2dd4bf;
-    --color-on-primary: #04211e;
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-bg: #0d1110;
+    --color-surface: #161c1b;
+    --color-surface-2: #1e2625;
+    --color-border: #2a3533;
+    --color-text: #e8f0ed;
+    --color-muted: #9aaba5;
+    --color-primary: #4ade80;
+    --color-primary-strong: #86efac;
+    --color-on-primary: #052e16;
+    --color-income: #4ade80;
+    --color-expense: #f87171;
+    --color-info: #7aa7f5;
+    --color-warning: #fbbf24;
     --color-danger: #f97066;
     --color-ok: #47cd89;
+    --tone-income-bg: #12301f;
+    --tone-expense-bg: #3a1717;
+    --tone-info-bg: #142640;
+    --tone-warning-bg: #3a2a10;
+    --tone-neutral-bg: #1e2625;
+    --skeleton-a: #1e2625;
+    --skeleton-b: #263130;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 4px 16px rgb(0 0 0 / 0.45);
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #0d1110;
+  --color-surface: #161c1b;
+  --color-surface-2: #1e2625;
+  --color-border: #2a3533;
+  --color-text: #e8f0ed;
+  --color-muted: #9aaba5;
+  --color-primary: #4ade80;
+  --color-primary-strong: #86efac;
+  --color-on-primary: #052e16;
+  --color-income: #4ade80;
+  --color-expense: #f87171;
+  --color-info: #7aa7f5;
+  --color-warning: #fbbf24;
+  --color-danger: #f97066;
+  --color-ok: #47cd89;
+  --tone-income-bg: #12301f;
+  --tone-expense-bg: #3a1717;
+  --tone-info-bg: #142640;
+  --tone-warning-bg: #3a2a10;
+  --tone-neutral-bg: #1e2625;
+  --skeleton-a: #1e2625;
+  --skeleton-b: #263130;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 16px rgb(0 0 0 / 0.45);
 }

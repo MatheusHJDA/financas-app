@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-const THEME_COLOR = "#0f766e";
+const THEME_COLOR = "#15803d";
 
 export default defineConfig({
   plugins: [
@@ -34,7 +34,7 @@ export default defineConfig({
           },
         ],
       },
-      injectManifest: { globPatterns: ["**/*.{js,css,html,png,svg,webmanifest}"] },
+      injectManifest: { globPatterns: ["**/*.{js,css,html,png,svg,webmanifest,woff2}"] },
     }),
   ],
   server: { proxy: { "/api": "http://localhost:8000" } },
