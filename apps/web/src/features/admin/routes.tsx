@@ -17,8 +17,8 @@ const VIEWS: Record<AdminSlug, () => JSX.Element> = {
   sistema: SystemSection,
 };
 
-// Uma rota por seção do painel (/admin/:secao). A guarda de admin fica em AdminRoute (App.tsx).
-// Layout de painel definitivo: U22.
+// Uma página por seção (/admin/:secao); o menu (celular e lateral) é quem troca de seção.
+// A guarda de admin fica em AdminRoute (App.tsx): aqui só se renderiza.
 export default function AdminSectionPage() {
   const { secao } = useParams();
   const meta = ADMIN_SECTIONS.find((s) => s.slug === secao);
@@ -27,7 +27,7 @@ export default function AdminSectionPage() {
   return (
     <section className="screen admin">
       <h1>{meta.label}</h1>
-      <div id={`admin-${meta.slug}`}>
+      <div id={`admin-${meta.slug}`} className="admin-body">
         <View />
       </div>
     </section>

@@ -126,9 +126,10 @@ def owner_filter(page: Page, label: str) -> None:
 
 def test_geral_saldos_e_filtros_por_dono(page: Page, login_as: Callable[[str], None]) -> None:
     login_as("Ruth")
-    open_route(page, "/geral")
+    open_route(page, "/")
     expect(page.get_by_role("heading", name="Saldos")).to_be_visible()
     expect(page.get_by_text("Total do casal", exact=True)).to_be_visible()
+    page.get_by_role("button", name="Expandir").tap()
     matheus = page.get_by_role("group", name="Saldos de Matheus")
     expect(matheus).to_contain_text("Nubank Matheus")
     expect(matheus).to_contain_text("R$ 1.450,00")
@@ -136,7 +137,9 @@ def test_geral_saldos_e_filtros_por_dono(page: Page, login_as: Callable[[str], N
     ambos = page.get_by_role("group", name="Saldos de Ambos")
     expect(ambos).to_contain_text("Reserva do Casal")
     expect(ambos).to_contain_text("R$ 4.800,00")
+    assert_layout(page)
 
+    open_route(page, "/transacoes")
     feira = page.get_by_text("Apoio Matheus: Feira", exact=True)
     padaria = page.get_by_text("Apoio Ruth: Padaria", exact=True)
     condominio = page.get_by_text("Apoio Ambos: Condomínio", exact=True)
@@ -164,7 +167,7 @@ def test_geral_ruth_nao_edita_lancamento_do_matheus(
     page: Page, login_as: Callable[[str], None]
 ) -> None:
     login_as("Ruth")
-    open_route(page, "/geral")
+    open_route(page, "/transacoes")
     expect(page.get_by_text("Apoio Matheus: Feira", exact=True)).to_be_visible()
     expect(page.get_by_role("button", name="Editar Apoio Ruth: Padaria")).to_be_visible()
     expect(page.get_by_role("button", name="Excluir Apoio Ruth: Padaria")).to_be_visible()
@@ -177,7 +180,7 @@ def test_geral_matheus_admin_edita_e_exclui_qualquer_lancamento(
     page: Page, login_as: Callable[[str], None]
 ) -> None:
     login_as("Matheus")
-    open_route(page, "/geral")
+    open_route(page, "/transacoes")
     for description in ("Apoio Matheus: Feira", "Apoio Ruth: Padaria", "Apoio Ambos: Condomínio"):
         expect(page.get_by_role("button", name=f"Editar {description}")).to_be_visible()
         expect(page.get_by_role("button", name=f"Excluir {description}")).to_be_visible()

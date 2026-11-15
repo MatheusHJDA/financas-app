@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "../../ui";
 import { PLANILHA_DEFAULTS } from "./planDefaults";
 import { PLAN_KEY, PlanError, saveAssumptions, type PlanAssumptions } from "./planApi";
 import { fromForm, MAX_CARDS, toForm, type CardRow, type FieldErrors, type PlanForm } from "./planForm";
@@ -189,14 +190,14 @@ export function AssumptionsForm({ assumptions, onDone }: Props) {
               error={errors[`cards.${i}.firstMonth`]}
               inputMode="numeric"
             />
-            <button type="button" className="btn" onClick={() => removeCard(i)}>
+            <Button block onClick={() => removeCard(i)}>
               Remover parcela {i + 1}
-            </button>
+            </Button>
           </fieldset>
         ))}
-        <button type="button" className="btn" onClick={addCard} disabled={form.cards.length >= MAX_CARDS}>
+        <Button block onClick={addCard} disabled={form.cards.length >= MAX_CARDS}>
           Adicionar parcela de cartão
-        </button>
+        </Button>
       </fieldset>
 
       <fieldset>
@@ -221,36 +222,31 @@ export function AssumptionsForm({ assumptions, onDone }: Props) {
         </p>
       ) : null}
       <div className="plan-form-actions">
-        <button type="submit" className="btn plan-primary" disabled={save.isPending || reset.isPending}>
+        <Button type="submit" variant="primary" block disabled={save.isPending || reset.isPending}>
           {save.isPending ? "Salvando…" : "Salvar premissas"}
-        </button>
-        <button type="button" className="btn" onClick={onDone} disabled={save.isPending}>
+        </Button>
+        <Button block onClick={onDone} disabled={save.isPending}>
           Cancelar
-        </button>
+        </Button>
       </div>
 
       <div className="plan-reset">
         {confirmReset ? (
-          <div role="group" aria-label="Confirmação">
+          <div role="group" aria-label="Confirmação" className="plan-confirm">
             <p>
               Isso troca todas as premissas pelos valores da planilha. Quer continuar?
             </p>
-            <button
-              type="button"
-              className="btn btn--danger"
-              onClick={() => reset.mutate()}
-              disabled={reset.isPending}
-            >
+            <Button variant="danger" block onClick={() => reset.mutate()} disabled={reset.isPending}>
               {reset.isPending ? "Voltando…" : "Sim, voltar aos valores da planilha"}
-            </button>
-            <button type="button" className="btn" onClick={() => setConfirmReset(false)}>
+            </Button>
+            <Button block onClick={() => setConfirmReset(false)}>
               Não, manter as premissas atuais
-            </button>
+            </Button>
           </div>
         ) : (
-          <button type="button" className="btn btn--danger" onClick={() => setConfirmReset(true)}>
+          <Button variant="danger" block onClick={() => setConfirmReset(true)}>
             Voltar aos valores da planilha
-          </button>
+          </Button>
         )}
         {reset.isError ? (
           <p className="plan-field-error" role="alert">

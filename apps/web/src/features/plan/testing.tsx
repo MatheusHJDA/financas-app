@@ -2,6 +2,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
+import { HideValuesProvider } from "../../ui";
 import PlanPage from "./PlanPage";
 import { PLANILHA_DEFAULTS } from "./planDefaults";
 import type { PlanAssumptions, PlanProjection } from "./planApi";
@@ -87,6 +88,8 @@ interface Options {
   failProjection?: boolean;
   /** Status do PUT (ex.: 422 para testar a mensagem de recusa). */
   putStatus?: number;
+  /** Projeção devolvida para "amortizar agora" (padrão: PROJECTION_NOW). */
+  now?: PlanProjection;
 }
 
 /** fetch simulado com estado: o PUT muda o que o GET devolve, como na API. */
@@ -119,7 +122,7 @@ export function fakePlanApi(options: Options = {}): FakePlanApi {
         const scenario = url.searchParams.get("scenario") ?? "";
         projectionCalls[scenario] = (projectionCalls[scenario] ?? 0) + 1;
         if (options.failProjection) return json({ detail: "falhou" }, 500);
-        return json(scenario === "amortize_now" ? PROJECTION_NOW : PROJECTION_NONE);
+        return json(scenario === "amortize_now" ? (options.now ?? PROJECTION_NOW) : PROJECTION_NONE);
       }
 
       return json({ detail: "não mockado" }, 500);
@@ -136,8 +139,10 @@ export function fakePlanApi(options: Options = {}): FakePlanApi {
 export function renderPlan() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={client}>
-      <PlanPage />
-    </QueryClientProvider>,
+    <HideValuesProvider>
+      <QueryClientProvider client={client}>
+        <PlanPage />
+      </QueryClientProvider>
+    </HideValuesProvider>,
   );
 }

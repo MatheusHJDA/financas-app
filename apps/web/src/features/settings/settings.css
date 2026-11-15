@@ -1,3 +1,15 @@
+/* Mais */
+.more-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.more-who__text {
+  margin: 0;
+  color: var(--color-muted);
+  font-weight: 500;
+}
 .more-list {
   list-style: none;
   margin: 0;
@@ -13,6 +25,10 @@
   min-height: 56px;
   color: var(--color-text);
   text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+.more-link:active {
+  background: var(--color-surface-2);
 }
 .more-link__icon {
   display: grid;
@@ -20,10 +36,63 @@
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: var(--color-surface-2);
+  background: var(--tone-income-bg);
   color: var(--color-primary);
 }
 .more-link__label {
   flex: 1;
   font-weight: 600;
+}
+.more-link__chev {
+  color: var(--color-muted);
+}
+
+/* Preferências: seletor de tema (segmentado, rádios nativos) */
+.pref-seg {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+}
+.pref-seg__opt {
+  position: relative;
+  display: block;
+}
+.pref-seg__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.pref-seg__face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 48px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-muted);
+  white-space: nowrap;
+  transition: background-color 0.15s, color 0.15s;
+}
+.pref-seg__input:checked + .pref-seg__face {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+.pref-seg__input:focus-visible + .pref-seg__face {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.pref-hint {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
 }

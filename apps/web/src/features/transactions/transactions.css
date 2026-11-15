@@ -1,0 +1,258 @@
+/* Tela Transações (U17). Só tokens de styles/tokens.css; classes com prefixo .tx- */
+
+.tx-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 880px;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+.tx-page h1,
+.tx-results h2 {
+  margin: 0;
+}
+.tx-results h2 {
+  font-size: var(--text-lg);
+}
+
+.tx-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Filtros */
+.tx-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.tx-range,
+.tx-more {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+.tx-more[hidden] {
+  display: none;
+}
+@media (min-width: 640px) {
+  .tx-range,
+  .tx-more {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.tx-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.tx-search__box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 200px;
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  background: var(--color-surface-2);
+  border-radius: var(--radius-pill);
+  color: var(--color-muted);
+}
+.tx-search__box input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+}
+.tx-search__box input:focus {
+  outline: none;
+}
+.tx-search__box:focus-within {
+  outline: 2px solid var(--color-primary);
+}
+
+/* Campos de formulário (filtros e Sheet de edição) */
+.tx-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.tx-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.tx-field > label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.tx-field input,
+.tx-field select {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+.tx-field [aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+.tx-err {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}
+.tx-confirm {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.tx-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tx-notice {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--tone-income-bg);
+  color: var(--color-ok);
+  font-weight: 600;
+}
+
+/* Lista agrupada por dia */
+.tx-days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.tx-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.tx-day__title {
+  margin: 0;
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-muted);
+}
+.tx-day__list {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.tx-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+.tx-row:last-child {
+  border-bottom: 0;
+}
+.tx-row .ui-li {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.tx-row .ui-li__title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.tx-row .ui-li__trail {
+  white-space: nowrap;
+}
+.tx-row__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+  padding-bottom: var(--space-2);
+}
+.tx-row__actions .ui-icon-btn {
+  border: 0;
+  background: var(--color-surface-2);
+}
+.tx-icon-danger {
+  color: var(--color-danger);
+}
+@media (min-width: 640px) {
+  .tx-row .ui-li {
+    flex: 1 1 0;
+  }
+  .tx-row__actions {
+    margin-left: 0;
+    padding-bottom: 0;
+  }
+}
+
+/* Bolha do tipo (receita verde, despesa vermelha, transferência azul) */
+.tx-kind {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+.tx-kind--income {
+  background: var(--tone-income-bg);
+  color: var(--color-income);
+}
+.tx-kind--expense {
+  background: var(--tone-expense-bg);
+  color: var(--color-expense);
+}
+.tx-kind--transfer {
+  background: var(--tone-info-bg);
+  color: var(--color-info);
+}
+
+/* Skeleton com a forma da lista */
+.tx-skel-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) 0;
+}
+.tx-skel-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1;
+}
+
+/* Paginação e CSV */
+.tx-pager nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.tx-pager__info {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.tx-export {
+  align-self: flex-start;
+}

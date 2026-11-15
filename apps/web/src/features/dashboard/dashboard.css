@@ -1,0 +1,315 @@
+/* Dashboard (U16). Só tokens; classes prefixadas com .dash- */
+
+.dash-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.dash-head h1 {
+  margin: 0;
+}
+.dash-greeting {
+  margin: 2px 0 0;
+}
+.dash-small {
+  font-size: var(--text-sm);
+}
+.dash-neg {
+  color: var(--color-expense);
+}
+.dash-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 var(--space-2);
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+.dash-link:hover {
+  text-decoration: underline;
+}
+.dash-empty {
+  margin: 0;
+}
+
+/* Grade: uma coluna no celular; três colunas no computador */
+.dash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.dash-month {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+@media (min-width: 1024px) {
+  .dash-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+  .dash-month,
+  .dash-pace {
+    grid-column: span 2;
+  }
+}
+
+/* Saldo em destaque */
+.ui-card.dash-hero {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-strong));
+  color: var(--color-on-primary);
+}
+.dash-hero .ui-card__icon {
+  color: inherit;
+}
+.dash-hero__label {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.dash-hero__value {
+  margin: var(--space-1) 0 var(--space-2);
+  font-size: clamp(1.5rem, 8vw, var(--text-hero));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.dash-hero__value .money,
+.dash-stats .money {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.dash-hero .money--hidden {
+  color: inherit;
+}
+.dash-expand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dash-expand__icon {
+  transition: transform 0.15s;
+}
+.dash-expand__icon--up {
+  transform: rotate(180deg);
+}
+.dash-hero__more:not([hidden]) {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.dash-owner {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.dash-owner__title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+}
+.dash-owner__empty {
+  margin: 0;
+}
+.dash-owner__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dash-owner__row,
+.dash-owner__total,
+.dash-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.dash-owner__row {
+  min-height: 40px;
+  align-items: center;
+}
+.dash-owner__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dash-owner__total {
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+.dash-hero-skel {
+  min-height: 176px;
+}
+
+/* Cartões do mês: 2×2 também no celular (valor embaixo, nunca estoura o cartão) */
+.dash-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.dash-stats .ui-stat {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.dash-stats .ui-stat__value {
+  font-size: var(--text-md);
+}
+@media (min-width: 1024px) {
+  .dash-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .dash-stats .ui-stat__value {
+    font-size: var(--text-lg);
+  }
+}
+
+/* Aviso comparativo */
+.dash-insight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+.dash-insight--more svg {
+  color: var(--color-expense);
+}
+.dash-insight--less svg {
+  color: var(--color-income);
+}
+.dash-insight--same svg {
+  color: var(--color-muted);
+}
+.dash-invite {
+  padding: var(--space-2);
+}
+
+/* Listas (contas, dívidas) */
+.dash-list {
+  display: flex;
+  flex-direction: column;
+}
+.dash-total {
+  margin: 0 0 var(--space-2);
+}
+.dash-bill-trail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.dash-badge {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dash-badge--late {
+  background: var(--tone-expense-bg);
+  color: var(--color-expense);
+}
+.dash-badge--soon {
+  background: var(--tone-warning-bg);
+  color: var(--color-warning);
+}
+
+/* Metas */
+.dash-goal-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dash-goal__head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+  font-weight: 600;
+}
+.dash-goal__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dash-goal__sub {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+}
+.dash-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+}
+.dash-bar__fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  transition: width 0.2s;
+}
+.dash-bar__fill--over {
+  background: var(--color-expense);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-bar__fill,
+  .dash-expand__icon {
+    transition: none;
+  }
+}
+
+/* Gráficos (computador) */
+.dash-donut-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-weight: 700;
+}
+.dash-top__list {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.dash-top__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.dash-top__dot {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+}
+.dash-top__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-top__pct {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}

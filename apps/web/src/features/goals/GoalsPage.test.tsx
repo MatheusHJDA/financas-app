@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { todayIso } from "../chat/dates";
-import { bodyOf, json, makeServer, MATHEUS, renderApp, RUTH, writes } from "../overview/testing";
+import { bodyOf, json, makeServer, MATHEUS, renderApp, RUTH, writes } from "../../test/appTesting";
+import { HideValuesProvider } from "../../ui";
 import GoalsPage from "./GoalsPage";
 
 afterEach(() => {
@@ -201,4 +202,63 @@ it("estados de vazio e de erro", async () => {
   makeServer(RUTH, { "GET /goals": () => json({ detail: "falha" }, 500) });
   renderApp(<GoalsPage />);
   expect(await screen.findByText("Não foi possível carregar as metas.")).toBeTruthy();
+});
+
+it("mostra esqueleto com a forma dos cartões enquanto carrega", () => {
+  vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+  renderApp(<GoalsPage />);
+  const loading = screen.getByRole("status", { name: "Carregando metas…" });
+  expect(loading.getAttribute("aria-busy")).toBe("true");
+  expect(screen.getByRole("heading", { name: "Metas", level: 1 })).toBeTruthy();
+});
+
+it("meta inativa ganha o selo 'Inativa' e a barra de teto estourado fica marcada", async () => {
+  makeServer(MATHEUS, {
+    "GET /goals": () =>
+      json({
+        items: [
+          {
+            id: 7,
+            owner: "AMBOS",
+            type: "category_cap",
+            name: "Lazer",
+            target_cents: 40_000,
+            active: false,
+            progress: { current_cents: 52_000, target_cents: 40_000, percent: 130, level: null },
+          },
+        ],
+        total: 1,
+      }),
+  });
+  renderApp(<GoalsPage />);
+  const lazer = await screen.findByRole("listitem", { name: "Lazer" });
+  expect(within(lazer).getByText("Inativa")).toBeTruthy();
+  expect(within(lazer).getByRole("progressbar").className).toContain("goal-bar--over");
+});
+
+it("'Nova meta' abre o formulário e 'Cancelar' volta ao botão", async () => {
+  await openAs(MATHEUS);
+  fireEvent.click(await screen.findByRole("button", { name: "Nova meta" }));
+  expect(screen.getByRole("form", { name: "Nova meta" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Nova meta" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+  expect(screen.getByRole("button", { name: "Nova meta" })).toBeTruthy();
+});
+
+it("olho ligado oculta os valores das metas (progresso, níveis e teto estourado)", async () => {
+  localStorage.setItem("finance.hideValues", "1");
+  try {
+    makeServer(MATHEUS);
+    renderApp(
+      <HideValuesProvider>
+        <GoalsPage />
+      </HideValuesProvider>,
+    );
+    await screen.findByText("Reserva de emergência");
+    const list = screen.getByRole("list", { name: "Metas" });
+    expect(within(list).queryByText(/R\$ \d/)).toBeNull();
+    expect(within(list).getAllByText(/R\$ •••••/).length).toBeGreaterThan(0);
+  } finally {
+    localStorage.removeItem("finance.hideValues");
+  }
 });

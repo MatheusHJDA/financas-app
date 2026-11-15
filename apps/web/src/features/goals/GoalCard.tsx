@@ -1,18 +1,27 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Gauge, Landmark, PiggyBank, TrendingUp, type LucideIcon } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
 import { api } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
-import { ConfirmBar } from "../accounts/ConfirmBar";
+import { Button, useHideValues } from "../../ui";
 import { formatReaisShort } from "../accounts/money";
 import { assertOk, canWrite, errorMessage, OWNER_LABEL, type Account, type Category, type Goal } from "../accounts/shared";
 import { formatDate, isValidIsoDate, todayIso } from "../chat/dates";
 import { parseBRL } from "../chat/money";
 import { formatPercent, goalToForm, PERIOD_LABEL, progressText, typeLabel, type GoalBody, type GoalPeriod } from "./goalForm";
 import { GoalForm } from "./GoalFormFields";
-import "../accounts/ui.css";
+import "./goals.css";
 
 const FORBIDDEN = "Você não pode alterar essa meta.";
 type Mode = "view" | "edit" | "delete" | "entry";
+
+// Ícone e cor da bolha por tipo de meta.
+const TYPE_LOOK: Record<string, { icon: LucideIcon; tone: string }> = {
+  accumulate: { icon: PiggyBank, tone: "" },
+  income_period: { icon: TrendingUp, tone: "info" },
+  category_cap: { icon: Gauge, tone: "warning" },
+  debt_payoff: { icon: Landmark, tone: "expense" },
+};
 
 interface Props {
   goal: Goal;
@@ -23,6 +32,8 @@ interface Props {
 
 export function GoalCard({ goal, accounts, categories, onNotice }: Props) {
   const { me } = useAuth();
+  const { hidden } = useHideValues();
+  const short = (cents: number) => (hidden ? "R$ •••••" : formatReaisShort(cents));
   const queryClient = useQueryClient();
   const titleId = useId();
   const [mode, setMode] = useState<Mode>("view");
@@ -64,6 +75,9 @@ export function GoalCard({ goal, accounts, categories, onNotice }: Props) {
   const categoryName = categories.find((c) => c.id === goal.linked_category_id)?.name;
   const accountName = accounts.find((a) => a.id === goal.linked_account_id)?.name;
   const levels = [...(goal.levels ?? [])].sort((a, b) => a.target_cents - b.target_cents);
+  const look = TYPE_LOOK[goal.type] ?? TYPE_LOOK.accumulate;
+  const Icon = look.icon;
+  const tone = over ? "expense" : look.tone;
 
   const open = (next: Mode) => {
     save.reset();
@@ -75,76 +89,77 @@ export function GoalCard({ goal, accounts, categories, onNotice }: Props) {
   const close = () => open("view");
 
   return (
-    <li className="u8-card" aria-labelledby={titleId}>
-      <div className="u8-row">
-        <h3 id={titleId} className="u8-grow">
-          {goal.name}
-        </h3>
-        {!goal.active ? <span className="u8-badge">Inativa</span> : null}
+    <li className="goal-card" aria-labelledby={titleId}>
+      <div className="goal-card__top">
+        <span className={`goal-card__bubble${tone ? ` goal-card__bubble--${tone}` : ""}`} aria-hidden="true">
+          <Icon size={22} strokeWidth={1.75} />
+        </span>
+        <div className="goal-card__titles">
+          <h2 id={titleId} className="goal-card__title">
+            {goal.name}
+          </h2>
+          <p className="goal-card__meta">
+            {[
+              typeLabel(goal.type),
+              OWNER_LABEL[goal.owner],
+              goal.type === "income_period" && goal.period ? (PERIOD_LABEL[goal.period as GoalPeriod] ?? goal.period) : "",
+              categoryName ?? "",
+              accountName ? `Conta ${accountName}` : "",
+              goal.due_date ? `Prazo ${formatDate(goal.due_date)}` : "",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+        {!goal.active ? <span className="goal-badge">Inativa</span> : null}
       </div>
-      <p className="muted u8-small" style={{ margin: "var(--space-1) 0 var(--space-2)" }}>
-        {[
-          typeLabel(goal.type),
-          OWNER_LABEL[goal.owner],
-          goal.type === "income_period" && goal.period ? (PERIOD_LABEL[goal.period as GoalPeriod] ?? goal.period) : "",
-          categoryName ?? "",
-          accountName ? `Conta ${accountName}` : "",
-          goal.due_date ? `Prazo ${formatDate(goal.due_date)}` : "",
-        ]
-          .filter(Boolean)
-          .join(" · ")}
-      </p>
 
       <div
-        className={`u8-bar ${over ? "u8-bar--over" : ""}`}
+        className={`goal-bar${over ? " goal-bar--over" : ""}`}
         role="progressbar"
         aria-label={`Progresso de ${goal.name}`}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(width)}
-        aria-valuetext={progressText(goal)}
+        aria-valuetext={progressText(goal, short)}
       >
-        <div className="u8-bar-fill" style={{ width: `${width}%` }} />
+        <div className="goal-bar__fill" style={{ width: `${width}%` }} />
       </div>
-      <p className="u8-amount" style={{ margin: "var(--space-2) 0 0", whiteSpace: "normal" }}>
-        {progressText(goal)}
-      </p>
+      <p className="goal-amount">{progressText(goal, short)}</p>
 
       {over ? (
-        <p className="u8-err" role="status">
-          Acima do teto em {formatReaisShort(p.current_cents - p.target_cents)}.
+        <p className="goal-alert" role="status">
+          Acima do teto em {short(p.current_cents - p.target_cents)}.
         </p>
       ) : null}
-      {goal.type === "category_cap" && !over ? <p className="muted u8-small">Gasto do mês na categoria.</p> : null}
-      {goal.type === "debt_payoff" ? <p className="muted u8-small">Quanto da dívida já foi quitado.</p> : null}
+      {goal.type === "category_cap" && !over ? <p className="goal-note">Gasto do mês na categoria.</p> : null}
+      {goal.type === "debt_payoff" ? <p className="goal-note">Quanto da dívida já foi quitado.</p> : null}
       {goal.type === "accumulate" && !manualEntries ? (
-        <p className="muted u8-small">O progresso vem do saldo da conta vinculada.</p>
+        <p className="goal-note">O progresso vem do saldo da conta vinculada.</p>
       ) : null}
 
       {levels.length > 0 ? (
         <>
-          <ul className="u8-list" aria-label="Níveis" style={{ marginTop: "var(--space-2)" }}>
+          <ul className="goal-levels" aria-label="Níveis">
             {levels.map((l) => {
               const reached = p.current_cents >= l.target_cents;
               return (
-                <li key={`${l.name}-${l.target_cents}`} className="u8-row">
+                <li key={`${l.name}-${l.target_cents}`} className={`goal-level${reached ? " goal-level--on" : ""}`}>
                   <span>
                     {reached ? "✓ " : ""}
                     {l.name}
-                    {reached ? <span className="u8-sr"> (atingido)</span> : null}
+                    {reached ? <span className="visually-hidden"> (atingido)</span> : null}
                   </span>
-                  <span className="u8-amount">{formatReaisShort(l.target_cents)}</span>
+                  <span className="goal-level__amount">{short(l.target_cents)}</span>
                 </li>
               );
             })}
           </ul>
-          <p className="u8-small" style={{ margin: "var(--space-2) 0 0" }}>
-            {p.level ? `Nível atingido: ${p.level}` : "Nenhum nível atingido ainda."}
-          </p>
+          <p className="goal-note">{p.level ? `Nível atingido: ${p.level}` : "Nenhum nível atingido ainda."}</p>
         </>
       ) : null}
       {goal.type === "income_period" && levels.length === 0 ? (
-        <p className="muted u8-small">Percentual da meta: {formatPercent(p.percent)}%.</p>
+        <p className="goal-note">Percentual da meta: {formatPercent(p.percent)}%.</p>
       ) : null}
 
       {mode === "edit" ? (
@@ -171,34 +186,70 @@ export function GoalCard({ goal, accounts, categories, onNotice }: Props) {
       ) : null}
 
       {mode === "delete" ? (
-        <ConfirmBar
-          danger
-          message={`Excluir a meta "${goal.name}"?`}
-          confirmLabel="Sim, excluir"
+        <DeleteConfirm
+          name={goal.name}
           busy={remove.isPending}
           error={remove.isError ? errorMessage(remove.error, FORBIDDEN) : null}
-          retryable={false}
           onConfirm={() => remove.mutate()}
           onCancel={close}
         />
       ) : null}
 
       {writable && mode === "view" ? (
-        <div className="u8-actions" style={{ marginTop: "var(--space-2)" }}>
+        <div className="goal-actions">
           {manualEntries ? (
-            <button type="button" className="u8-btn u8-btn--primary" aria-label={`Registrar aporte em ${goal.name}`} onClick={() => open("entry")}>
+            <Button variant="primary" aria-label={`Registrar aporte em ${goal.name}`} onClick={() => open("entry")}>
               Aportar
-            </button>
+            </Button>
           ) : null}
-          <button type="button" className="u8-btn" aria-label={`Editar meta ${goal.name}`} onClick={() => open("edit")}>
+          <Button aria-label={`Editar meta ${goal.name}`} onClick={() => open("edit")}>
             Editar
-          </button>
-          <button type="button" className="u8-btn u8-btn--danger" aria-label={`Excluir meta ${goal.name}`} onClick={() => open("delete")}>
+          </Button>
+          <Button variant="danger" aria-label={`Excluir meta ${goal.name}`} onClick={() => open("delete")}>
             Excluir
-          </button>
+          </Button>
         </div>
       ) : null}
     </li>
+  );
+}
+
+/** Confirmação em linha: nada é apagado até o toque em "Sim, excluir". */
+function DeleteConfirm({
+  name,
+  busy,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  name: string;
+  busy: boolean;
+  error: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const id = useId();
+  return (
+    <div className="goal-confirm" role="alertdialog" aria-labelledby={id}>
+      <p id={id}>
+        <strong>{`Excluir a meta "${name}"?`}</strong>
+      </p>
+      {error ? (
+        <p className="goal-err" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="goal-actions">
+        {!error ? (
+          <Button variant="danger" disabled={busy} onClick={onConfirm}>
+            Sim, excluir
+          </Button>
+        ) : null}
+        <Button disabled={busy} onClick={onCancel}>
+          {error ? "Fechar" : "Cancelar"}
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -231,8 +282,8 @@ function EntryForm({
   };
 
   return (
-    <form className="u8-form" onSubmit={submit} noValidate aria-label="Registrar aporte" style={{ marginTop: "var(--space-2)" }}>
-      <div className="u8-field">
+    <form className="goal-form" onSubmit={submit} noValidate aria-label="Registrar aporte">
+      <div className="goal-field">
         <label htmlFor={`${uid}-amount`}>Valor do aporte (R$)</label>
         <input
           id={`${uid}-amount`}
@@ -248,12 +299,12 @@ function EntryForm({
           aria-describedby={errors.amount ? `${uid}-amount-err` : undefined}
         />
         {errors.amount ? (
-          <p id={`${uid}-amount-err`} className="u8-err" role="alert">
+          <p id={`${uid}-amount-err`} className="goal-err" role="alert">
             {errors.amount}
           </p>
         ) : null}
       </div>
-      <div className="u8-field">
+      <div className="goal-field">
         <label htmlFor={`${uid}-date`}>Data do aporte</label>
         <input
           id={`${uid}-date`}
@@ -267,23 +318,23 @@ function EntryForm({
           aria-describedby={errors.date ? `${uid}-date-err` : undefined}
         />
         {errors.date ? (
-          <p id={`${uid}-date-err`} className="u8-err" role="alert">
+          <p id={`${uid}-date-err`} className="goal-err" role="alert">
             {errors.date}
           </p>
         ) : null}
       </div>
       {serverError ? (
-        <p className="u8-err" role="alert">
+        <p className="goal-err" role="alert">
           {serverError}
         </p>
       ) : null}
-      <div className="u8-actions">
-        <button type="submit" className="u8-btn u8-btn--primary" disabled={busy}>
+      <div className="goal-actions">
+        <Button type="submit" variant="primary" disabled={busy}>
           Registrar aporte
-        </button>
-        <button type="button" className="u8-btn" onClick={onCancel} disabled={busy}>
+        </Button>
+        <Button onClick={onCancel} disabled={busy}>
           Cancelar
-        </button>
+        </Button>
       </div>
     </form>
   );

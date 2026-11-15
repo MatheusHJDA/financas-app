@@ -1,4 +1,6 @@
+import { CheckCheck } from "lucide-react";
 import { useState } from "react";
+import { Button } from "../../ui";
 import { DraftCard } from "./DraftCard";
 import { missingForConfirm } from "./proposal";
 import type { Account, Category, IngestResult, Owner } from "./types";
@@ -30,7 +32,7 @@ export function ResultGroup({ result, controller, accounts, categories, fallback
       {result.warnings.length > 0 ? (
         <ul className="warnings" aria-label="Avisos da leitura">
           {result.warnings.map((w, i) => (
-            <li key={i} className="signal signal--warn">
+            <li key={i} className="chat-signal chat-signal--warn">
               {w}
             </li>
           ))}
@@ -38,7 +40,7 @@ export function ResultGroup({ result, controller, accounts, categories, fallback
       ) : null}
 
       {result.drafts.length === 0 ? (
-        <p>Não encontrei nenhum lançamento nesse envio. Tente outra foto ou escreva os dados.</p>
+        <p className="chat-signal">Não encontrei nenhum lançamento nesse envio. Tente outra foto ou escreva os dados.</p>
       ) : null}
 
       {result.drafts.map((d) => {
@@ -70,9 +72,8 @@ export function ResultGroup({ result, controller, accounts, categories, fallback
                 </strong>
               </p>
               <div className="draft-actions">
-                <button
-                  type="button"
-                  className="btn btn--primary"
+                <Button
+                  variant="primary"
                   disabled={anyBusy || ready.length === 0}
                   onClick={() => {
                     setAsking(false);
@@ -80,16 +81,14 @@ export function ResultGroup({ result, controller, accounts, categories, fallback
                   }}
                 >
                   Sim, confirmar
-                </button>
-                <button type="button" className="btn" onClick={() => setAsking(false)}>
-                  Voltar
-                </button>
+                </Button>
+                <Button onClick={() => setAsking(false)}>Voltar</Button>
               </div>
             </div>
           ) : (
-            <button type="button" className="btn" disabled={anyBusy || ready.length === 0} onClick={() => setAsking(true)}>
+            <Button icon={CheckCheck} block disabled={anyBusy || ready.length === 0} onClick={() => setAsking(true)}>
               Confirmar todos
-            </button>
+            </Button>
           )}
           {ready.length < pendingItems.length ? (
             <p className="muted">

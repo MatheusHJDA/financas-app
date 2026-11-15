@@ -1,38 +1,30 @@
-/* Painel admin (U9). Só usa os tokens de styles/tokens.css; sem larguras fixas (360–412 px). */
+/* Painel admin (U22). Só usa os tokens de styles/tokens.css e o kit (ui/); sem larguras fixas (360–412 px). */
 
 .admin {
   min-width: 0;
 }
-
-.admin-nav {
+.admin-body {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-.admin-nav .btn {
-  flex: 1 1 auto;
-  padding: 0 var(--space-3);
-}
-.admin-nav .btn[aria-current="true"] {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-color: var(--color-primary);
-  font-weight: 600;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
-.admin .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  text-decoration: none;
+/* Campos (o kit não tem campo de formulário): mesmo desenho dos demais formulários. */
+.admin input,
+.admin select {
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
 }
-.admin .btn--primary {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-color: var(--color-primary);
-  font-weight: 600;
+
+.admin .ui-btn {
+  text-decoration: none;
 }
 
 .admin-list {
@@ -41,11 +33,11 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 .admin-item {
   min-width: 0;
-  padding-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--color-border);
   overflow-wrap: anywhere;
 }
@@ -55,20 +47,41 @@
   padding-bottom: 0;
 }
 
+.admin-line {
+  display: block;
+}
+.admin-cost {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.admin-badge {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--tone-neutral-bg);
+  color: var(--color-text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
 .admin-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
-.admin-actions .btn {
+.admin-actions > * {
   flex: 1 1 auto;
 }
 .admin-actions--stack {
   flex-direction: column;
 }
-.admin-actions--stack .btn {
+.admin-actions--stack > * {
   width: 100%;
+}
+.admin-actions--row {
+  margin-top: 0;
 }
 
 .admin-form,
@@ -86,17 +99,6 @@
 .admin-confirm label {
   font-weight: 600;
 }
-.admin input,
-.admin select {
-  width: 100%;
-  min-height: 48px;
-  padding: var(--space-2) var(--space-3);
-  font: inherit;
-  color: var(--color-text);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-}
 
 .admin-notice {
   min-height: 1.5em;
@@ -111,19 +113,21 @@
   color: var(--color-danger);
 }
 
-.admin-stats {
+/* Cartões de números (StatCard): 1 coluna no celular, grade no computador. */
+.admin-stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  grid-template-columns: 1fr;
   gap: var(--space-3);
-  margin: 0 0 var(--space-3);
 }
-.admin-stats dt {
-  color: var(--color-muted);
-  font-size: var(--text-sm);
+.admin-columns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
-.admin-stats dd {
-  margin: 0;
-  font-weight: 600;
+.admin-skel-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .admin-scroll {
@@ -138,10 +142,46 @@
 }
 .admin-table th,
 .admin-table td {
-  padding: var(--space-2);
+  padding: var(--space-3);
   text-align: left;
+  vertical-align: middle;
   white-space: nowrap;
   border-bottom: 1px solid var(--color-border);
+}
+.admin-table thead th {
+  color: var(--color-muted);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--color-surface-2);
+}
+.admin-table tbody tr:last-child th,
+.admin-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.admin-table--wrap td {
+  white-space: normal;
+}
+.admin-table .admin-actions {
+  margin-top: 0;
+  flex-wrap: nowrap;
+}
+.admin-table .admin-actions > * {
+  flex: 0 0 auto;
+}
+.admin-cell-person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+.admin-row-confirm td {
+  background: var(--color-surface-2);
+  white-space: normal;
+}
+.admin-row-confirm .admin-confirm {
+  max-width: 28rem;
 }
 
 .admin-pager {
@@ -160,8 +200,41 @@
   overflow-wrap: anywhere;
 }
 .admin summary {
-  min-height: 48px;
+  min-height: var(--tap);
   display: flex;
   align-items: center;
   cursor: pointer;
+}
+
+@media (min-width: 1024px) {
+  .admin-stat-grid {
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  }
+  .admin-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+    align-items: start;
+  }
+  .admin-card--narrow {
+    max-width: 36rem;
+  }
+  .admin-form--filters {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+  .admin-form--filters .admin-field {
+    flex: 1 1 0;
+  }
+  .admin-form--filters .ui-btn {
+    flex: 0 0 auto;
+  }
+  .admin-actions--row > * {
+    flex: 0 0 auto;
+  }
+}
+@media (min-width: 480px) and (max-width: 1023px) {
+  .admin-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

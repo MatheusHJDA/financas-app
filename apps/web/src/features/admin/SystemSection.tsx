@@ -1,12 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { ErrorState, LoadingState } from "../../ui/States";
+import { Activity, Database, DatabaseBackup, Download, FileSpreadsheet, RefreshCw } from "lucide-react";
+import { Button, Card, StatCard } from "../../ui";
+import { ErrorState } from "../../ui/States";
 import { fetchSystem, SYSTEM_KEY } from "./adminApi";
 import { formatBytes, formatDateTime } from "./format";
+import { SectionSkeleton } from "./SectionSkeleton";
 
 export function SystemSection() {
   const system = useQuery({ queryKey: SYSTEM_KEY, queryFn: fetchSystem });
 
-  if (system.isLoading) return <LoadingState label="Carregando estado do sistema…" />;
+  if (system.isLoading) return <SectionSkeleton label="Carregando estado do sistema…" stats={3} rows={1} />;
   if (system.isError || !system.data) {
     return <ErrorState message="Não foi possível carregar o estado do sistema." onRetry={() => void system.refetch()} />;
   }
@@ -15,39 +18,48 @@ export function SystemSection() {
   const hasBackup = !!last_backup_at;
 
   return (
-    <section aria-labelledby="admin-system-title" className="card">
-      <h2 id="admin-system-title">Sistema</h2>
-      <dl className="admin-stats">
-        <div>
-          <dt>Banco de dados</dt>
-          <dd className={database_ok ? "admin-notice--ok" : "admin-notice--error"}>{database_ok ? "OK" : "Com problema"}</dd>
-        </div>
-        <div>
-          <dt>Agendador de avisos</dt>
-          <dd className={scheduler_ok ? "admin-notice--ok" : "admin-notice--error"}>{scheduler_ok ? "OK" : "Parado"}</dd>
-        </div>
-        <div>
-          <dt>Último backup</dt>
-          <dd>
-            {hasBackup
+    <>
+      <div className="admin-stat-grid">
+        <StatCard
+          label="Banco de dados"
+          icon={Database}
+          tone={database_ok ? "income" : "expense"}
+          value={database_ok ? "OK" : "Com problema"}
+        />
+        <StatCard
+          label="Agendador de avisos"
+          icon={Activity}
+          tone={scheduler_ok ? "income" : "expense"}
+          value={scheduler_ok ? "OK" : "Parado"}
+        />
+        <StatCard
+          label="Último backup"
+          icon={DatabaseBackup}
+          tone={hasBackup ? "info" : "warning"}
+          value={
+            hasBackup
               ? `${formatDateTime(last_backup_at)}${last_backup_size_bytes != null ? ` · ${formatBytes(last_backup_size_bytes)}` : ""}`
-              : "Nenhum backup encontrado"}
-          </dd>
-        </div>
-      </dl>
-      <div className="admin-actions admin-actions--stack">
-        <a className="btn admin-link" href="/api/transactions/export.csv" download>
-          Exportar lançamentos (CSV)
-        </a>
-        {hasBackup ? (
-          <a className="btn admin-link" href="/api/admin/backups/latest" download>
-            Baixar backup
-          </a>
-        ) : null}
-        <button type="button" className="btn" onClick={() => void system.refetch()} disabled={system.isFetching}>
-          Atualizar estado
-        </button>
+              : "Nenhum backup encontrado"
+          }
+        />
       </div>
-    </section>
+      <Card title="Dados e backup" icon={Download}>
+        <div className="admin-actions admin-actions--row">
+          <a className="ui-btn ui-btn--secondary admin-link" href="/api/transactions/export.csv" download>
+            <FileSpreadsheet aria-hidden="true" size={18} strokeWidth={1.75} />
+            Exportar lançamentos (CSV)
+          </a>
+          {hasBackup ? (
+            <a className="ui-btn ui-btn--secondary admin-link" href="/api/admin/backups/latest" download>
+              <Download aria-hidden="true" size={18} strokeWidth={1.75} />
+              Baixar backup
+            </a>
+          ) : null}
+          <Button icon={RefreshCw} onClick={() => void system.refetch()} disabled={system.isFetching}>
+            Atualizar estado
+          </Button>
+        </div>
+      </Card>
+    </>
   );
 }

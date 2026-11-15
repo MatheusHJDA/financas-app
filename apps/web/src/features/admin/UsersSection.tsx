@@ -1,7 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { KeyRound, LogOut, Users } from "lucide-react";
+import { Fragment, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../../auth/AuthProvider";
-import { ErrorState, LoadingState } from "../../ui/States";
+import { Avatar, Button, Card, ListItem } from "../../ui";
+import { ErrorState } from "../../ui/States";
+import { DESKTOP_QUERY, useMediaQuery } from "../../ui/useMediaQuery";
 import {
   errorText,
   fetchUsers,
@@ -13,14 +16,19 @@ import {
 } from "./adminApi";
 import { formatDateTime, isLocked } from "./format";
 import { Notice, type NoticeValue } from "./Notice";
+import { SectionSkeleton } from "./SectionSkeleton";
 
 type Pending = { userId: number; kind: "pin" | "sessions" };
 
 const PIN_PATTERN = new RegExp(`^[0-9]{${PIN_LENGTH}}$`);
 
+const roleLabel = (user: AdminUser) =>
+  user.role === "admin" ? "Administrador" : "Membro";
+
 export function UsersSection() {
   const { me } = useAuth();
   const queryClient = useQueryClient();
+  const desktop = useMediaQuery(DESKTOP_QUERY);
   const users = useQuery({ queryKey: USERS_KEY, queryFn: fetchUsers });
   const [pending, setPending] = useState<Pending | null>(null);
   const [pin, setPin] = useState("");
@@ -51,7 +59,10 @@ export function UsersSection() {
     try {
       if (pending.kind === "pin") {
         await resetPin(user.id, pin);
-        setNotice({ kind: "ok", text: `PIN de ${user.name} redefinido. As sessões antigas foram encerradas.` });
+        setNotice({
+          kind: "ok",
+          text: `PIN de ${user.name} redefinido. As sessões antigas foram encerradas.`,
+        });
       } else {
         await revokeSessions(user.id);
         setNotice({ kind: "ok", text: `Sessões de ${user.name} encerradas.` });
@@ -69,113 +80,233 @@ export function UsersSection() {
     }
   }
 
-  if (users.isLoading) return <LoadingState label="Carregando usuários…" />;
+  if (users.isLoading)
+    return <SectionSkeleton label="Carregando usuários…" rows={2} />;
   if (users.isError || !users.data) {
-    return <ErrorState message="Não foi possível carregar os usuários." onRetry={() => void users.refetch()} />;
+    return (
+      <ErrorState
+        message="Não foi possível carregar os usuários."
+        onRetry={() => void users.refetch()}
+      />
+    );
   }
 
-  return (
-    <section aria-labelledby="admin-users-title" className="card">
-      <h2 id="admin-users-title">Usuários</h2>
-      <Notice notice={notice} />
+  const lockText = (user: AdminUser) =>
+    isLocked(user.locked_until)
+      ? `Bloqueado até ${formatDateTime(user.locked_until)}`
+      : "Sem bloqueio";
+  const attemptsText = (user: AdminUser) =>
+    user.failed_attempts > 0
+      ? `${user.failed_attempts} tentativa(s) errada(s)`
+      : null;
+
+  function confirmForm(user: AdminUser, active: Pending) {
+    const mine = user.id === me?.id;
+    return (
+      <form
+        className="admin-confirm"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void confirm(user);
+        }}
+      >
+        {active.kind === "pin" ? (
+          <>
+            <div className="admin-field">
+              <label htmlFor={`pin-${user.id}`}>
+                Novo PIN de {user.name} ({PIN_LENGTH} dígitos)
+              </label>
+              <input
+                id={`pin-${user.id}`}
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={PIN_LENGTH}
+                value={pin}
+                onChange={(e) =>
+                  setPin(
+                    e.target.value.replace(/[^0-9]/g, "").slice(0, PIN_LENGTH),
+                  )
+                }
+              />
+            </div>
+            <div className="admin-field">
+              <label htmlFor={`pin2-${user.id}`}>Repita o novo PIN</label>
+              <input
+                id={`pin2-${user.id}`}
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={PIN_LENGTH}
+                value={pin2}
+                onChange={(e) =>
+                  setPin2(
+                    e.target.value.replace(/[^0-9]/g, "").slice(0, PIN_LENGTH),
+                  )
+                }
+              />
+            </div>
+            {pin2.length === PIN_LENGTH && pin !== pin2 ? (
+              <p className="admin-notice--error" role="alert">
+                Os dois PINs não são iguais.
+              </p>
+            ) : null}
+            <p className="muted">
+              Confirma trocar o PIN de {user.name}? O PIN antigo deixa de valer
+              e as sessões
+              {mine ? " dos outros aparelhos" : ""} são encerradas.
+            </p>
+          </>
+        ) : (
+          <p>
+            Encerrar todas as sessões de {user.name}?
+            {mine ? " Isso também encerra a sua sessão neste aparelho." : ""}
+          </p>
+        )}
+        <div className="admin-actions">
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={busy || (active.kind === "pin" && !pinReady)}
+          >
+            {active.kind === "pin"
+              ? "Confirmar redefinição"
+              : "Confirmar encerramento"}
+          </Button>
+          <Button onClick={close} disabled={busy}>
+            Cancelar
+          </Button>
+        </div>
+      </form>
+    );
+  }
+
+  function actions(user: AdminUser) {
+    return (
+      <div className="admin-actions">
+        <Button
+          icon={KeyRound}
+          aria-label={`Redefinir PIN de ${user.name}`}
+          onClick={() => open({ userId: user.id, kind: "pin" })}
+        >
+          Redefinir PIN
+        </Button>
+        <Button
+          icon={LogOut}
+          aria-label={`Encerrar sessões de ${user.name}`}
+          onClick={() => open({ userId: user.id, kind: "sessions" })}
+        >
+          Encerrar sessões
+        </Button>
+      </div>
+    );
+  }
+
+  const activeFor = (user: AdminUser) =>
+    pending?.userId === user.id ? pending : null;
+
+  let body: ReactNode;
+  if (desktop) {
+    body = (
+      <div className="admin-scroll">
+        <table className="admin-table" aria-label="Usuários">
+          <thead>
+            <tr>
+              <th scope="col">Pessoa</th>
+              <th scope="col">Papel</th>
+              <th scope="col">Acesso</th>
+              <th scope="col">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.data.map((user) => {
+              const active = activeFor(user);
+              const locked = isLocked(user.locked_until);
+              return (
+                <Fragment key={user.id}>
+                  <tr>
+                    <th scope="row" className="admin-cell-person">
+                      <Avatar
+                        name={user.name}
+                        tone={user.role === "admin" ? "info" : "neutral"}
+                      />
+                      <span>{user.name}</span>
+                    </th>
+                    <td>
+                      <span className="admin-badge">{roleLabel(user)}</span>
+                    </td>
+                    <td>
+                      <span
+                        className={locked ? "admin-notice--error" : "muted"}
+                      >
+                        {lockText(user)}
+                      </span>
+                      {attemptsText(user) ? (
+                        <span className="muted"> · {attemptsText(user)}</span>
+                      ) : null}
+                    </td>
+                    <td>
+                      {active ? (
+                        <span className="muted">Confirmando…</span>
+                      ) : (
+                        actions(user)
+                      )}
+                    </td>
+                  </tr>
+                  {active ? (
+                    <tr className="admin-row-confirm">
+                      <td colSpan={4}>{confirmForm(user, active)}</td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  } else {
+    body = (
       <ul className="admin-list">
         {users.data.map((user) => {
           const locked = isLocked(user.locked_until);
-          const mine = user.id === me?.id;
-          const active = pending?.userId === user.id ? pending : null;
+          const active = activeFor(user);
           return (
             <li key={user.id}>
               <article aria-label={user.name} className="admin-item">
-                <h3>
-                  {user.name} <span className="muted">· {user.role === "admin" ? "Administrador" : "Membro"}</span>
-                </h3>
-                <p className={locked ? "admin-notice--error" : "muted"}>
-                  {locked ? `Bloqueado até ${formatDateTime(user.locked_until)}` : "Sem bloqueio"}
-                  {user.failed_attempts > 0 ? ` · ${user.failed_attempts} tentativa(s) errada(s)` : ""}
-                </p>
-
-                {active ? (
-                  <form
-                    className="admin-confirm"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void confirm(user);
-                    }}
-                  >
-                    {active.kind === "pin" ? (
-                      <>
-                        <label htmlFor={`pin-${user.id}`}>Novo PIN de {user.name} ({PIN_LENGTH} dígitos)</label>
-                        <input
-                          id={`pin-${user.id}`}
-                          inputMode="numeric"
-                          autoComplete="off"
-                          maxLength={PIN_LENGTH}
-                          value={pin}
-                          onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, "").slice(0, PIN_LENGTH))}
-                        />
-                        <label htmlFor={`pin2-${user.id}`}>Repita o novo PIN</label>
-                        <input
-                          id={`pin2-${user.id}`}
-                          inputMode="numeric"
-                          autoComplete="off"
-                          maxLength={PIN_LENGTH}
-                          value={pin2}
-                          onChange={(e) => setPin2(e.target.value.replace(/[^0-9]/g, "").slice(0, PIN_LENGTH))}
-                        />
-                        {pin2.length === PIN_LENGTH && pin !== pin2 ? (
-                          <p className="admin-notice--error" role="alert">
-                            Os dois PINs não são iguais.
-                          </p>
-                        ) : null}
-                        <p className="muted">
-                          Confirma trocar o PIN de {user.name}? O PIN antigo deixa de valer e as sessões
-                          {mine ? " dos outros aparelhos" : ""} são encerradas.
-                        </p>
-                      </>
-                    ) : (
-                      <p>
-                        Encerrar todas as sessões de {user.name}?
-                        {mine ? " Isso também encerra a sua sessão neste aparelho." : ""}
-                      </p>
-                    )}
-                    <div className="admin-actions">
-                      <button
-                        type="submit"
-                        className="btn btn--primary"
-                        disabled={busy || (active.kind === "pin" && !pinReady)}
+                <ListItem
+                  leading={
+                    <Avatar
+                      name={user.name}
+                      tone={user.role === "admin" ? "info" : "neutral"}
+                    />
+                  }
+                  title={user.name}
+                  subtitle={
+                    <>
+                      <span className="admin-badge">{roleLabel(user)}</span>{" "}
+                      <span
+                        className={locked ? "admin-notice--error" : undefined}
                       >
-                        {active.kind === "pin" ? "Confirmar redefinição" : "Confirmar encerramento"}
-                      </button>
-                      <button type="button" className="btn" onClick={close} disabled={busy}>
-                        Cancelar
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="admin-actions">
-                    <button
-                      type="button"
-                      className="btn"
-                      aria-label={`Redefinir PIN de ${user.name}`}
-                      onClick={() => open({ userId: user.id, kind: "pin" })}
-                    >
-                      Redefinir PIN
-                    </button>
-                    <button
-                      type="button"
-                      className="btn"
-                      aria-label={`Encerrar sessões de ${user.name}`}
-                      onClick={() => open({ userId: user.id, kind: "sessions" })}
-                    >
-                      Encerrar sessões
-                    </button>
-                  </div>
-                )}
+                        {lockText(user)}
+                      </span>
+                      {attemptsText(user) ? (
+                        <span> · {attemptsText(user)}</span>
+                      ) : null}
+                    </>
+                  }
+                />
+                {active ? confirmForm(user, active) : actions(user)}
               </article>
             </li>
           );
         })}
       </ul>
-    </section>
+    );
+  }
+
+  return (
+    <Card title="Pessoas com acesso" icon={Users}>
+      <Notice notice={notice} />
+      {body}
+    </Card>
   );
 }

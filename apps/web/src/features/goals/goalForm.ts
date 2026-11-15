@@ -148,7 +148,7 @@ export function formatPercent(percent: number): string {
 }
 
 /** "R$ 1.200 de R$ 5.000 · 24%". */
-export function progressText(goal: Goal): string {
+export function progressText(goal: Goal, money: (cents: number) => string = formatReaisShort): string {
   const p = goal.progress;
-  return `${formatReaisShort(p.current_cents)} de ${formatReaisShort(p.target_cents)} · ${formatPercent(p.percent)}%`;
+  return `${money(p.current_cents)} de ${money(p.target_cents)} · ${formatPercent(p.percent)}%`;
 }

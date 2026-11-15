@@ -1,6 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../../api/client";
+import { Skeleton, SkeletonGroup } from "../../ui";
+import { ErrorState } from "../../ui/States";
 import { formatDate } from "./dates";
 import { formatCents } from "./money";
 import { emptyForm } from "./proposal";
@@ -12,14 +15,32 @@ interface Props {
   accounts: Account[];
   categories: Category[];
   owner: Owner;
+  /** Contas e categorias ainda carregando: mostra skeleton no lugar dos campos. */
+  loading?: boolean;
+  /** Falha ao carregar contas e categorias. */
+  loadError?: boolean;
+  onRetry?: () => void;
   /** Mensagem de contexto acima do formulário (ex.: a IA falhou). */
   reason?: string | null;
   onCreated: (summary: string) => void;
   onCancel: () => void;
 }
 
-/** Lançamento sem IA: POST /transactions (o `source` é definido pelo servidor). */
-export function ManualEntry({ accounts, categories, owner, reason, onCreated, onCancel }: Props) {
+/**
+ * Lançamento sem IA: POST /transactions (o `source` é definido pelo servidor).
+ * Conteúdo do `Sheet` "Lançar à mão" (o painel e o título ficam em ChatPage).
+ */
+export function ManualEntry({
+  accounts,
+  categories,
+  owner,
+  loading = false,
+  loadError = false,
+  onRetry,
+  reason,
+  onCreated,
+  onCancel,
+}: Props) {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +65,7 @@ export function ManualEntry({ accounts, categories, owner, reason, onCreated, on
         },
       });
       if (data) {
-        for (const key of ["transactions", "overview", "accounts"]) {
+        for (const key of ["transactions", "overview", "accounts", "bill-instances", "report"]) {
           void queryClient.invalidateQueries({ queryKey: [key] });
         }
         const summary = `${KIND_LABEL[p.kind]} de ${formatCents(p.amount_cents)} em ${formatDate(p.date)}: ${p.description}`;
@@ -69,19 +90,35 @@ export function ManualEntry({ accounts, categories, owner, reason, onCreated, on
   };
 
   return (
-    <section className="card manual" aria-labelledby="manual-title">
-      <h2 id="manual-title">Lançar à mão</h2>
-      {reason ? <p className="muted">{reason}</p> : null}
-      <TransactionForm
-        initial={emptyForm(owner)}
-        accounts={accounts}
-        categories={categories}
-        submitLabel="Salvar lançamento"
-        busy={busy}
-        serverError={error}
-        onSubmit={(p) => void submit(p)}
-        onCancel={onCancel}
-      />
-    </section>
+    <div className="manual">
+      {reason ? <p className="manual__reason">{reason}</p> : null}
+
+      {loading ? (
+        <SkeletonGroup label="Carregando contas e categorias">
+          <Skeleton variant="block" height="140px" />
+          <Skeleton variant="line" height="48px" />
+          <Skeleton variant="line" height="48px" />
+          <Skeleton variant="line" height="48px" />
+        </SkeletonGroup>
+      ) : loadError && accounts.length === 0 ? (
+        <ErrorState message="Não consegui carregar contas e categorias." onRetry={onRetry} />
+      ) : (
+        <TransactionForm
+          variant="sheet"
+          initial={emptyForm(owner)}
+          accounts={accounts}
+          categories={categories}
+          submitLabel="Salvar lançamento"
+          busy={busy}
+          serverError={error}
+          onSubmit={(p) => void submit(p)}
+          onCancel={onCancel}
+        />
+      )}
+
+      <p className="manual__hint">
+        <Link to="/contas-fixas">Conta que se repete? Cadastre em Contas fixas</Link>
+      </p>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthProvider";
-import { EmptyState, ErrorState } from "../../ui/States";
+import { Sheet, SparkleIcon } from "../../ui";
+import { ErrorState } from "../../ui/States";
 import "./chat.css";
 import { Composer } from "./Composer";
 import { ManualEntry } from "./ManualEntry";
@@ -17,7 +18,7 @@ type ChatMessage =
 
 type NewMessage = ChatMessage extends infer M ? (M extends { id: number } ? Omit<M, "id"> : never) : never;
 
-/** Tela de chat de lançamentos (U6). Montada pela aba inicial em shell/tabs/ChatTab.tsx. */
+/** Tela "Lançar" (/lancar): chat com a IA + lançamento à mão em painel (Sheet). */
 export default function ChatPage() {
   const { me, setMe } = useAuth();
   const data = useChatData();
@@ -30,6 +31,8 @@ export default function ChatPage() {
   const [manual, setManual] = useState<{ open: boolean; reason: string | null }>({ open: false, reason: null });
   const sendingRef = useRef(false);
   const nextId = useRef(1);
+
+  const closeManual = useCallback(() => setManual({ open: false, reason: null }), []);
 
   const owner = me?.owner ?? "AMBOS";
   const push = useCallback((m: NewMessage) => {
@@ -75,10 +78,15 @@ export default function ChatPage() {
 
       <div className="chat-log" role="log" aria-live="polite" aria-label="Conversa">
         {messages.length === 0 ? (
-          <EmptyState
-            title="Mande o que você gastou ou recebeu"
-            hint="Escreva, tire uma foto do comprovante ou envie um PDF. Nada é lançado sem você confirmar."
-          />
+          <div className="chat-welcome">
+            <span className="chat-welcome__icon" aria-hidden="true">
+              <SparkleIcon size={32} />
+            </span>
+            <p className="chat-welcome__title">Mande o que você gastou ou recebeu</p>
+            <p className="chat-welcome__hint">
+              Escreva, tire uma foto do comprovante ou envie um PDF. Nada é lançado sem você confirmar.
+            </p>
+          </div>
         ) : null}
 
         {messages.map((m) => {
@@ -93,6 +101,9 @@ export default function ChatPage() {
             case "ai":
               return (
                 <div key={m.id} className="bubble bubble--ai">
+                  <span className="bubble__avatar" aria-hidden="true">
+                    <SparkleIcon size={18} />
+                  </span>
                   <ResultGroup
                     result={m.result}
                     controller={controller}
@@ -110,7 +121,7 @@ export default function ChatPage() {
               );
             case "info":
               return (
-                <div key={m.id} className="bubble bubble--ai" role="status">
+                <div key={m.id} className="bubble bubble--info" role="status">
                   <p>✓ {m.text}</p>
                 </div>
               );
@@ -118,20 +129,23 @@ export default function ChatPage() {
         })}
       </div>
 
-      {manual.open ? (
+      <Sheet open={manual.open} title="Lançar à mão" onClose={closeManual}>
         <ManualEntry
           key={owner}
           accounts={data.accounts}
           categories={data.categories}
           owner={owner}
+          loading={data.isLoading}
+          loadError={data.isError}
+          onRetry={data.retry}
           reason={manual.reason}
-          onCancel={() => setManual({ open: false, reason: null })}
+          onCancel={closeManual}
           onCreated={(summary) => {
-            setManual({ open: false, reason: null });
+            closeManual();
             push({ role: "info", text: `Lançamento criado — ${summary}` });
           }}
         />
-      ) : null}
+      </Sheet>
 
       <Composer
         sending={sending}

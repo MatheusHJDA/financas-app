@@ -1,21 +1,22 @@
-/* Aba Plano (U10). Só tokens de styles/tokens.css; sem larguras fixas (360–412 px). */
+/* Tela Plano (U10/U20). Só tokens de styles/tokens.css; sem larguras fixas (360–412 px). Kit: ui/. */
 
 .plan {
   min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
 }
-
-.plan .sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
+.plan > h1,
+.plan > p {
+  margin: 0;
 }
 
 .plan h2 {
   font-size: var(--text-lg);
-  margin: var(--space-4) 0 var(--space-2);
+  margin: 0;
+}
+.plan .ui-card__title {
+  font-size: var(--text-md);
 }
 
 .plan dl {
@@ -26,7 +27,7 @@
   justify-content: space-between;
   align-items: baseline;
   gap: var(--space-2);
-  padding: var(--space-1) 0;
+  padding: var(--space-2) 0;
   border-top: 1px solid var(--color-border);
 }
 .plan dt {
@@ -38,30 +39,60 @@
   font-weight: 600;
   text-align: right;
   overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Cenário: dois botões de mesmo peso, o escolhido em destaque */
-.plan-toggle {
+/* Resumo + gráfico: uma coluna no celular, duas no computador */
+.plan-top {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
 }
-.plan-toggle .btn {
-  padding: 0 var(--space-2);
-}
-.plan-toggle .btn[aria-pressed="true"] {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-color: var(--color-primary);
-  font-weight: 600;
+@media (min-width: 1024px) {
+  .plan-top {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
 }
 
-/* Resumo */
+/* Quitação em destaque */
+.plan-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--tone-income-bg);
+  color: var(--color-income);
+}
+.plan-hero--none {
+  background: var(--tone-warning-bg);
+  color: var(--color-warning);
+}
+.plan-hero__bubble {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+.plan-hero__text {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
 .plan-d14 {
-  margin-top: var(--space-3);
+  margin: var(--space-3) 0 0;
   padding: var(--space-2) var(--space-3);
-  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--tone-info-bg);
+  font-size: var(--text-sm);
 }
 
 /* Comparação */
@@ -78,6 +109,9 @@
   border-bottom: 1px solid var(--color-border);
   overflow-wrap: anywhere;
 }
+.plan-compare td {
+  font-variant-numeric: tabular-nums;
+}
 .plan-compare thead th {
   color: var(--color-muted);
   font-weight: 600;
@@ -88,13 +122,22 @@
 }
 
 /* Mês a mês */
+.plan-months-section {
+  display: grid;
+  gap: var(--space-2);
+}
 .plan-months {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr);
 }
-.plan-month {
-  margin: var(--space-2) 0;
+@media (min-width: 1024px) {
+  .plan-months {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 .plan-month h3 {
   font-size: var(--text-md);
@@ -102,10 +145,7 @@
   text-transform: capitalize;
 }
 
-/* Formulário */
-.plan-assumptions > .btn {
-  width: 100%;
-}
+/* Formulário de premissas */
 .plan-form fieldset {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -135,7 +175,7 @@
   color: inherit;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   box-sizing: border-box;
 }
 .plan-field input[aria-invalid="true"] {
@@ -149,12 +189,10 @@
 .plan-card-row {
   margin-bottom: var(--space-3);
 }
-.plan-card-row .btn {
-  width: 100%;
+.plan-card-row .ui-btn {
+  margin-top: var(--space-2);
 }
-.plan-form > .btn,
-.plan-form fieldset > .btn {
-  width: 100%;
+.plan-form fieldset > .ui-btn {
   margin-top: var(--space-2);
 }
 .plan-form-actions {
@@ -162,17 +200,24 @@
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
-.plan-primary {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-color: var(--color-primary);
-  font-weight: 600;
-}
 .plan-reset {
   margin-top: var(--space-4);
   display: grid;
   gap: var(--space-2);
 }
-.plan-reset .btn {
-  width: 100%;
+.plan-confirm {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--tone-expense-bg);
+}
+.plan-confirm p {
+  margin: 0;
+}
+
+/* Tabela de comparação: rola dentro do cartão em vez de estourar a tela em 360px. */
+.plan-compare__scroll {
+  overflow-x: auto;
+  max-width: 100%;
 }

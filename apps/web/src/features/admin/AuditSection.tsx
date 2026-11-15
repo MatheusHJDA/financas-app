@@ -1,13 +1,18 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { EmptyState, ErrorState, LoadingState } from "../../ui/States";
-import { auditKey, fetchAudit, fetchUsers, USERS_KEY } from "./adminApi";
+import { Filter, ScrollText } from "lucide-react";
+import { Avatar, Button, Card, ListItem } from "../../ui";
+import { EmptyState, ErrorState } from "../../ui/States";
+import { DESKTOP_QUERY, useMediaQuery } from "../../ui/useMediaQuery";
+import { auditKey, fetchAudit, fetchUsers, USERS_KEY, type AuditEvent } from "./adminApi";
 import { formatDateTime } from "./format";
 import { Pager } from "./Pager";
+import { SectionSkeleton } from "./SectionSkeleton";
 
 const ACTIONS: Record<string, string> = { create: "Criou", update: "Alterou", delete: "Excluiu" };
 
 export function AuditSection() {
+  const desktop = useMediaQuery(DESKTOP_QUERY);
   const [entityInput, setEntityInput] = useState("");
   const [userInput, setUserInput] = useState("");
   const [filter, setFilter] = useState<{ entity: string; userId: number | null }>({ entity: "", userId: null });
@@ -21,11 +26,24 @@ export function AuditSection() {
 
   const nameOf = new Map((users.data ?? []).map((u) => [u.id, u.name]));
 
+  const who = (event: AuditEvent) =>
+    event.user_id === null || event.user_id === undefined
+      ? "Sistema"
+      : (nameOf.get(event.user_id) ?? `Usuário ${event.user_id}`);
+  const what = (event: AuditEvent) => `${ACTIONS[event.action] ?? event.action} ${event.entity} #${event.entity_id}`;
+  const details = (event: AuditEvent) =>
+    event.before || event.after ? (
+      <details>
+        <summary>Ver detalhes</summary>
+        {event.before ? <pre className="admin-json">Antes: {JSON.stringify(event.before, null, 2)}</pre> : null}
+        {event.after ? <pre className="admin-json">Depois: {JSON.stringify(event.after, null, 2)}</pre> : null}
+      </details>
+    ) : null;
+
   return (
-    <section aria-labelledby="admin-audit-title" className="card">
-      <h2 id="admin-audit-title">Auditoria</h2>
+    <Card title="Eventos registrados" icon={ScrollText}>
       <form
-        className="admin-form"
+        className="admin-form admin-form--filters"
         onSubmit={(e) => {
           e.preventDefault();
           setFilter({ entity: entityInput.trim(), userId: userInput ? Number(userInput) : null });
@@ -53,12 +71,12 @@ export function AuditSection() {
             ))}
           </select>
         </div>
-        <button type="submit" className="btn btn--primary">
+        <Button type="submit" variant="primary" icon={Filter}>
           Filtrar
-        </button>
+        </Button>
       </form>
 
-      {audit.isLoading ? <LoadingState label="Carregando auditoria…" /> : null}
+      {audit.isLoading ? <SectionSkeleton label="Carregando auditoria…" rows={4} /> : null}
       {audit.isError ? (
         <ErrorState message="Não foi possível carregar a auditoria." onRetry={() => void audit.refetch()} />
       ) : null}
@@ -66,26 +84,43 @@ export function AuditSection() {
         <>
           {audit.data.items.length === 0 ? (
             <EmptyState title="Nenhum evento encontrado" />
+          ) : desktop ? (
+            <div className="admin-scroll">
+              <table className="admin-table admin-table--wrap" aria-label="Eventos de auditoria">
+                <thead>
+                  <tr>
+                    <th scope="col">Quando</th>
+                    <th scope="col">Quem</th>
+                    <th scope="col">O quê</th>
+                    <th scope="col">Detalhes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {audit.data.items.map((event) => (
+                    <tr key={event.id}>
+                      <td>{formatDateTime(event.at)}</td>
+                      <td>{who(event)}</td>
+                      <td>{what(event)}</td>
+                      <td>{details(event) ?? <span className="muted">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <ul className="admin-list">
               {audit.data.items.map((event) => (
                 <li key={event.id} className="admin-item">
-                  <h3>
-                    {ACTIONS[event.action] ?? event.action} {event.entity} #{event.entity_id}
-                  </h3>
-                  <p className="muted">
-                    {event.user_id === null || event.user_id === undefined
-                      ? "Sistema"
-                      : (nameOf.get(event.user_id) ?? `Usuário ${event.user_id}`)}{" "}
-                    · {formatDateTime(event.at)}
-                  </p>
-                  {event.before || event.after ? (
-                    <details>
-                      <summary>Ver detalhes</summary>
-                      {event.before ? <pre className="admin-json">Antes: {JSON.stringify(event.before, null, 2)}</pre> : null}
-                      {event.after ? <pre className="admin-json">Depois: {JSON.stringify(event.after, null, 2)}</pre> : null}
-                    </details>
-                  ) : null}
+                  <ListItem
+                    leading={<Avatar name={who(event)} tone="neutral" />}
+                    title={what(event)}
+                    subtitle={
+                      <>
+                        {who(event)} · {formatDateTime(event.at)}
+                      </>
+                    }
+                  />
+                  {details(event)}
                 </li>
               ))}
             </ul>
@@ -93,6 +128,6 @@ export function AuditSection() {
           <Pager offset={offset} count={audit.data.items.length} total={audit.data.total} onChange={setOffset} />
         </>
       ) : null}
-    </section>
+    </Card>
   );
 }

@@ -1,0 +1,107 @@
+/* Relatórios (U21). Classes com prefixo .rep- */
+.rep {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.rep-filters {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.rep-period {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.rep-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+/* Balanço ocupa a linha toda no celular: valores grandes e negativos não estouram o cartão. */
+.rep-stats__balance {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.rep-stats > *,
+.rep-stats__balance > * {
+  min-width: 0;
+}
+
+.rep-grid {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.rep-card {
+  min-width: 0;
+}
+
+.rep-donut-center {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  text-align: center;
+  font-weight: 600;
+}
+
+.rep-donut-center__label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.rep-cats {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.rep-cats__item {
+  min-width: 0;
+}
+
+.rep-cats__dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-pill);
+  background: var(--dot);
+}
+
+@media (min-width: 1024px) {
+  .rep-filters {
+    grid-template-columns: auto auto;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .rep-period {
+    grid-template-columns: auto auto;
+    justify-content: start;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .rep-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .rep-stats__balance {
+    grid-column: auto;
+  }
+
+  .rep-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}

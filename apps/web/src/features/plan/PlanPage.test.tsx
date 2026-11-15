@@ -1,10 +1,11 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PLANILHA_DEFAULTS } from "./planDefaults";
-import { fakePlanApi, renderPlan } from "./testing";
+import { fakePlanApi, PROJECTION_NOW, renderPlan } from "./testing";
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
   vi.unstubAllGlobals();
 });
 
@@ -36,7 +37,7 @@ describe("resumo e aviso D14", () => {
   it("compara os dois cenários lado a lado com prazo, juros e saldo", async () => {
     fakePlanApi();
     renderPlan();
-    const table = await screen.findByRole("table");
+    const table = await screen.findByRole("table", { name: /^Comparação dos dois cenários/ });
     const row = (name: string) => within(table).getByRole("rowheader", { name }).closest("tr")!;
     const cells = (name: string) => within(row(name)).getAllByRole("cell").map((c) => c.textContent);
     expect(cells("Quitação")).toEqual(["abril de 2027", "Não quita no período"]);
@@ -76,7 +77,80 @@ describe("estados de carregamento e erro", () => {
   it("mostra carregamento antes dos dados", () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
     renderPlan();
-    expect(screen.getByRole("status").textContent).toContain("Carregando o Plano…");
+    // esqueleto com a forma do conteúdo, anunciado como "carregando"
+    const loading = screen.getByRole("status", { name: "Carregando o Plano…" });
+    expect(loading.getAttribute("aria-busy")).toBe("true");
+  });
+});
+
+describe("quitação em destaque", () => {
+  it("destaca 'Quitação em abril de 2027' no resumo, sem tirar o 'Mês de quitação'", async () => {
+    fakePlanApi();
+    renderPlan();
+    const box = await summary();
+    expect(within(box).getByText("Quitação em abril de 2027")).toBeTruthy();
+    expect(within(box).getByText("Mês de quitação")).toBeTruthy();
+  });
+
+  it("sem quitação no período o destaque avisa isso", async () => {
+    fakePlanApi();
+    renderPlan();
+    await summary();
+    fireEvent.click(screen.getByRole("button", { name: "Sem amortizar" }));
+    const box = await screen.findByRole("region", { name: "Resumo · Sem amortizar" });
+    expect(within(box).getByText("Sem quitação dentro do período projetado")).toBeTruthy();
+  });
+});
+
+describe("gráfico de saldo devedor", () => {
+  const month = (m: string, balance: number) => ({ ...PROJECTION_NOW.months[0], month: m, debt_balance_cents: balance });
+  const chartRows = () => {
+    const chart = screen.getByRole("figure", { name: "Saldo devedor por mês" });
+    return {
+      chart,
+      rows: within(within(chart).getByRole("table")).getAllByRole("row").slice(1).map((r) => r.textContent),
+    };
+  };
+
+  it("tem uma barra por mês até o mês de quitação, com o saldo devedor da API e legenda", async () => {
+    fakePlanApi({
+      now: {
+        ...PROJECTION_NOW,
+        months: [
+          month("2026-12-01", 1102151),
+          month("2027-01-01", 856526),
+          month("2027-02-01", 0),
+          month("2027-03-01", 0),
+        ],
+        payoff_month: "2027-02-01",
+      },
+    });
+    renderPlan();
+    await summary();
+    const { chart, rows } = chartRows();
+    expect(rows).toEqual(["dez/26R$ 11.021,51", "jan/27R$ 8.565,26", "fev/27R$ 0,00"]);
+    expect(chart.querySelector(".chart-legend")?.textContent).toBe("Saldo devedor");
+  });
+
+  it("sem quitação mostra todos os meses projetados e acompanha o cenário", async () => {
+    fakePlanApi();
+    renderPlan();
+    await summary();
+    fireEvent.click(screen.getByRole("button", { name: "Sem amortizar" }));
+    await screen.findByRole("region", { name: "Resumo · Sem amortizar" });
+    expect(chartRows().rows).toEqual(["dez/26R$ 21.396,18", "jan/27R$ 20.773,36"]);
+  });
+});
+
+describe("olho de ocultar valores", () => {
+  it("esconde os valores do resumo e das frases", async () => {
+    localStorage.setItem("finance.hideValues", "1");
+    fakePlanApi();
+    renderPlan();
+    const box = await summary();
+    expect(within(box).queryByText("R$ 1.428,87")).toBeNull();
+    expect(screen.getByRole("note").textContent).not.toContain("8.000,00");
+    expect(screen.getByRole("note").textContent).toContain("•••••");
   });
 });
 

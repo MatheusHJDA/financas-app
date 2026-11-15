@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   ACCOUNTS,
@@ -10,10 +11,13 @@ import {
   ME,
   txFrom,
 } from "./__fixtures__/ingest";
+import { yesterdayIso } from "./dates";
 import type { IngestResult } from "./types";
 import { FakeXHR, installFakeXHR, json, mockFetch, renderChat, type Call, type Handler } from "./testing";
 
 let calls: Call[] = [];
+let client: QueryClient;
+const REPORT_KEY = ["report", "2026-11", "all"];
 
 function setup(extra: Record<string, Handler> = {}) {
   installFakeXHR();
@@ -23,8 +27,10 @@ function setup(extra: Record<string, Handler> = {}) {
     "GET /categories": () => json({ items: CATEGORIES, total: CATEGORIES.length }),
     ...extra,
   });
-  renderChat();
+  ({ client } = renderChat());
+  client.setQueryData(REPORT_KEY, { stale: false });
 }
+const reportInvalidated = () => client.getQueryState(REPORT_KEY)?.isInvalidated === true;
 
 const writes = () => calls.filter((c) => c.req.method !== "GET").map((c) => c.key);
 const bodyOf = async (key: string) => JSON.parse(await calls.find((c) => c.key === key)!.req.clone().text());
@@ -271,11 +277,11 @@ it("limite da IA (503) mostra a mensagem e abre o lançamento manual; valor vira
 
   const alerts = await screen.findAllByRole("alert");
   expect(alerts.some((a) => a.textContent === "O limite mensal da IA foi atingido. Lance pelo formulário.")).toBe(true);
-  const form = screen.getByRole("region", { name: "Lançar à mão" });
+  const form = screen.getByRole("dialog", { name: "Lançar à mão" });
   expect(writes()).toEqual([]);
 
   // erros de validação antes de enviar
-  fireEvent.click(within(form).getByRole("button", { name: "Salvar lançamento" }));
+  fireEvent.click(await within(form).findByRole("button", { name: "Salvar lançamento" }));
   expect(within(form).getByText("Informe um valor maior que zero, por exemplo 1.234,56.")).toBeTruthy();
   expect(within(form).getByText("Escolha a conta.")).toBeTruthy();
   expect(writes()).toEqual([]);
@@ -299,15 +305,156 @@ it("limite da IA (503) mostra a mensagem e abre o lançamento manual; valor vira
     description: "Feira",
   });
   expect(sent).not.toHaveProperty("source");
-  expect(screen.queryByRole("region", { name: "Lançar à mão" })).toBeNull();
+  expect(screen.queryByRole("dialog", { name: "Lançar à mão" })).toBeNull();
 });
 
-it("'Lançar à mão' abre o formulário sem chamar a IA", async () => {
+it("'Lançar à mão' abre o painel sem chamar a IA", async () => {
   setup();
+  expect(screen.getByRole("region", { name: "Chat de lançamentos" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Lançar à mão" }));
-  expect(screen.getByRole("region", { name: "Lançar à mão" })).toBeTruthy();
+  expect(screen.getByRole("dialog", { name: "Lançar à mão" })).toBeTruthy();
   expect(FakeXHR.instances).toHaveLength(0);
   expect(writes()).toEqual([]);
+});
+
+function openManualRaw() {
+  fireEvent.click(screen.getByRole("button", { name: "Lançar à mão" }));
+  return screen.getByRole("dialog", { name: "Lançar à mão" });
+}
+
+/** Abre o painel e espera contas/categorias chegarem (o formulário só aparece depois). */
+async function openManual() {
+  const sheet = openManualRaw();
+  await within(sheet).findByRole("button", { name: "Salvar lançamento" });
+  return sheet;
+}
+
+it("lançar à mão: seletor Receita/Despesa/Transferência muda a cor do cabeçalho", async () => {
+  setup();
+  const sheet = await openManual();
+  const kind = within(sheet).getByRole("group", { name: "Tipo" });
+  const hero = kind.closest(".tx-hero") as HTMLElement;
+  expect(hero).toBeTruthy();
+  const pressed = () =>
+    within(kind)
+      .getAllByRole("button")
+      .filter((b) => b.getAttribute("aria-pressed") === "true")
+      .map((b) => b.textContent);
+
+  expect(within(kind).getAllByRole("button").map((b) => b.textContent)).toEqual(["Receita", "Despesa", "Transferência"]);
+  expect(pressed()).toEqual(["Despesa"]);
+  expect(hero.className).toContain("tx-hero--expense");
+
+  fireEvent.click(within(kind).getByRole("button", { name: "Receita" }));
+  expect(pressed()).toEqual(["Receita"]);
+  expect(hero.className).toContain("tx-hero--income");
+  expect(hero.className).not.toContain("tx-hero--expense");
+
+  fireEvent.click(within(kind).getByRole("button", { name: "Transferência" }));
+  expect(hero.className).toContain("tx-hero--info");
+  // transferência pede conta de destino e não tem categoria
+  expect(within(sheet).getByLabelText("Conta de destino")).toBeTruthy();
+  expect(within(sheet).queryByLabelText("Categoria")).toBeNull();
+});
+
+it("lançar à mão: valor grande, chips de data e nenhum Único/Recorrente/Parcelado", async () => {
+  setup();
+  const sheet = await openManual();
+  const amount = within(sheet).getByLabelText("Valor (R$)");
+  expect(amount.className).toContain("tx-amount");
+
+  const dates = within(sheet).getByRole("group", { name: "Data" });
+  const chips = within(dates).getAllByRole("button");
+  expect(chips.map((b) => b.textContent)).toEqual(["Hoje", "Ontem", "Escolher data"]);
+  expect(within(dates).getByRole("button", { name: "Hoje" }).getAttribute("aria-pressed")).toBe("true");
+
+  for (const label of ["Único", "Recorrente", "Parcelado"]) {
+    expect(within(sheet).queryByText(label)).toBeNull();
+  }
+});
+
+it("lançar à mão: link para Contas fixas", async () => {
+  setup();
+  const sheet = await openManual();
+  const link = within(sheet).getByRole("link", { name: "Conta que se repete? Cadastre em Contas fixas" });
+  expect(link.getAttribute("href")).toBe("/contas-fixas");
+});
+
+it("lançar à mão: chip Ontem envia a data de ontem; Escolher data abre o campo", async () => {
+  setup({ "POST /transactions": (req) => req.clone().json().then((b) => json({ ...b, id: 1 }, 201)) });
+  const sheet = await openManual();
+  fireEvent.click(within(sheet).getByRole("button", { name: "Ontem" }));
+  expect(within(sheet).getByRole("button", { name: "Ontem" }).getAttribute("aria-pressed")).toBe("true");
+  expect(within(sheet).getByRole("button", { name: "Hoje" }).getAttribute("aria-pressed")).toBe("false");
+
+  fireEvent.change(within(sheet).getByLabelText("Valor (R$)"), { target: { value: "20" } });
+  fireEvent.change(within(sheet).getByLabelText("Conta"), { target: { value: "2" } });
+  fireEvent.change(within(sheet).getByLabelText("Descrição"), { target: { value: "Padaria" } });
+  fireEvent.click(within(sheet).getByRole("button", { name: "Salvar lançamento" }));
+  await screen.findByText(/Lançamento criado/);
+  expect((await bodyOf("POST /transactions")).date).toBe(yesterdayIso());
+});
+
+it("lançar à mão: Escolher data mostra o campo de data e envia a escolhida", async () => {
+  setup({ "POST /transactions": (req) => req.clone().json().then((b) => json({ ...b, id: 1 }, 201)) });
+  const sheet = await openManual();
+  expect(within(sheet).queryByLabelText("Escolha o dia")).toBeNull();
+  fireEvent.click(within(sheet).getByRole("button", { name: "Escolher data" }));
+  fireEvent.change(within(sheet).getByLabelText("Escolha o dia"), { target: { value: "2026-10-01" } });
+
+  fireEvent.change(within(sheet).getByLabelText("Valor (R$)"), { target: { value: "5,50" } });
+  fireEvent.change(within(sheet).getByLabelText("Conta"), { target: { value: "2" } });
+  fireEvent.change(within(sheet).getByLabelText("Descrição"), { target: { value: "Antigo" } });
+  fireEvent.click(within(sheet).getByRole("button", { name: "Salvar lançamento" }));
+  await screen.findByText(/Lançamento criado/);
+  expect(await bodyOf("POST /transactions")).toMatchObject({ date: "2026-10-01", amount_cents: 550 });
+});
+
+it("lançar à mão: receita só oferece categorias de receita e vai como income", async () => {
+  setup({ "POST /transactions": (req) => req.clone().json().then((b) => json({ ...b, id: 1 }, 201)) });
+  const sheet = await openManual();
+  fireEvent.click(within(sheet).getByRole("button", { name: "Receita" }));
+  expect(within(sheet).queryByRole("option", { name: "Mercado" })).toBeNull();
+  fireEvent.change(within(sheet).getByLabelText("Valor (R$)"), { target: { value: "3.000" } });
+  fireEvent.change(within(sheet).getByLabelText("Conta"), { target: { value: "2" } });
+  fireEvent.change(within(sheet).getByLabelText("Categoria"), { target: { value: "11" } });
+  fireEvent.change(within(sheet).getByLabelText("Descrição"), { target: { value: "Salário" } });
+  fireEvent.click(within(sheet).getByRole("button", { name: "Salvar lançamento" }));
+  await screen.findByText(/Lançamento criado/);
+  expect(await bodyOf("POST /transactions")).toMatchObject({ kind: "income", amount_cents: 300000, category_id: 11 });
+});
+
+it("lançar à mão: enquanto contas e categorias carregam, mostra skeleton no lugar dos campos", async () => {
+  let release: (r: Response) => void = () => {};
+  setup({ "GET /accounts": () => new Promise<Response>((r) => (release = r)) });
+  const sheet = openManualRaw();
+  expect(within(sheet).getByRole("status", { name: "Carregando contas e categorias" })).toBeTruthy();
+  expect(within(sheet).queryByRole("button", { name: "Salvar lançamento" })).toBeNull();
+  await act(async () => release(json({ items: ACCOUNTS, total: ACCOUNTS.length })));
+  await within(sheet).findByRole("button", { name: "Salvar lançamento" });
+  expect(within(sheet).queryByRole("status", { name: "Carregando contas e categorias" })).toBeNull();
+});
+
+it("Cancelar e Esc fecham o painel sem gravar", async () => {
+  setup();
+  const sheet = await openManual();
+  fireEvent.click(within(sheet).getByRole("button", { name: "Cancelar" }));
+  expect(screen.queryByRole("dialog", { name: "Lançar à mão" })).toBeNull();
+
+  fireEvent.keyDown(await openManual(), { key: "Escape" });
+  expect(screen.queryByRole("dialog", { name: "Lançar à mão" })).toBeNull();
+  expect(writes()).toEqual([]);
+});
+
+it("cartão de rascunho segue com o formulário compacto (select Tipo) ao editar", async () => {
+  setup();
+  write("luz");
+  fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+  await submitAndRespond(200, INGEST_ONE);
+  const c = await screen.findByRole("article", { name: /Luz CEMIG/ });
+  fireEvent.click(within(c).getByRole("button", { name: /Editar/ }));
+  expect(within(c).getByLabelText("Tipo").tagName).toBe("SELECT");
+  expect(within(c).queryByRole("group", { name: "Data" })).toBeNull();
 });
 
 it("arquivo acima de 10 MB é recusado na hora, sem enviar", async () => {
@@ -428,4 +575,42 @@ it("trocar o anexo por um arquivo recusado não deixa o anterior para enviar", a
   pickFile(/Galeria/, big);
   expect(screen.queryByRole("group", { name: "Anexo" })).toBeNull();
   expect((screen.getByRole("button", { name: "Enviar" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("confirmar um rascunho invalida o relatório do mês (Dashboard e Relatórios)", async () => {
+  setup({ "POST /drafts/102/confirm": () => json(txFrom(DRAFT_LUZ, 5)) });
+  write("luz");
+  fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+  await submitAndRespond(200, INGEST_ONE);
+  const c = await screen.findByRole("article", { name: /Luz CEMIG/ });
+  expect(reportInvalidated()).toBe(false);
+  fireEvent.click(within(c).getByRole("button", { name: /Confirmar/ }));
+  await within(c).findByText(/Confirmado/);
+  await waitFor(() => expect(reportInvalidated()).toBe(true));
+});
+
+it("lançar à mão invalida o relatório do mês", async () => {
+  setup({ "POST /transactions": (req) => req.clone().json().then((b) => json({ ...b, id: 1 }, 201)) });
+  const sheet = await openManual();
+  fireEvent.change(within(sheet).getByLabelText("Valor (R$)"), { target: { value: "10" } });
+  fireEvent.change(within(sheet).getByLabelText("Conta"), { target: { value: "2" } });
+  fireEvent.change(within(sheet).getByLabelText("Descrição"), { target: { value: "Pão" } });
+  fireEvent.click(within(sheet).getByRole("button", { name: "Salvar lançamento" }));
+  await screen.findByText(/Lançamento criado/);
+  await waitFor(() => expect(reportInvalidated()).toBe(true));
+});
+
+it("olho ligado oculta o valor do cartão de rascunho", async () => {
+  localStorage.setItem("finance.hideValues", "1");
+  try {
+    setup();
+    write("luz");
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+    await submitAndRespond(200, INGEST_ONE);
+    const c = await screen.findByRole("article", { name: /Luz CEMIG/ });
+    expect(within(c).getAllByLabelText("Valor oculto").length).toBeGreaterThan(0);
+    expect(within(c).queryByText(/R\$ \d/)).toBeNull();
+  } finally {
+    localStorage.removeItem("finance.hideValues");
+  }
 });

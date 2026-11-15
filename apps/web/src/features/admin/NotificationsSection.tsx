@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import { Send, Smartphone } from "lucide-react";
 import { useRef, useState } from "react";
-import { EmptyState, ErrorState, LoadingState } from "../../ui/States";
+import { Avatar, Button, Card, ListItem } from "../../ui";
+import { EmptyState, ErrorState } from "../../ui/States";
 import {
   errorText,
   fetchSubscriptions,
@@ -11,7 +13,9 @@ import {
 } from "./adminApi";
 import { formatDateTime } from "./format";
 import { Notice, type NoticeValue } from "./Notice";
+import { SectionSkeleton } from "./SectionSkeleton";
 
+/** "Avisos do sistema": teste de envio e aparelhos inscritos (antes, "Notificações"). */
 export function NotificationsSection() {
   const users = useQuery({ queryKey: USERS_KEY, queryFn: fetchUsers });
   const subs = useQuery({ queryKey: SUBSCRIPTIONS_KEY, queryFn: fetchSubscriptions });
@@ -41,11 +45,11 @@ export function NotificationsSection() {
     }
   }
 
-  if (users.isLoading || subs.isLoading) return <LoadingState label="Carregando notificações…" />;
+  if (users.isLoading || subs.isLoading) return <SectionSkeleton label="Carregando avisos…" rows={3} />;
   if (users.isError || subs.isError || !users.data || !subs.data) {
     return (
       <ErrorState
-        message="Não foi possível carregar as notificações."
+        message="Não foi possível carregar os avisos."
         onRetry={() => {
           void users.refetch();
           void subs.refetch();
@@ -57,45 +61,49 @@ export function NotificationsSection() {
   const nameOf = new Map(users.data.map((u) => [u.id, u.name]));
 
   return (
-    <>
-      <section aria-labelledby="admin-test-title" className="card">
-        <h2 id="admin-test-title">Enviar notificação de teste</h2>
+    <div className="admin-columns">
+      <Card title="Enviar notificação de teste" icon={Send}>
         <div className="admin-actions admin-actions--stack">
           {users.data.map((user) => (
-            <button
-              key={user.id}
-              type="button"
-              className="btn"
-              disabled={sendingId !== null}
-              onClick={() => void sendTest(user.id, user.name)}
-            >
+            <Button key={user.id} disabled={sendingId !== null} onClick={() => void sendTest(user.id, user.name)}>
               {sendingId === user.id ? "Enviando…" : `Enviar teste para ${user.name}`}
-            </button>
+            </Button>
           ))}
         </div>
         <Notice notice={notice} />
-      </section>
+      </Card>
 
-      <section aria-labelledby="admin-devices-title" className="card">
-        <h2 id="admin-devices-title">Aparelhos com notificação</h2>
+      <Card title="Aparelhos com notificação" icon={Smartphone}>
         {subs.data.length === 0 ? (
-          <EmptyState title="Nenhum aparelho inscrito" hint="Cada pessoa ativa as notificações na aba Mais." />
+          <EmptyState title="Nenhum aparelho inscrito" hint="Cada pessoa ativa as notificações em Preferências." />
         ) : (
           <ul className="admin-list">
-            {subs.data.map((sub) => (
-              <li key={sub.id} className="admin-item">
-                <h3>{sub.device_label || "Aparelho sem nome"}</h3>
-                <p className="muted">
-                  {nameOf.get(sub.user_id) ?? `Usuário ${sub.user_id}`} · inscrito em {formatDateTime(sub.created_at)}
-                </p>
-                <p className="muted">
-                  {sub.last_ok_at ? `Último envio com sucesso: ${formatDateTime(sub.last_ok_at)}` : "Ainda sem envio com sucesso"}
-                </p>
-              </li>
-            ))}
+            {subs.data.map((sub) => {
+              const owner = nameOf.get(sub.user_id) ?? `Usuário ${sub.user_id}`;
+              return (
+                <li key={sub.id}>
+                  <ListItem
+                    leading={<Avatar name={owner} tone="info" />}
+                    title={sub.device_label || "Aparelho sem nome"}
+                    subtitle={
+                      <>
+                        <span className="admin-line">
+                          {owner} · inscrito em {formatDateTime(sub.created_at)}
+                        </span>
+                        <span className="admin-line">
+                          {sub.last_ok_at
+                            ? `Último envio com sucesso: ${formatDateTime(sub.last_ok_at)}`
+                            : "Ainda sem envio com sucesso"}
+                        </span>
+                      </>
+                    }
+                  />
+                </li>
+              );
+            })}
           </ul>
         )}
-      </section>
-    </>
+      </Card>
+    </div>
   );
 }

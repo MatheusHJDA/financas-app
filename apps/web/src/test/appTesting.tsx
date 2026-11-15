@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { vi } from "vitest";
-import type { components } from "../../api/schema";
-import { AuthProvider } from "../../auth/AuthProvider";
+import type { components } from "../api/schema";
+import { AuthProvider } from "../auth/AuthProvider";
 
 type Me = components["schemas"]["Me"];
 type Account = components["schemas"]["Account"];

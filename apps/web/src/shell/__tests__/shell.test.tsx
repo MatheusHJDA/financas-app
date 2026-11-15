@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useEffect } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,7 +15,10 @@ const MATHEUS = { id: 1, name: "Matheus", role: "admin", owner: "MATHEUS" };
 const RUTH = { id: 2, name: "Ruth", role: "user", owner: "RUTH" };
 
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 
 function mockMe(me: unknown) {
   vi.stubGlobal(
@@ -51,7 +60,9 @@ function PathSpy() {
 }
 
 function renderAt(path: string) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
@@ -63,7 +74,10 @@ function renderAt(path: string) {
 }
 
 beforeEach(() => {
-  vi.stubGlobal("navigator", { ...navigator, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)" });
+  vi.stubGlobal("navigator", {
+    ...navigator,
+    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)",
+  });
 });
 afterEach(() => {
   cleanup();
@@ -79,15 +93,25 @@ describe("celular (390px)", () => {
     const names = within(nav)
       .getAllByRole("link")
       .map((a) => a.getAttribute("aria-label") ?? a.textContent?.trim());
-    expect(names).toEqual(["Início", "Transações", "Lançar com IA", "Relatórios", "Mais"]);
-    expect(screen.queryByRole("navigation", { name: "Menu lateral" })).toBeNull();
+    expect(names).toEqual([
+      "Início",
+      "Transações",
+      "Lançar com IA",
+      "Relatórios",
+      "Mais",
+    ]);
+    expect(
+      screen.queryByRole("navigation", { name: "Menu lateral" }),
+    ).toBeNull();
   });
 
   it("Mais lista Administração só para o admin", async () => {
     setWidth(390);
     mockMe(MATHEUS);
     renderAt("/mais");
-    expect(await screen.findByRole("link", { name: /Administração/ })).toBeTruthy();
+    expect(
+      await screen.findByRole("link", { name: /Administração/ }),
+    ).toBeTruthy();
     cleanup();
     mockMe(RUTH);
     renderAt("/mais");
@@ -102,7 +126,16 @@ describe("computador (1280px)", () => {
     mockMe(RUTH);
     renderAt("/");
     const nav = await screen.findByRole("navigation", { name: "Menu lateral" });
-    for (const name of ["Dashboard", "Transações", "Contas fixas", "Contas", "Metas", "Plano", "Relatórios", "Lançar com IA"]) {
+    for (const name of [
+      "Dashboard",
+      "Transações",
+      "Contas fixas",
+      "Contas",
+      "Metas",
+      "Plano",
+      "Relatórios",
+      "Lançar com IA",
+    ]) {
       expect(within(nav).getByRole("link", { name })).toBeTruthy();
     }
     expect(within(nav).queryByText("Administração")).toBeNull();
@@ -115,7 +148,14 @@ describe("computador (1280px)", () => {
     mockMe(MATHEUS);
     renderAt("/");
     const nav = await screen.findByRole("navigation", { name: "Menu lateral" });
-    for (const name of ["Usuários", "Configurações", "Avisos do sistema", "IA", "Auditoria", "Sistema"]) {
+    for (const name of [
+      "Usuários",
+      "Configurações",
+      "Avisos do sistema",
+      "IA",
+      "Auditoria",
+      "Sistema",
+    ]) {
       expect(within(nav).getByRole("link", { name })).toBeTruthy();
     }
   });
@@ -134,14 +174,25 @@ describe("rotas", () => {
     setWidth(390);
     mockMe(MATHEUS);
     renderAt("/mais/admin");
-    expect(await screen.findByRole("heading", { name: "Usuários", level: 1 })).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "Usuários", level: 1 }),
+    ).toBeTruthy();
     await waitFor(() => expect(seen.path).toBe("/admin/usuarios"));
   });
 
-  it("/admin/ia como Ruth volta para /", async () => {
+  it.each([
+    "/admin",
+    "/admin/usuarios",
+    "/admin/configuracoes",
+    "/admin/avisos",
+    "/admin/ia",
+    "/admin/auditoria",
+    "/admin/sistema",
+    "/mais/admin",
+  ])("%s como Ruth volta para /", async (path) => {
     setWidth(390);
     mockMe(RUTH);
-    renderAt("/admin/ia");
+    renderAt(path);
     await screen.findByRole("navigation", { name: "Principal" });
     await waitFor(() => expect(seen.path).toBe("/"));
   });
@@ -150,6 +201,8 @@ describe("rotas", () => {
     setWidth(390);
     mockMe(RUTH);
     renderAt("/lancar");
-    expect(await screen.findByRole("region", { name: "Chat de lançamentos" })).toBeTruthy();
+    expect(
+      await screen.findByRole("region", { name: "Chat de lançamentos" }),
+    ).toBeTruthy();
   });
 });

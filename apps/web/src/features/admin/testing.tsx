@@ -3,7 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
 import { AuthProvider } from "../../auth/AuthProvider";
-import AdminPage from "./AdminPage";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import AdminSectionPage from "./routes";
 
 export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -32,12 +33,27 @@ export function mockFetch(routes: Record<string, Handler>) {
   return calls;
 }
 
-export function renderAdmin() {
+/** Simula (ou não) a tela larga: `useMediaQuery` lê `window.matchMedia`. Desfazer com `vi.unstubAllGlobals()`. */
+export function stubViewport(desktop: boolean) {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: desktop,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
+/** Abre `/admin/<slug>` como o App faz: rota `admin/:secao` (a guarda de admin é do AdminRoute). */
+export function renderAdmin(slug = "usuarios") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <AuthProvider>
-        <AdminPage />
+        <MemoryRouter initialEntries={[`/admin/${slug}`]}>
+          <Routes>
+            <Route path="admin/:secao" element={<AdminSectionPage />} />
+          </Routes>
+        </MemoryRouter>
       </AuthProvider>
     </QueryClientProvider>,
   );

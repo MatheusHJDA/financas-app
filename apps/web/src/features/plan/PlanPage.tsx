@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ErrorState, LoadingState } from "../../ui/States";
+import { Pencil, SlidersHorizontal } from "lucide-react";
+import { Button, Card, Chip, ChipGroup, ErrorState, Skeleton, SkeletonGroup } from "../../ui";
 import "./plan.css";
 import { AssumptionsForm } from "./AssumptionsForm";
 import { MonthList } from "./MonthList";
+import { PlanChart } from "./PlanChart";
 import { PlanComparison, PlanSummary, SCENARIO_LABEL } from "./PlanSummary";
 import {
   assumptionsKey,
@@ -15,7 +17,23 @@ import {
 
 const SCENARIOS: Scenario[] = ["amortize_now", "no_amortization"];
 
-// Dono: U10. Aba Plano: resumo, amortizar agora × sem amortizar, mês a mês e premissas.
+/** Esqueleto com a forma do Plano: chips, resumo com destaque, gráfico e blocos do mês a mês. */
+function PlanSkeleton() {
+  return (
+    <SkeletonGroup label="Carregando o Plano…">
+      <div style={{ display: "flex", gap: "var(--space-2)" }}>
+        <Skeleton variant="block" height="40px" />
+        <Skeleton variant="block" height="40px" />
+      </div>
+      <Skeleton variant="block" height="180px" />
+      <Skeleton variant="block" height="220px" />
+      <Skeleton variant="block" />
+      <Skeleton variant="block" />
+    </SkeletonGroup>
+  );
+}
+
+// Dono: U10/U20. Plano: quitação em destaque, saldo devedor mês a mês, comparação e premissas.
 export default function PlanPage() {
   const [scenario, setScenario] = useState<Scenario>("amortize_now");
   const [editing, setEditing] = useState(false);
@@ -55,7 +73,7 @@ export default function PlanPage() {
     return (
       <section className="screen plan">
         {header}
-        <LoadingState label="Carregando o Plano…" />
+        <PlanSkeleton />
       </section>
     );
   }
@@ -66,39 +84,35 @@ export default function PlanPage() {
     <section className="screen plan">
       {header}
 
-      <div className="plan-toggle" role="group" aria-label="Cenário mostrado">
+      <ChipGroup label="Cenário mostrado">
         {SCENARIOS.map((s) => (
-          <button
-            key={s}
-            type="button"
-            className="btn"
-            aria-pressed={scenario === s}
-            onClick={() => setScenario(s)}
-          >
+          <Chip key={s} selected={scenario === s} onClick={() => setScenario(s)}>
             {SCENARIO_LABEL[s]}
-          </button>
+          </Chip>
         ))}
-      </div>
+      </ChipGroup>
 
-      <PlanSummary
-        scenario={scenario}
-        selected={selected}
-        amortizeNow={now}
-        initialAmortizationCents={a.initial_amortization_cents}
-      />
+      <div className="plan-top">
+        <PlanSummary
+          scenario={scenario}
+          selected={selected}
+          amortizeNow={now}
+          initialAmortizationCents={a.initial_amortization_cents}
+        />
+        <PlanChart months={selected.months} payoffMonth={selected.payoff_month ?? null} />
+      </div>
       <PlanComparison amortizeNow={now} noAmortization={none} />
       <MonthList months={selected.months} />
 
-      <section aria-labelledby="plan-premissas" className="plan-assumptions">
-        <h2 id="plan-premissas">Premissas</h2>
+      <Card title="Premissas" icon={SlidersHorizontal} className="plan-assumptions">
         {editing ? (
           <AssumptionsForm assumptions={a} onDone={() => setEditing(false)} />
         ) : (
-          <button type="button" className="btn" onClick={() => setEditing(true)}>
+          <Button icon={Pencil} block onClick={() => setEditing(true)}>
             Editar premissas
-          </button>
+          </Button>
         )}
-      </section>
+      </Card>
     </section>
   );
 }

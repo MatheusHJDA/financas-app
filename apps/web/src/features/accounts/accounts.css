@@ -1,0 +1,105 @@
+/* Tela Contas (U19). Só tokens de styles/tokens.css; celular primeiro, sem larguras fixas. */
+
+.acc-page {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.acc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+.acc-head h1 {
+  margin: 0;
+}
+.acc-cols {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.acc-col {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+  min-width: 0;
+}
+@media (min-width: 1024px) {
+  .acc-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+/* Nomes de conta quebram em vez de cortar (360px) */
+.acc-page .ui-li__title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.acc-group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-1);
+}
+.acc-group__title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.acc-group__total {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+.acc-group__total .money {
+  font-weight: 700;
+  color: var(--color-text);
+}
+.acc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.acc-list > li + li {
+  border-top: 1px solid var(--color-border);
+}
+.acc-trail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.acc-neg {
+  color: var(--color-expense);
+}
+.acc-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--tone-neutral-bg);
+  color: var(--color-text);
+}
+
+/* Esqueleto da lista */
+.acc-skel-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+.acc-skel-text {
+  flex: 1;
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}

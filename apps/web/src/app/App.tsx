@@ -16,8 +16,8 @@ const MorePage = lazy(() => import("../features/settings/MorePage"));
 const PreferencesPage = lazy(() => import("../features/settings/PreferencesPage"));
 const FixedBillsPage = lazy(() => import("../features/bills/FixedBillsPage"));
 const AccountsPage = lazy(() => import("../features/accounts/AccountsPage"));
-const MetasTab = lazy(() => import("../shell/tabs/MetasTab"));
-const PlanoTab = lazy(() => import("../shell/tabs/PlanoTab"));
+const GoalsPage = lazy(() => import("../features/goals/GoalsPage"));
+const PlanPage = lazy(() => import("../features/plan/PlanPage"));
 const AdminSectionPage = lazy(() => import("../features/admin/routes"));
 const KitPage = import.meta.env.DEV ? lazy(() => import("../dev/KitPage")) : null;
 
@@ -37,8 +37,8 @@ export default function App() {
               <Route path="preferencias" element={<PreferencesPage />} />
               <Route path="contas-fixas" element={<FixedBillsPage />} />
               <Route path="contas" element={<AccountsPage />} />
-              <Route path="metas" element={<MetasTab />} />
-              <Route path="plano" element={<PlanoTab />} />
+              <Route path="metas" element={<GoalsPage />} />
+              <Route path="plano" element={<PlanPage />} />
               <Route path="geral" element={<Navigate to="/" replace />} />
               <Route element={<AdminRoute />}>
                 <Route path="admin" element={<Navigate to="/admin/usuarios" replace />} />

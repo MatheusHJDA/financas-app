@@ -1,6 +1,7 @@
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Check, Pencil } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { Button, Money } from "../../ui";
 import { formatDate } from "./dates";
-import { formatCents } from "./money";
 import { missingForConfirm, proposalToForm } from "./proposal";
 import { TransactionForm } from "./TransactionForm";
 import { KIND_LABEL, OWNER_LABEL, type Account, type Category, type Draft, type Owner, type Proposal } from "./types";
@@ -17,6 +18,8 @@ interface Props {
   onEdit: (id: number, edited: Proposal) => void;
   onPayBill: (draftId: number, billInstanceId: number, transactionId: number) => void;
 }
+
+const KIND_ICON = { income: ArrowDownLeft, expense: ArrowUpRight, transfer: ArrowLeftRight } as const;
 
 /** Nomes de campo da IA (amount_cents, account_id…) -> chave da linha do cartão. */
 function rowKey(field: string): string {
@@ -49,31 +52,37 @@ export function DraftCard({
       <dt>{label}</dt>
       <dd>
         {value}
-        {low.has(key) ? <span className="badge badge--warn"> Confira</span> : null}
+        {low.has(key) ? <span className="chat-badge chat-badge--warn"> Confira</span> : null}
       </dd>
     </div>
   );
 
   const heading = `${KIND_LABEL[p.kind]}: ${p.description}`;
+  const KindIcon = KIND_ICON[p.kind];
 
   return (
     <article className={`draft-card draft-card--${view.status}`} aria-label={heading}>
       <header className="draft-head">
-        <p className={low.has("amount") ? "draft-amount draft-row--low" : "draft-amount"}>
-          {formatCents(p.amount_cents)}
-          {low.has("amount") ? <span className="badge badge--warn"> Confira</span> : null}
-        </p>
-        <p className="draft-confidence muted">Confiança: {Math.round(draft.confidence * 100)}%</p>
-        {view.edited ? <span className="badge">Editado</span> : null}
+        <span className={`draft-kind draft-kind--${p.kind}`} aria-hidden="true">
+          <KindIcon size={20} strokeWidth={1.9} />
+        </span>
+        <div className="draft-head__text">
+          <p className={low.has("amount") ? "draft-amount draft-row--low" : "draft-amount"}>
+            <Money cents={p.amount_cents} />
+            {low.has("amount") ? <span className="chat-badge chat-badge--warn"> Confira</span> : null}
+          </p>
+          <p className="draft-confidence">Confiança: {Math.round(draft.confidence * 100)}%</p>
+        </div>
+        {view.edited ? <span className="chat-badge">Editado</span> : null}
       </header>
 
       {draft.duplicate_of_transaction_id != null ? (
-        <p className="signal signal--warn" role="note">
+        <p className="chat-signal chat-signal--warn" role="note">
           Já existe? Parece com o lançamento nº {draft.duplicate_of_transaction_id}.
         </p>
       ) : null}
       {draft.plan_rule_warning ? (
-        <p className="signal signal--warn" role="note">
+        <p className="chat-signal chat-signal--warn" role="note">
           Regra do plano: {draft.plan_rule_warning}
         </p>
       ) : null}
@@ -105,7 +114,7 @@ export function DraftCard({
 
       {view.note ? <p className="muted">{view.note}</p> : null}
       {view.error ? (
-        <p className="field-error" role="alert">
+        <p className="chat-field-error" role="alert">
           {view.error}
         </p>
       ) : null}
@@ -114,33 +123,31 @@ export function DraftCard({
         <>
           {missing ? <p className="muted">{missing}</p> : null}
           <div className="draft-actions">
-            <button
-              type="button"
-              className="btn btn--primary"
+            <Button
+              variant="primary"
+              icon={Check}
               aria-label={`Confirmar ${p.description}`}
               disabled={locked || missing !== null}
               onClick={() => onConfirm({ draft, edited: view.edited })}
             >
               Confirmar
-            </button>
-            <button
-              type="button"
-              className="btn"
+            </Button>
+            <Button
+              icon={Pencil}
               aria-label={`Editar ${p.description}`}
               disabled={locked}
               onClick={() => setEditing(true)}
             >
               Editar
-            </button>
-            <button
-              type="button"
-              className="btn"
+            </Button>
+            <Button
+              variant="ghost"
               aria-label={`Descartar ${p.description}`}
               disabled={locked}
               onClick={() => onDiscard(draft)}
             >
               Descartar
-            </button>
+            </Button>
           </div>
         </>
       ) : null}
@@ -154,9 +161,7 @@ export function DraftCard({
             ) : (
               <div className="bill-offer">
                 <p>Parece o pagamento de uma conta a pagar. Marcar como paga?</p>
-                <button
-                  type="button"
-                  className="btn"
+                <Button
                   aria-label={`Marcar como paga: ${p.description}`}
                   disabled={view.bill === "paying"}
                   onClick={() =>
@@ -164,9 +169,9 @@ export function DraftCard({
                   }
                 >
                   Marcar como paga
-                </button>
+                </Button>
                 {view.billError ? (
-                  <p className="field-error" role="alert">
+                  <p className="chat-field-error" role="alert">
                     {view.billError}
                   </p>
                 ) : null}

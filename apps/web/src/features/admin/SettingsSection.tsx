@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { ErrorState, LoadingState } from "../../ui/States";
+import { Clock } from "lucide-react";
+import { Button, Card } from "../../ui";
+import { ErrorState } from "../../ui/States";
 import {
   errorText,
   fetchSettings,
@@ -11,6 +13,7 @@ import {
   SETTINGS_KEY,
 } from "./adminApi";
 import { Notice, type NoticeValue } from "./Notice";
+import { SectionSkeleton } from "./SectionSkeleton";
 
 interface Form {
   dailyTime: string;
@@ -46,7 +49,7 @@ export function SettingsSection() {
   const [notice, setNotice] = useState<NoticeValue | null>(null);
   const savingRef = useRef(false);
 
-  if (settings.isLoading) return <LoadingState label="Carregando configurações…" />;
+  if (settings.isLoading) return <SectionSkeleton label="Carregando configurações…" rows={3} />;
   if (settings.isError || !settings.data) {
     return <ErrorState message="Não foi possível carregar as configurações." onRetry={() => void settings.refetch()} />;
   }
@@ -84,8 +87,7 @@ export function SettingsSection() {
   }
 
   return (
-    <section aria-labelledby="admin-settings-title" className="card">
-      <h2 id="admin-settings-title">Configurações</h2>
+    <Card title="Horários dos avisos" icon={Clock} className="admin-card--narrow">
       <form
         className="admin-form"
         onSubmit={(e) => {
@@ -122,10 +124,10 @@ export function SettingsSection() {
           <p className="muted">Os avisos também saem no dia do vencimento. Horários no fuso de Brasília.</p>
         </div>
         <Notice notice={notice} />
-        <button type="submit" className="btn btn--primary" disabled={saving}>
+        <Button type="submit" variant="primary" disabled={saving}>
           Salvar configurações
-        </button>
+        </Button>
       </form>
-    </section>
+    </Card>
   );
 }

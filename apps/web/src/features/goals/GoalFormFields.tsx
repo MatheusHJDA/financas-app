@@ -1,4 +1,5 @@
 import { useId, useState, type FormEvent } from "react";
+import { Button } from "../../ui";
 import { accountOptionLabel, OWNER_LABEL, OWNERS, type Account, type Category, type Owner } from "../accounts/shared";
 import {
   formToGoalBody,
@@ -50,7 +51,7 @@ export function GoalForm({ initial, accounts, categories, submitLabel, editing =
   const id = (f: string) => `${uid}-${f}`;
   const err = (f: keyof GoalFormValues) =>
     errors[f] ? (
-      <p id={id(`${f}-err`)} className="u8-err" role="alert">
+      <p id={id(`${f}-err`)} className="goal-err" role="alert">
         {errors[f]}
       </p>
     ) : null;
@@ -62,8 +63,8 @@ export function GoalForm({ initial, accounts, categories, submitLabel, editing =
     type === "income_period" ? "Meta (R$)" : type === "category_cap" ? "Teto mensal (R$)" : type === "debt_payoff" ? "Valor a quitar (R$, opcional)" : "Valor-alvo (R$)";
 
   return (
-    <form className="u8-form" onSubmit={submit} noValidate aria-label={editing ? "Editar meta" : "Nova meta"}>
-      <div className="u8-field">
+    <form className="goal-form" onSubmit={submit} noValidate aria-label={editing ? "Editar meta" : "Nova meta"}>
+      <div className="goal-field">
         <label htmlFor={id("type")}>Tipo da meta</label>
         <select id={id("type")} value={type} onChange={(e) => set("type", e.target.value as GoalType)}>
           {GOAL_TYPES.map((t) => (
@@ -74,23 +75,23 @@ export function GoalForm({ initial, accounts, categories, submitLabel, editing =
         </select>
       </div>
 
-      <div className="u8-field">
+      <div className="goal-field">
         <label htmlFor={id("name")}>Nome da meta</label>
         <input id={id("name")} autoComplete="off" value={values.name} onChange={(e) => set("name", e.target.value)} {...a11y("name")} />
         {err("name")}
       </div>
 
       {type === "debt_payoff" ? (
-        <p className="u8-note">
+        <p className="goal-help">
           O progresso vem do saldo devedor das dívidas cadastradas: o nome da meta deve conter o nome da dívida (ex.: &quot;Quitar empréstimo&quot; para
           a dívida &quot;empréstimo&quot;). Deixe o valor em branco para usar o total da dívida.
         </p>
       ) : null}
       {type === "category_cap" ? (
-        <p className="u8-note">O teto vale por mês e conta as despesas da categoria escolhida (e das subcategorias).</p>
+        <p className="goal-help">O teto vale por mês e conta as despesas da categoria escolhida (e das subcategorias).</p>
       ) : null}
 
-      <div className="u8-field">
+      <div className="goal-field">
         <label htmlFor={id("owner")}>Dono</label>
         <select id={id("owner")} value={values.owner} onChange={(e) => set("owner", e.target.value as Owner)}>
           {OWNERS.map((o) => (
@@ -103,7 +104,7 @@ export function GoalForm({ initial, accounts, categories, submitLabel, editing =
 
       {type === "income_period" ? (
         <>
-          <div className="u8-field">
+          <div className="goal-field">
             <label htmlFor={id("period")}>Período</label>
             <select id={id("period")} value={values.period} onChange={(e) => set("period", e.target.value as GoalPeriod)}>
               {PERIODS.map((p) => (
@@ -113,7 +114,7 @@ export function GoalForm({ initial, accounts, categories, submitLabel, editing =
               ))}
             </select>
           </div>
-          <div className="u8-field">
+          <div className="goal-field">
             <label htmlFor={id("floor")}>Piso (R$, opcional)</label>
             <input
               id={id("floor")}
@@ -129,7 +130,7 @@ export function GoalForm({ initial, accounts, categories, submitLabel, editing =
         </>
       ) : null}
 
-      <div className="u8-field">
+      <div className="goal-field">
         <label htmlFor={id("target")}>{targetLabel}</label>
         <input
           id={id("target")}
@@ -144,7 +145,7 @@ export function GoalForm({ initial, accounts, categories, submitLabel, editing =
       </div>
 
       {type === "income_period" ? (
-        <div className="u8-field">
+        <div className="goal-field">
           <label htmlFor={id("challenge")}>Desafio (R$, opcional)</label>
           <input
             id={id("challenge")}
@@ -160,7 +161,7 @@ export function GoalForm({ initial, accounts, categories, submitLabel, editing =
       ) : null}
 
       {type === "accumulate" ? (
-        <div className="u8-field">
+        <div className="goal-field">
           <label htmlFor={id("account")}>Conta vinculada</label>
           <select id={id("account")} value={values.linkedAccountId} onChange={(e) => set("linkedAccountId", e.target.value)}>
             <option value="">Nenhuma (aportes manuais)</option>
@@ -174,7 +175,7 @@ export function GoalForm({ initial, accounts, categories, submitLabel, editing =
       ) : null}
 
       {type === "income_period" || type === "category_cap" ? (
-        <div className="u8-field">
+        <div className="goal-field">
           <label htmlFor={id("category")}>Categoria</label>
           <select
             id={id("category")}
@@ -195,32 +196,32 @@ export function GoalForm({ initial, accounts, categories, submitLabel, editing =
         </div>
       ) : null}
 
-      <div className="u8-field">
+      <div className="goal-field">
         <label htmlFor={id("due")}>Prazo (opcional)</label>
         <input id={id("due")} type="date" value={values.dueDate} onChange={(e) => set("dueDate", e.target.value)} {...a11y("dueDate")} />
         {err("dueDate")}
       </div>
 
       {editing ? (
-        <label className="u8-check">
+        <label className="goal-check">
           <input type="checkbox" checked={values.active} onChange={(e) => set("active", e.target.checked)} />
           Meta ativa
         </label>
       ) : null}
 
       {serverError ? (
-        <p className="u8-err" role="alert">
+        <p className="goal-err" role="alert">
           {serverError}
         </p>
       ) : null}
 
-      <div className="u8-actions">
-        <button type="submit" className="u8-btn u8-btn--primary" disabled={busy}>
+      <div className="goal-actions">
+        <Button type="submit" variant="primary" disabled={busy}>
           {submitLabel}
-        </button>
-        <button type="button" className="u8-btn" onClick={onCancel} disabled={busy}>
+        </Button>
+        <Button onClick={onCancel} disabled={busy}>
           Cancelar
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -1,21 +1,22 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { json, mockFetch, ME, renderAdmin, USERS, type Call, type Handler } from "./testing";
+import { json, mockFetch, ME, renderAdmin, stubViewport, USERS, type Call, type Handler } from "./testing";
 
 let calls: Call[] = [];
 
-function setup(extra: Record<string, Handler> = {}) {
+/** `slug` = rota /admin/<slug>; `desktop` liga a tela larga (tabelas em vez de lista). */
+function setup(extra: Record<string, Handler> = {}, slug = "usuarios", desktop = false) {
+  stubViewport(desktop);
   calls = mockFetch({
     "GET /auth/me": () => json(ME),
     "GET /admin/users": () => json(USERS),
     ...extra,
   });
-  renderAdmin();
+  renderAdmin(slug);
 }
 
 const writes = () => calls.filter((c) => c.req.method !== "GET").map((c) => c.key);
 const bodyOf = async (key: string) => JSON.parse(await calls.find((c) => c.key === key)!.req.clone().text());
-const tab = (name: string) => fireEvent.click(screen.getByRole("button", { name }));
 
 afterEach(() => {
   cleanup();
@@ -108,8 +109,7 @@ it("configurações: mostra os valores e salva os 3 campos (antecedência inteir
     "GET /admin/settings": () =>
       json({ "notify.daily_time": "21:00", "notify.bill_time": "09:00", "notify.bill_days_before": 2 }),
     "PUT /admin/settings": (req) => req.clone().json().then((b) => json(b)),
-  });
-  tab("Configurações");
+  }, "configuracoes");
   const daily = (await screen.findByLabelText("Horário do resumo diário")) as HTMLInputElement;
   expect(daily.value).toBe("21:00");
   expect((screen.getByLabelText("Horário do aviso de vencimento") as HTMLInputElement).value).toBe("09:00");
@@ -131,8 +131,7 @@ it("configurações: antecedência inválida não chama a API", async () => {
   setup({
     "GET /admin/settings": () =>
       json({ "notify.daily_time": "21:00", "notify.bill_time": "09:00", "notify.bill_days_before": 2 }),
-  });
-  tab("Configurações");
+  }, "configuracoes");
   const days = await screen.findByLabelText(/antecedência/);
   fireEvent.change(days, { target: { value: "11" } });
   fireEvent.click(screen.getByRole("button", { name: "Salvar configurações" }));
@@ -154,8 +153,7 @@ it("notificações: envio de teste mostra quantos aparelhos receberam e lista ap
         },
       ]),
     "POST /admin/notifications/test": () => json({ sent: 2 }),
-  });
-  tab("Notificações");
+  }, "avisos");
   expect(await screen.findByText("iPhone da Ruth")).toBeTruthy();
   expect(screen.getByText(/Ainda sem envio com sucesso/)).toBeTruthy();
   expect(screen.queryByText(/push\.example/)).toBeNull(); // o endpoint não aparece
@@ -169,8 +167,7 @@ it("notificações: 0 aparelhos explica o que fazer", async () => {
   setup({
     "GET /admin/push-subscriptions": () => json([]),
     "POST /admin/notifications/test": () => json({ sent: 0 }),
-  });
-  tab("Notificações");
+  }, "avisos");
   expect(await screen.findByText("Nenhum aparelho inscrito")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Enviar teste para Matheus" }));
   expect(await screen.findByText(/0 aparelhos receberam/)).toBeTruthy();
@@ -188,8 +185,7 @@ it("IA: tabela com modelo, tokens, custo e contagem de falhas e limites 429", as
           { ...base, id: 1, model: "modelo-x", usage_tokens: 10, est_cost_cents: 1, status: "error", error_code: "ai_unavailable" },
         ],
       }),
-  });
-  tab("IA");
+  }, "ia", true);
   const table = await screen.findByRole("table");
   const rows = within(table).getAllByRole("row");
   expect(rows).toHaveLength(4);
@@ -223,8 +219,7 @@ it("auditoria: filtra por entidade e usuário e pagina", async () => {
       const offset = Number(q.get("offset") ?? 0);
       return json({ total: 45, items: [event(offset + 1)] });
     },
-  });
-  tab("Auditoria");
+  }, "auditoria");
   expect(await screen.findByText("Criou goals #1")).toBeTruthy();
   expect(screen.getByText("1–1 de 45")).toBeTruthy();
   expect(calls.at(-1)!.url.searchParams.get("entity")).toBeNull();
@@ -258,8 +253,7 @@ it("auditoria: evento sem usuário aparece como Sistema e mostra detalhes", asyn
           { id: 1, user_id: null, entity: "users", entity_id: "2", action: "update", before: null, after: { pin_changed: true }, at: "2026-11-12T15:00:00Z" },
         ],
       }),
-  });
-  tab("Auditoria");
+  }, "auditoria");
   expect(await screen.findByText("Alterou users #2")).toBeTruthy();
   expect(screen.getByText(/^Sistema · /)).toBeTruthy();
   expect(screen.getByText(/pin_changed/)).toBeTruthy();
@@ -274,8 +268,7 @@ it("sistema: estado, exportação CSV e download do backup", async () => {
         last_backup_at: "2026-11-12T03:00:00Z",
         last_backup_size_bytes: 3_500_000,
       }),
-  });
-  tab("Sistema");
+  }, "sistema");
   expect(await screen.findByText("Parado")).toBeTruthy();
   expect(screen.getByText("OK")).toBeTruthy();
   expect(screen.getByText(/12\/11\/2026 00:00 · 3,3 MB/)).toBeTruthy();
@@ -289,10 +282,141 @@ it("sistema: sem backup não oferece o download", async () => {
   setup({
     "GET /admin/system": () =>
       json({ database_ok: false, scheduler_ok: true, last_backup_at: null, last_backup_size_bytes: null }),
-  });
-  tab("Sistema");
+  }, "sistema");
   expect(await screen.findByText("Nenhum backup encontrado")).toBeTruthy();
   expect(screen.getByText("Com problema")).toBeTruthy();
   expect(screen.queryByRole("link", { name: "Baixar backup" })).toBeNull();
   expect(screen.getByRole("link", { name: "Exportar lançamentos (CSV)" })).toBeTruthy();
+});
+
+// --- U22: uma página por seção, tabelas no computador, lista no celular, cartões de números ---------
+
+const SECTION_TITLES: [string, string][] = [
+  ["usuarios", "Usuários"],
+  ["configuracoes", "Configurações"],
+  ["avisos", "Avisos do sistema"],
+  ["ia", "IA"],
+  ["auditoria", "Auditoria"],
+  ["sistema", "Sistema"],
+];
+
+const EMPTY_ROUTES: Record<string, Handler> = {
+  "GET /admin/settings": () =>
+    json({ "notify.daily_time": "21:00", "notify.bill_time": "09:00", "notify.bill_days_before": 2 }),
+  "GET /admin/push-subscriptions": () => json([]),
+  "GET /admin/ai/calls": () => json({ total: 0, items: [] }),
+  "GET /admin/audit": () => json({ total: 0, items: [] }),
+  "GET /admin/system": () =>
+    json({ database_ok: true, scheduler_ok: true, last_backup_at: null, last_backup_size_bytes: null }),
+};
+
+const aiCall = (over: Record<string, unknown>) => ({
+  id: 1,
+  user_id: 2,
+  input_kind: "text",
+  prompt_version: "v1",
+  created_at: "2026-11-12T15:00:00Z",
+  model: "modelo-x",
+  usage_tokens: 1200,
+  est_cost_cents: 150,
+  status: "ok",
+  error_code: null,
+  ...over,
+});
+
+it.each(SECTION_TITLES)("a rota /admin/%s abre a seção com o título %s", async (slug, title) => {
+  setup(EMPTY_ROUTES, slug);
+  expect(await screen.findByRole("heading", { name: title, level: 1 })).toBeTruthy();
+  expect(document.getElementById(`admin-${slug}`)).not.toBeNull();
+});
+
+it("slug desconhecido redireciona para /admin/usuarios", async () => {
+  setup(EMPTY_ROUTES, "inexistente");
+  expect(await screen.findByRole("heading", { name: "Usuários", level: 1 })).toBeTruthy();
+  expect(await screen.findByRole("article", { name: "Matheus" })).toBeTruthy();
+});
+
+it("não há mais abas internas: as seções vêm do menu", async () => {
+  setup();
+  await screen.findByRole("article", { name: "Matheus" });
+  expect(screen.queryByRole("navigation", { name: "Seções do painel" })).toBeNull();
+});
+
+it("carregando mostra skeleton (status ocupado) e não spinner", async () => {
+  setup({ "GET /admin/system": () => new Promise<Response>(() => {}) }, "sistema");
+  const status = await screen.findByRole("status", { name: /Carregando/ });
+  expect(status.getAttribute("aria-busy")).toBe("true");
+  expect(document.querySelector(".spinner")).toBeNull();
+});
+
+it("usuários no computador: tabela com ações e confirmação na linha", async () => {
+  setup({ "DELETE /admin/users/2/sessions": () => new Response(null, { status: 204 }) }, "usuarios", true);
+  const table = await screen.findByRole("table", { name: "Usuários" });
+  const rows = within(table).getAllByRole("row");
+  expect(rows).toHaveLength(3); // cabeçalho + 2 pessoas
+  expect(within(rows[1]).getByText("Matheus")).toBeTruthy();
+  expect(within(rows[1]).getByText("Administrador")).toBeTruthy();
+  expect(within(rows[2]).getByText(/Bloqueado até/)).toBeTruthy();
+  expect(screen.queryByRole("article")).toBeNull(); // sem a versão de celular
+
+  fireEvent.click(within(rows[2]).getByRole("button", { name: "Encerrar sessões de Ruth" }));
+  expect(writes()).toEqual([]);
+  fireEvent.click(screen.getByRole("button", { name: "Confirmar encerramento" }));
+  await waitFor(() => expect(writes()).toEqual(["DELETE /admin/users/2/sessions"]));
+});
+
+it("IA no celular: lista em vez de tabela, com os mesmos dados", async () => {
+  setup({ "GET /admin/ai/calls": () => json({ total: 1, items: [aiCall({})] }) }, "ia");
+  expect(await screen.findByText("modelo-x")).toBeTruthy();
+  expect(screen.queryByRole("table")).toBeNull();
+  expect(screen.getByText(/1\.200 tokens/)).toBeTruthy();
+  expect(screen.getAllByText("US$ 1,50").length).toBeGreaterThan(0);
+});
+
+it("IA: cartões de números no topo, com o custo estimado vindo da API", async () => {
+  setup({ "GET /admin/ai/calls": () => json({ total: 7, items: [aiCall({ est_cost_cents: 275 })] }) }, "ia");
+  const cost = await screen.findByRole("group", { name: "Custo da última chamada" });
+  expect(within(cost).getByText("US$ 2,75")).toBeTruthy();
+  expect(within(screen.getByRole("group", { name: "Total de chamadas" })).getByText("7")).toBeTruthy();
+});
+
+it("sistema: cartões de números para banco, agendador e backup", async () => {
+  setup(
+    {
+      "GET /admin/system": () =>
+        json({ database_ok: true, scheduler_ok: false, last_backup_at: "2026-11-12T03:00:00Z", last_backup_size_bytes: 3_500_000 }),
+    },
+    "sistema",
+  );
+  expect(within(await screen.findByRole("group", { name: "Banco de dados" })).getByText("OK")).toBeTruthy();
+  expect(within(screen.getByRole("group", { name: "Agendador de avisos" })).getByText("Parado")).toBeTruthy();
+  expect(within(screen.getByRole("group", { name: "Último backup" })).getByText(/3,3 MB/)).toBeTruthy();
+});
+
+it("auditoria no computador: tabela com quem, quando e o quê", async () => {
+  setup(
+    {
+      "GET /admin/audit": () =>
+        json({
+          total: 1,
+          items: [
+            { id: 1, user_id: 2, entity: "goals", entity_id: "9", action: "delete", before: { name: "Viagem" }, after: null, at: "2026-11-12T15:00:00Z" },
+          ],
+        }),
+    },
+    "auditoria",
+    true,
+  );
+  const table = await screen.findByRole("table", { name: "Eventos de auditoria" });
+  const row = within(table).getAllByRole("row")[1];
+  expect(within(row).getByText("Excluiu goals #9")).toBeTruthy();
+  expect(await within(row).findByText("Ruth")).toBeTruthy();
+  expect(within(row).getByText("12/11/2026 12:00")).toBeTruthy();
+  expect(within(row).getByText(/Viagem/)).toBeTruthy();
+});
+
+it("avisos: sem aparelhos, a dica aponta para Preferências", async () => {
+  setup({ "GET /admin/push-subscriptions": () => json([]) }, "avisos");
+  expect(await screen.findByText("Nenhum aparelho inscrito")).toBeTruthy();
+  expect(screen.getByText(/Preferências/)).toBeTruthy();
 });

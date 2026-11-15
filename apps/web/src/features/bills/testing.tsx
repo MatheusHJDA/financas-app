@@ -1,6 +1,6 @@
 // Apoio dos testes de Contas fixas (não é importado pelo app): servidor simulado de /recurring-bills
 // por cima do servidor da tela Geral, com as regras de permissão do contrato.
-import { ACCOUNTS, canWriteServer, json, makeServer, type Handler } from "../overview/testing";
+import { ACCOUNTS, canWriteServer, json, makeServer, type Handler } from "../../test/appTesting";
 import type { RecurringBill } from "./fixedBillForm";
 
 export const FIXED_BILLS: RecurringBill[] = [

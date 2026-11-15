@@ -1,15 +1,23 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { EmptyState, ErrorState, LoadingState } from "../../ui/States";
+import { AlertCircle, CircleDollarSign, Cpu, Gauge } from "lucide-react";
+import { Avatar, Card, ListItem, StatCard } from "../../ui";
+import { EmptyState, ErrorState } from "../../ui/States";
+import { DESKTOP_QUERY, useMediaQuery } from "../../ui/useMediaQuery";
 import { aiKey, fetchAiCalls, fetchUsers, USERS_KEY, type AiCall } from "./adminApi";
 import { formatDateTime, formatInt, formatUsdCents } from "./format";
 import { Pager } from "./Pager";
+import { SectionSkeleton } from "./SectionSkeleton";
 
 // Códigos gravados por ai/client.py: "ai_limit_reached" = limite/429 da OpenAI.
 const isFailure = (call: AiCall) => call.status !== "ok";
 const isLimit = (call: AiCall) => /429|limit/i.test(call.error_code ?? "");
 
+const statusText = (call: AiCall) =>
+  isFailure(call) ? `Falha${call.error_code ? ` (${call.error_code})` : ""}` : "Ok";
+
 export function AiSection() {
+  const desktop = useMediaQuery(DESKTOP_QUERY);
   const [offset, setOffset] = useState(0);
   const calls = useQuery({
     queryKey: aiKey(offset),
@@ -18,7 +26,7 @@ export function AiSection() {
   });
   const users = useQuery({ queryKey: USERS_KEY, queryFn: fetchUsers });
 
-  if (calls.isLoading) return <LoadingState label="Carregando chamadas de IA…" />;
+  if (calls.isLoading) return <SectionSkeleton label="Carregando chamadas de IA…" stats={4} rows={4} />;
   if (calls.isError || !calls.data) {
     return <ErrorState message="Não foi possível carregar as chamadas de IA." onRetry={() => void calls.refetch()} />;
   }
@@ -29,28 +37,50 @@ export function AiSection() {
   const limits = items.filter(isLimit).length;
 
   return (
-    <section aria-labelledby="admin-ai-title" className="card">
-      <h2 id="admin-ai-title">Chamadas de IA</h2>
-      <dl className="admin-stats" aria-label="Resumo das chamadas desta página">
-        <div>
-          <dt>Total de chamadas</dt>
-          <dd>{formatInt(total)}</dd>
-        </div>
-        <div>
-          <dt>Falhas na página</dt>
-          <dd>{formatInt(failures)}</dd>
-        </div>
-        <div>
-          <dt>Limites 429 na página</dt>
-          <dd>{formatInt(limits)}</dd>
-        </div>
-      </dl>
+    <>
+      <div className="admin-stat-grid" role="group" aria-label="Resumo das chamadas desta página">
+        <StatCard label="Total de chamadas" icon={Cpu} tone="info" value={formatInt(total)} />
+        <StatCard label="Falhas na página" icon={AlertCircle} tone={failures > 0 ? "expense" : "neutral"} value={formatInt(failures)} />
+        <StatCard label="Limites 429 na página" icon={Gauge} tone={limits > 0 ? "warning" : "neutral"} value={formatInt(limits)} />
+        {/* O custo vem pronto da API (estimativa em centavos de dólar); o front não soma. */}
+        <StatCard
+          label="Custo da última chamada"
+          icon={CircleDollarSign}
+          tone="neutral"
+          value={formatUsdCents(items[0]?.est_cost_cents)}
+          hint="Estimado, da chamada mais recente da página"
+        />
+      </div>
 
+      <Card title="Chamadas de IA" icon={Cpu}>
       {items.length === 0 ? (
         <EmptyState title="Nenhuma chamada de IA ainda" />
+      ) : !desktop ? (
+        <ul className="admin-list">
+          {items.map((call) => (
+            <li key={call.id}>
+              <ListItem
+                leading={<Avatar name={nameOf.get(call.user_id) ?? "?"} tone={isFailure(call) ? "expense" : "income"} />}
+                title={call.model}
+                subtitle={
+                  <>
+                    <span className="admin-line">
+                      {nameOf.get(call.user_id) ?? `Usuário ${call.user_id}`} · {formatDateTime(call.created_at)}
+                    </span>
+                    <span className="admin-line">{formatInt(call.usage_tokens)} tokens</span>
+                    <span className={isFailure(call) ? "admin-line admin-notice--error" : "admin-line"}>
+                      {statusText(call)}
+                    </span>
+                  </>
+                }
+                trailing={<span className="admin-cost">{formatUsdCents(call.est_cost_cents)}</span>}
+              />
+            </li>
+          ))}
+        </ul>
       ) : (
         <div className="admin-scroll" role="region" aria-label="Tabela de chamadas de IA" tabIndex={0}>
-          <table className="admin-table">
+          <table className="admin-table" aria-label="Chamadas de IA">
             <thead>
               <tr>
                 <th scope="col">Data</th>
@@ -69,9 +99,7 @@ export function AiSection() {
                   <td>{call.model}</td>
                   <td>{formatInt(call.usage_tokens)}</td>
                   <td>{formatUsdCents(call.est_cost_cents)}</td>
-                  <td className={isFailure(call) ? "admin-notice--error" : undefined}>
-                    {isFailure(call) ? `Falha${call.error_code ? ` (${call.error_code})` : ""}` : "Ok"}
-                  </td>
+                  <td className={isFailure(call) ? "admin-notice--error" : undefined}>{statusText(call)}</td>
                 </tr>
               ))}
             </tbody>
@@ -79,6 +107,7 @@ export function AiSection() {
         </div>
       )}
       <Pager offset={offset} count={items.length} total={total} onChange={setOffset} />
-    </section>
+      </Card>
+    </>
   );
 }

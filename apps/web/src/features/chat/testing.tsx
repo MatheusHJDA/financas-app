@@ -1,6 +1,8 @@
 // Apoio dos testes da tela de chat (não é importado pelo app).
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { HideValuesProvider } from "../../ui";
 import { render } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 import { AuthProvider } from "../../auth/AuthProvider";
 import ChatPage from "./ChatPage";
@@ -87,11 +89,16 @@ export function installFakeXHR() {
 
 export function renderChat() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      <AuthProvider>
-        <ChatPage />
-      </AuthProvider>
-    </QueryClientProvider>,
+  const view = render(
+    <MemoryRouter initialEntries={["/lancar"]}>
+      <QueryClientProvider client={client}>
+        <AuthProvider>
+          <HideValuesProvider>
+            <ChatPage />
+          </HideValuesProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
+  return { ...view, client };
 }

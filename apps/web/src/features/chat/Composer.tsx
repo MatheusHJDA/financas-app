@@ -1,4 +1,6 @@
+import { Camera, FileText, Image, PencilLine, SendHorizontal, X } from "lucide-react";
 import { useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { Button, IconButton } from "../../ui";
 import { validateAttachment } from "./sendIngest";
 
 interface Props {
@@ -48,6 +50,8 @@ export function Composer({ sending, progress, onSend, onManual }: Props) {
     }
   };
 
+  const AttachIcon = file?.type === "application/pdf" ? FileText : Image;
+
   return (
     <form
       className="composer"
@@ -58,23 +62,22 @@ export function Composer({ sending, progress, onSend, onManual }: Props) {
     >
       {file ? (
         <div className="attachment" role="group" aria-label="Anexo">
+          <AttachIcon aria-hidden="true" size={18} strokeWidth={1.75} className="attachment-icon" />
           <span className="attachment-name">
-            {file.type === "application/pdf" ? "📄" : "🖼️"} {file.name} <span className="muted">({sizeLabel(file.size)})</span>
+            {file.name} <span className="muted">({sizeLabel(file.size)})</span>
           </span>
-          <button
-            type="button"
-            className="btn btn--icon"
-            aria-label={`Remover anexo ${file.name}`}
+          <IconButton
+            icon={X}
+            label={`Remover anexo ${file.name}`}
+            className="attachment-remove"
             disabled={sending}
             onClick={() => setFile(null)}
-          >
-            ✕
-          </button>
+          />
         </div>
       ) : null}
 
       {fileError ? (
-        <p className="field-error" role="alert">
+        <p className="chat-field-error" role="alert">
           {fileError}
         </p>
       ) : null}
@@ -109,24 +112,27 @@ export function Composer({ sending, progress, onSend, onManual }: Props) {
       />
 
       <div className="composer-bar">
-        <label className="btn file-btn">
+        <label className="file-btn">
           <input type="file" accept="image/*" capture="environment" onChange={pick} disabled={sending} />
-          <span aria-hidden="true">📷</span> Câmera
+          <Camera aria-hidden="true" size={20} strokeWidth={1.75} />
+          <span className="sr-only">Câmera</span>
         </label>
-        <label className="btn file-btn">
+        <label className="file-btn">
           <input type="file" accept="image/*" onChange={pick} disabled={sending} />
-          <span aria-hidden="true">🖼️</span> Galeria
+          <Image aria-hidden="true" size={20} strokeWidth={1.75} />
+          <span className="sr-only">Galeria</span>
         </label>
-        <label className="btn file-btn">
+        <label className="file-btn">
           <input type="file" accept="application/pdf" onChange={pick} disabled={sending} />
-          <span aria-hidden="true">📄</span> PDF
+          <FileText aria-hidden="true" size={20} strokeWidth={1.75} />
+          <span className="sr-only">PDF</span>
         </label>
-        <button type="button" className="btn" onClick={onManual}>
+        <Button icon={PencilLine} onClick={onManual}>
           Lançar à mão
-        </button>
-        <button type="submit" className="btn btn--primary composer-send" disabled={!canSend}>
+        </Button>
+        <Button type="submit" variant="primary" icon={SendHorizontal} className="composer-send" disabled={!canSend}>
           Enviar
-        </button>
+        </Button>
       </div>
     </form>
   );
