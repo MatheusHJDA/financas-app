@@ -4,7 +4,7 @@ import { BottomBar } from "./BottomBar";
 import { Header } from "./Header";
 import { RouteSkeleton } from "./RouteSkeleton";
 import { Sidebar } from "./Sidebar";
-import { DESKTOP_QUERY, useMediaQuery } from "./useMediaQuery";
+import { DESKTOP_QUERY, useMediaQuery } from "../ui/useMediaQuery";
 import "./shell.css";
 
 /** Casca responsiva: barra flutuante no celular; menu lateral + cabeçalho no computador (≥ 1024px). */
