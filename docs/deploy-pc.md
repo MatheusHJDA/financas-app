@@ -45,6 +45,18 @@ INITIAL_PIN_RUTH=654321
 - Os PINs iniciais (6 dígitos) só servem para criar os usuários na primeira vez; depois o Matheus pode redefini-los
   em **Mais → Painel admin → Usuários**.
 
+Duas opções de segurança já vêm com o valor certo no `.env.example` (só mexa se souber o motivo):
+
+- `ALLOWED_HOSTS=localhost,127.0.0.1,*.ts.net`: a api só responde se o endereço usado (cabeçalho `Host`) estiver
+  nesta lista, separada por vírgula. Cobre `http://127.0.0.1:8000` no próprio PC e o `https://...ts.net` do
+  Tailscale. Se um dia usar outro endereço (domínio próprio, VPS), acrescente-o aqui; sem isso a api responde
+  `400 Invalid host header`.
+- `ENABLE_DOCS=false`: a documentação interativa (`/api/docs`) e o `/api/openapi.json` ficam desligados. Para
+  depurar, ponha `true`, rode `./tasks.ps1 up` e volte para `false` depois.
+
+Depois de mudar o `.env`, rode `./tasks.ps1 up` para a api reler. O backup e o `db` não falam com a api por HTTP,
+então não dependem do `ALLOWED_HOSTS`.
+
 ## 3. Subir o app
 
 ```powershell
@@ -82,7 +94,8 @@ tailscale serve status
 
 O `--bg` deixa o `serve` **persistente**: ele continua ativo depois de fechar o terminal e volta sozinho quando o PC
 reinicia (o Tailscale guarda a configuração). O `status` mostra o endereço `https://...ts.net` que os celulares
-vão usar. Para desligar: `tailscale serve reset`.
+vão usar. Para desligar: `tailscale serve reset`. O endereço termina em `.ts.net`, que o `ALLOWED_HOSTS` padrão
+já aceita.
 
 ## 6. Iniciar junto com o Windows
 

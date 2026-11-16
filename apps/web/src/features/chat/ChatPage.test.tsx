@@ -31,6 +31,14 @@ function setup(extra: Record<string, Handler> = {}) {
   client.setQueryData(REPORT_KEY, { stale: false });
 }
 const reportInvalidated = () => client.getQueryState(REPORT_KEY)?.isInvalidated === true;
+// Telas que mostram saldo/progresso e precisam refazer a busca depois de gravar.
+const GOALS_KEY = ["goals", "list"];
+const ACCOUNTS_KEY = ["accounts", "all"];
+const seedKeys = () => {
+  client.setQueryData(GOALS_KEY, { stale: false });
+  client.setQueryData(ACCOUNTS_KEY, { stale: false });
+};
+const invalidated = (key: unknown[]) => client.getQueryState(key)?.isInvalidated === true;
 
 const writes = () => calls.filter((c) => c.req.method !== "GET").map((c) => c.key);
 const bodyOf = async (key: string) => JSON.parse(await calls.find((c) => c.key === key)!.req.clone().text());
@@ -631,4 +639,48 @@ it("olho ligado oculta o valor do cartão de rascunho", async () => {
   } finally {
     localStorage.removeItem("finance.hideValues");
   }
+});
+
+it("confirmar um rascunho invalida também as metas", async () => {
+  setup({ "POST /drafts/102/confirm": () => json(txFrom(DRAFT_LUZ, 5)) });
+  seedKeys();
+  write("luz");
+  fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+  await submitAndRespond(200, INGEST_ONE);
+  const c = await screen.findByRole("article", { name: /Luz CEMIG/ });
+  fireEvent.click(within(c).getByRole("button", { name: /Confirmar/ }));
+  await within(c).findByText(/Confirmado/);
+  await waitFor(() => expect(invalidated(GOALS_KEY)).toBe(true));
+});
+
+it("lançar à mão invalida também as metas", async () => {
+  setup({ "POST /transactions": (req) => req.clone().json().then((b) => json({ ...b, id: 1 }, 201)) });
+  seedKeys();
+  const sheet = await openManual();
+  fireEvent.change(within(sheet).getByLabelText("Valor (R$)"), { target: { value: "10" } });
+  fireEvent.change(within(sheet).getByLabelText("Conta"), { target: { value: "2" } });
+  fireEvent.change(within(sheet).getByLabelText("Descrição"), { target: { value: "Pão" } });
+  fireEvent.click(within(sheet).getByRole("button", { name: "Salvar lançamento" }));
+  await screen.findByText(/Lançamento criado/);
+  await waitFor(() => expect(invalidated(GOALS_KEY)).toBe(true));
+});
+
+it("marcar a conta como paga invalida contas e metas", async () => {
+  setup({
+    "POST /drafts/102/confirm": () => json(txFrom(DRAFT_LUZ, 777)),
+    "POST /bill-instances/31/pay": () => json({ id: 31 }),
+  });
+  write("luz");
+  fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+  await submitAndRespond(200, INGEST_ONE);
+  const c = await screen.findByRole("article", { name: /Luz CEMIG/ });
+  fireEvent.click(within(c).getByRole("button", { name: /Confirmar/ }));
+  await within(c).findByText(/Confirmado/);
+  // o Confirmar já invalidou tudo; recoloca dados "frescos" para isolar o efeito do pagamento
+  seedKeys();
+  expect(invalidated(GOALS_KEY)).toBe(false);
+  fireEvent.click(within(c).getByRole("button", { name: /Marcar como paga/ }));
+  await within(c).findByText(/marcada como paga/);
+  await waitFor(() => expect(invalidated(GOALS_KEY)).toBe(true));
+  expect(invalidated(ACCOUNTS_KEY)).toBe(true);
 });

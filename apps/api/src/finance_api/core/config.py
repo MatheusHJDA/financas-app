@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     tz: str = "America/Sao_Paulo"
     session_days: int = 30
 
+    # Swagger/OpenAPI em /api/docs e /api/openapi.json: desligado, só para depurar.
+    enable_docs: bool = False
+    # Hosts aceitos no cabeçalho Host, separados por vírgula ("*.ts.net" vale para o tailnet).
+    allowed_hosts: str = "localhost,127.0.0.1,*.ts.net"
+
+    @property
+    def allowed_hosts_list(self) -> list[str]:
+        return [host.strip() for host in self.allowed_hosts.split(",") if host.strip()]
+
 
 @lru_cache
 def get_settings() -> Settings:

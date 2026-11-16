@@ -25,6 +25,9 @@ def test_any_logged_user_downloads(
     assert response.content == data
     assert response.headers["content-type"] == "image/png"
     assert response.headers["x-content-type-options"] == "nosniff"
+    # o anexo é conteúdo do usuário: CSP própria (a do app não vale aqui) e abre inline
+    assert response.headers["content-security-policy"] == "default-src 'none'"
+    assert response.headers["content-disposition"].startswith("inline")
 
 
 def test_requires_login(db: Session, users, upload_dir: Path, use_settings, client_as) -> None:

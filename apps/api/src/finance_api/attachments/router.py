@@ -1,7 +1,8 @@
 """`GET /attachments/{id}`: qualquer usuário logado baixa o anexo (incluído pelo router do ingest).
 
 Responde com o tipo detectado no envio (o conteúdo foi validado por magic bytes) e
-`X-Content-Type-Options: nosniff`. O caminho no disco tem de ficar dentro de `upload_dir`.
+`X-Content-Type-Options: nosniff` e `Content-Security-Policy: default-src 'none'`
+(o PDF/imagem continua abrindo inline). O caminho no disco tem de ficar dentro de `upload_dir`.
 """
 
 from typing import Annotated
@@ -42,5 +43,9 @@ def get_attachment(
         media_type=attachment.mime,
         filename=f"anexo-{attachment.id}{path.suffix}",
         content_disposition_type="inline",
-        headers={"X-Content-Type-Options": "nosniff"},
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            # conteúdo enviado por usuário: nada executa nem carrega recurso
+            "Content-Security-Policy": "default-src 'none'",
+        },
     )

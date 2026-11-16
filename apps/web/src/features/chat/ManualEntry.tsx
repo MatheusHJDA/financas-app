@@ -65,7 +65,7 @@ export function ManualEntry({
         },
       });
       if (data) {
-        for (const key of ["transactions", "overview", "accounts", "bill-instances", "report"]) {
+        for (const key of ["transactions", "overview", "accounts", "bill-instances", "goals", "report"]) {
           void queryClient.invalidateQueries({ queryKey: [key] });
         }
         const summary = (

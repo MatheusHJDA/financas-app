@@ -52,7 +52,9 @@ export function serverWarnings(response: Response): string | null {
 }
 
 // Depois de gravar, o que mais telas mostram fica velho.
-const INVALIDATE = [["transactions"], ["overview"], ["accounts"], ["bill-instances"], ["report"]] as const;
+const INVALIDATE = [["transactions"], ["overview"], ["accounts"], ["bill-instances"], ["goals"], ["report"]] as const;
+// Depois de pagar uma conta: a mesma lista de bills/api.ts (AFTER_PAID).
+const AFTER_PAY = [["bill-instances"], ["overview"], ["transactions"], ["accounts"], ["goals"], ["report"]] as const;
 
 function detailOf(error: unknown): string | null {
   const d = (error as { detail?: unknown } | undefined)?.detail;
@@ -252,7 +254,7 @@ export function useDraftController() {
         });
         if (response.ok) {
           patch(draftId, { bill: "paid" });
-          for (const key of [["bill-instances"], ["overview"], ["transactions"], ["report"]]) {
+          for (const key of AFTER_PAY) {
             void queryClient.invalidateQueries({ queryKey: key });
           }
         } else {

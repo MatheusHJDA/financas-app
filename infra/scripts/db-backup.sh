@@ -46,8 +46,8 @@ do_backup() {
   if [ -n "${COPY_TO:-}" ]; then
     mkdir -p "$COPY_TO"
     cp "$final" "$COPY_TO/$name"
-    # o arquivo no volume é 0600 (root); a cópia vai para a pasta do usuário que rodou o script no host
-    chmod 644 "$COPY_TO/$name"
+    # o arquivo no volume é 0600 (root); a cópia (dados financeiros) fica 0600 também, sem leitura para outros
+    chmod 600 "$COPY_TO/$name"
     log "cópia gravada em $COPY_TO/$name"
   fi
 

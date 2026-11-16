@@ -23,11 +23,17 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from alembic import command
+from finance_api.core.config import get_settings
 from finance_api.core.deps import get_current_user
 from finance_api.core.permissions import CurrentUser, Owner
 from finance_api.db.models import User
 from finance_api.db.session import get_db
 from finance_api.main import create_app
+
+# O TestClient usa o host "testserver"; o padrão da API só aceita localhost/127.0.0.1/*.ts.net.
+# `finance_api.main` já criou `app` e cacheou as configurações no import acima: limpa o cache.
+os.environ["ALLOWED_HOSTS"] = "testserver,localhost,127.0.0.1,*.ts.net"
+get_settings.cache_clear()
 
 API_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_ADMIN_URL = "postgresql+psycopg://financas_test:financas_test@127.0.0.1:55432/postgres"

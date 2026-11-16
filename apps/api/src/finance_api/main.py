@@ -4,15 +4,18 @@ from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
-from starlette.types import Scope
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from finance_api.accounts.router import router as accounts_router
 from finance_api.admin.router import router as admin_router
 from finance_api.auth.router import router as auth_router
 from finance_api.bills.router import router as bills_router
 from finance_api.categories.router import router as categories_router
+from finance_api.core.config import Settings, get_settings
 from finance_api.debts.router import router as debts_router
 from finance_api.goals.router import router as goals_router
 from finance_api.health.router import router as health_router
@@ -61,7 +64,60 @@ class SpaStaticFiles(StaticFiles):
             return await super().get_response("index.html", scope)
 
 
-def create_app(web_dist: Path | None = None, *, start_scheduler: bool = True) -> FastAPI:
+# CSP do app: tudo do próprio domínio. `style-src 'unsafe-inline'` cobre os `style=` do React;
+# `img-src data: blob:` cobre prévias de anexo; o PWA não usa script/estilo inline nem CDN.
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; "
+    "manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; "
+    "object-src 'none'"
+)
+SECURITY_HEADERS = (
+    ("X-Content-Type-Options", "nosniff"),
+    ("X-Frame-Options", "DENY"),
+    ("Referrer-Policy", "same-origin"),
+    ("Content-Security-Policy", CONTENT_SECURITY_POLICY),
+)
+DOCS_URL = "/api/docs"
+
+
+class SecurityHeadersMiddleware:
+    """Cabeçalhos de segurança em toda resposta HTTP, sem sobrescrever os que a rota já definiu.
+
+    ASGI puro (sem BaseHTTPMiddleware), para não mexer no streaming de arquivos.
+    `csp_exempt_paths`: a página do Swagger usa script/estilo de CDN e não roda com a CSP do app.
+    """
+
+    def __init__(self, app: ASGIApp, csp_exempt_paths: frozenset[str] = frozenset()) -> None:
+        self.app = app
+        self.csp_exempt_paths = csp_exempt_paths
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        skip_csp = scope["path"] in self.csp_exempt_paths
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for name, value in SECURITY_HEADERS:
+                    if name in headers or (skip_csp and name == "Content-Security-Policy"):
+                        continue
+                    headers.append(name, value)
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
+def create_app(
+    web_dist: Path | None = None,
+    *,
+    start_scheduler: bool = True,
+    settings: Settings | None = None,
+) -> FastAPI:
+    settings = settings or get_settings()
+
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         if start_scheduler:
@@ -74,9 +130,16 @@ def create_app(web_dist: Path | None = None, *, start_scheduler: bool = True) ->
 
     app = FastAPI(
         title="Finanças API",
-        docs_url="/api/docs",
-        openapi_url="/api/openapi.json",
+        docs_url=DOCS_URL if settings.enable_docs else None,
+        openapi_url="/api/openapi.json" if settings.enable_docs else None,
+        redoc_url=None,
         lifespan=lifespan,
+    )
+    # O último adicionado fica por fora: os cabeçalhos entram até na resposta 400 de Host inválido.
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts_list)
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        csp_exempt_paths=frozenset({DOCS_URL}) if settings.enable_docs else frozenset(),
     )
 
     api = APIRouter(prefix="/api")
