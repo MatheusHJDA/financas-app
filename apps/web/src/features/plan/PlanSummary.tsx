@@ -1,6 +1,5 @@
 import { CalendarCheck, CalendarX, ClipboardList, Scale } from "lucide-react";
 import { Card, Money } from "../../ui";
-import { useMoneyText } from "./moneyText";
 import type { PlanProjection, Scenario } from "./planApi";
 import { monthLongLabel } from "./planMath";
 
@@ -34,7 +33,6 @@ export function PlanSummary({
   amortizeNow,
   initialAmortizationCents,
 }: SummaryProps) {
-  const text = useMoneyText();
   const paysOff = selected.payoff_month != null;
   const HeroIcon = paysOff ? CalendarCheck : CalendarX;
   return (
@@ -72,8 +70,9 @@ export function PlanSummary({
         </div>
       </dl>
       <p className="plan-d14" role="note">
-        Cada mês sem amortizar os {text(initialAmortizationCents)} custa cerca
-        de {text(amortizeNow.waiting_cost_per_month_cents)} de juros.
+        Cada mês sem amortizar os <Money cents={initialAmortizationCents} />{" "}
+        custa cerca de{" "}
+        <Money cents={amortizeNow.waiting_cost_per_month_cents} /> de juros.
       </p>
     </Card>
   );
@@ -89,7 +88,6 @@ export function PlanComparison({
   amortizeNow,
   noAmortization,
 }: ComparisonProps) {
-  const text = useMoneyText();
   const interestDiff =
     noAmortization.total_interest_cents - amortizeNow.total_interest_cents;
   const months = amortizeNow.months.length;
@@ -99,7 +97,7 @@ export function PlanComparison({
       icon={Scale}
       className="plan-compare"
     >
-      <div className="plan-compare__scroll">
+      <div className="plan-compare__scroll" role="region" aria-label="Tabela de comparação dos cenários" tabIndex={0}>
         <table>
           <caption className="visually-hidden">
             Comparação dos dois cenários em {months} meses
@@ -140,7 +138,7 @@ export function PlanComparison({
       </div>
       {interestDiff > 0 ? (
         <p className="muted">
-          Amortizando agora, saem {text(interestDiff)} a menos de juros nesses{" "}
+          Amortizando agora, saem <Money cents={interestDiff} /> a menos de juros nesses{" "}
           {months} meses.
         </p>
       ) : null}

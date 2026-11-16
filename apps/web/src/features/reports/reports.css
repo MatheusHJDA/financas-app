@@ -34,6 +34,27 @@
   min-width: 0;
 }
 
+/* Receitas/Saídas (meia largura no celular): valor embaixo do rótulo e podendo quebrar,
+   para não estourar nem se sobrepor ao ícone em 360px. */
+.rep-stats > .ui-stat {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.rep-stats .ui-stat__body,
+.rep-stats .ui-stat__label,
+.rep-stats .ui-stat__hint {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.rep-stats .ui-stat__value {
+  font-size: var(--text-md);
+}
+.rep-stats .money {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .rep-grid {
   display: grid;
   gap: var(--space-3);

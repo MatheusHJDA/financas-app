@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { formatReaisShort } from "../features/accounts/money";
 import { formatCents } from "../features/chat/money";
 
 export { formatCents };
@@ -39,10 +40,17 @@ export function useHideValues(): HideValues {
   return useContext(HideValuesContext);
 }
 
-type MoneyProps = { cents: number; signed?: boolean; tone?: "auto" | "none"; className?: string };
+type MoneyProps = {
+  cents: number;
+  signed?: boolean;
+  tone?: "auto" | "none";
+  /** "R$ 1.200" em vez de "R$ 1.200,00" (centavos só quando existem). */
+  short?: boolean;
+  className?: string;
+};
 
 /** Exibe centavos em reais. `signed` mostra +/− e, por padrão, colore receita/despesa. */
-export function Money({ cents, signed = false, tone, className }: MoneyProps) {
+export function Money({ cents, signed = false, tone, short = false, className }: MoneyProps) {
   const { hidden } = useHideValues();
   const classes = ["money"];
   if (className) classes.push(className);
@@ -57,6 +65,7 @@ export function Money({ cents, signed = false, tone, className }: MoneyProps) {
   const effectiveTone = tone ?? (signed ? "auto" : "none");
   if (effectiveTone === "auto" && cents !== 0) classes.push(cents > 0 ? "money--income" : "money--expense");
   const sign = cents > 0 ? "+" : cents < 0 ? "−" : "";
-  const text = signed ? `${sign}${formatCents(Math.abs(cents))}` : formatCents(cents);
+  const fmt = short ? formatReaisShort : formatCents;
+  const text = signed ? `${sign}${fmt(Math.abs(cents))}` : fmt(cents);
   return <span className={classes.join(" ")}>{text}</span>;
 }

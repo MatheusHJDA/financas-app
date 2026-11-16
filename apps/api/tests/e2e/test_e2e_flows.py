@@ -1,16 +1,28 @@
-"""Fluxos principais, cada um nos dois aparelhos (414×896 e 412×915; fixture `device`)."""
+"""Fluxos principais, cada um nos três aparelhos (414×896, 412×915 e computador 1280×800).
+
+Fixture `device`. `open_route`/`tab` (em `e2e_support`) usam a barra de abas no celular e o menu
+lateral no computador.
+"""
 
 import re
 from collections.abc import Callable
 
 import pytest
-from e2e_support import PINS, WRONG_PIN, Env, assert_layout
+from e2e_support import (
+    PINS,
+    WRONG_PIN,
+    Env,
+    assert_layout,
+    is_desktop,
+    open_route,
+    tab,
+)
 from playwright.sync_api import BrowserContext, Page, expect
 
 pytestmark = pytest.mark.e2e
 
 # Palavra sem dígitos por aparelho: a IA falsa lê o primeiro número do texto como o valor.
-WORD = {"iphone-11": "iphone", "galaxy-a13": "galaxy"}
+WORD = {"iphone-11": "iphone", "galaxy-a13": "galaxy", "desktop": "desktop"}
 
 TABS = ("Início", "Transações", "Lançar com IA", "Relatórios", "Mais")
 # Título (h1) de cada destino da barra; o chat tem h1 "Chat" só para leitores de tela.
@@ -25,33 +37,6 @@ TAB_HEADING = {
 def tap_pin(page: Page, pin: str) -> None:
     for digit in pin:
         page.get_by_role("button", name=digit, exact=True).tap()
-
-
-def tab(page: Page, name: str) -> None:
-    """Toca um destino: direto na barra Principal ou, se não estiver nela, pela tela Mais."""
-    bar = page.get_by_role("navigation", name="Principal")
-    expect(bar.get_by_role("link", name="Mais", exact=True)).to_be_visible()
-    link = bar.get_by_role("link", name=name, exact=True)
-    if link.count() == 0:
-        bar.get_by_role("link", name="Mais", exact=True).tap()
-        expect(page.get_by_role("heading", name="Mais", exact=True)).to_be_visible()
-        link = page.get_by_role("main").get_by_role("link", name=name, exact=True)
-    link.tap()
-
-
-def open_route(page: Page, path: str) -> None:
-    """Abre uma rota do app pelo roteador (história do navegador), como um toque de link.
-
-    `page.goto("/geral")` não serve: o servidor devolve 404 JSON para qualquer rota fora de "/"
-    (veja `test_bug_recarregar_rota_do_app_devolve_404`).
-    """
-    page.goto("/")
-    expect(page.get_by_role("navigation", name="Principal")).to_be_visible()
-    page.evaluate(
-        "p => { history.pushState({}, '', p);"
-        " window.dispatchEvent(new PopStateEvent('popstate')); }",
-        path,
-    )
 
 
 def transactions_total(context: BrowserContext, query: str) -> int:
@@ -284,6 +269,8 @@ def test_todas_as_abas_sem_rolagem_horizontal_e_com_barra_de_abas(
     expect(page.get_by_role("heading", name="Início", exact=True)).to_be_visible()
     assert_layout(page)
     for name in TABS[1:]:
+        if name == "Mais" and is_desktop(page):
+            continue  # o computador não tem a tela Mais na navegação (usa o menu lateral)
         tab(page, name)
         expect(
             page.get_by_role("heading", name=TAB_HEADING[name], exact=True).first

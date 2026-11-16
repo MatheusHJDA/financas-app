@@ -589,6 +589,24 @@ it("confirmar um rascunho invalida o relatório do mês (Dashboard e Relatórios
   await waitFor(() => expect(reportInvalidated()).toBe(true));
 });
 
+it("olho ligado: o resumo do lançamento à mão no chat não mostra o valor e o leitor diz 'Valor oculto'", async () => {
+  localStorage.setItem("finance.hideValues", "1");
+  try {
+    setup({ "POST /transactions": (req) => req.clone().json().then((b) => json({ ...b, id: 1 }, 201)) });
+    const sheet = await openManual();
+    fireEvent.change(within(sheet).getByLabelText("Valor (R$)"), { target: { value: "10" } });
+    fireEvent.change(within(sheet).getByLabelText("Conta"), { target: { value: "2" } });
+    fireEvent.change(within(sheet).getByLabelText("Descrição"), { target: { value: "Pão" } });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Salvar lançamento" }));
+    const info = (await screen.findByText(/Lançamento criado/)).closest("[role=status]") as HTMLElement;
+    expect(within(info).getByRole("img", { name: "Valor oculto" })).toBeTruthy();
+    expect(info.textContent).not.toMatch(/R\$ 10/);
+    expect(info.textContent).toContain("Pão");
+  } finally {
+    localStorage.removeItem("finance.hideValues");
+  }
+});
+
 it("lançar à mão invalida o relatório do mês", async () => {
   setup({ "POST /transactions": (req) => req.clone().json().then((b) => json({ ...b, id: 1 }, 201)) });
   const sheet = await openManual();

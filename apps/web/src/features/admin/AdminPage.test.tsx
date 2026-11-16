@@ -97,6 +97,26 @@ it("encerrar sessões pede confirmação antes de chamar a API", async () => {
   expect(await screen.findByText("Sessões de Ruth encerradas.")).toBeTruthy();
 });
 
+it("redefinir PIN: o foco vai ao campo do PIN e volta ao botão ao cancelar", async () => {
+  setup();
+  const ruth = await screen.findByRole("article", { name: "Ruth" });
+  const open = within(ruth).getByRole("button", { name: "Redefinir PIN de Ruth" });
+  fireEvent.click(open);
+  expect(document.activeElement).toBe(screen.getByLabelText(/Novo PIN de Ruth/));
+  fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Redefinir PIN de Ruth" }));
+});
+
+it("encerrar sessões: o foco vai ao Cancelar (opção segura) e volta ao botão ao cancelar", async () => {
+  setup();
+  const ruth = await screen.findByRole("article", { name: "Ruth" });
+  fireEvent.click(within(ruth).getByRole("button", { name: "Encerrar sessões de Ruth" }));
+  const cancelar = screen.getByRole("button", { name: "Cancelar" });
+  expect(document.activeElement).toBe(cancelar);
+  fireEvent.click(cancelar);
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Encerrar sessões de Ruth" }));
+});
+
 it("encerrar as próprias sessões avisa que a atual também cai", async () => {
   setup();
   const matheus = await screen.findByRole("article", { name: "Matheus" });
@@ -257,6 +277,29 @@ it("auditoria: evento sem usuário aparece como Sistema e mostra detalhes", asyn
   expect(await screen.findByText("Alterou users #2")).toBeTruthy();
   expect(screen.getByText(/^Sistema · /)).toBeTruthy();
   expect(screen.getByText(/pin_changed/)).toBeTruthy();
+  // "Ver detalhes" sozinho se repete em cada evento: o nome acessível diz de qual
+  expect(screen.getByText(/^Ver detalhes/).textContent).toBe("Ver detalhes de Alterou users #2");
+});
+
+it("usuários e auditoria no computador: a rolagem horizontal é focável e tem nome", async () => {
+  setup({}, "usuarios", true);
+  const users = await screen.findByRole("region", { name: "Tabela de usuários" });
+  expect(users.getAttribute("tabindex")).toBe("0");
+  cleanup();
+
+  setup(
+    {
+      "GET /admin/audit": () =>
+        json({
+          total: 1,
+          items: [{ id: 1, user_id: 2, entity: "goals", entity_id: "9", action: "delete", before: { name: "Viagem" }, after: null, at: "2026-11-12T15:00:00Z" }],
+        }),
+    },
+    "auditoria",
+    true,
+  );
+  const audit = await screen.findByRole("region", { name: "Tabela de eventos de auditoria" });
+  expect(audit.getAttribute("tabindex")).toBe("0");
 });
 
 it("sistema: estado, exportação CSV e download do backup", async () => {

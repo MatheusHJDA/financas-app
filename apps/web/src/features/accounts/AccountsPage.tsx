@@ -15,6 +15,7 @@ import {
   Sheet,
   Skeleton,
   SkeletonGroup,
+  useHideValues,
   type Tone,
 } from "../../ui";
 import { AccountForm } from "./AccountFormFields";
@@ -178,7 +179,10 @@ export default function AccountsPage() {
 interface GroupProps {
   owner: Owner;
   accounts: Account[];
-  /** Total do dono segundo a API; `null` enquanto não chegou (não se soma no front). */
+  /**
+   * Saldo líquido do dono segundo a API (/overview: só contas ativas líquidas, por isso não bate
+   * com a soma da lista); `null` enquanto não chegou (não se soma no front).
+   */
   totalCents: number | null;
   canEdit: (a: Account) => boolean;
   onEdit: (a: Account) => void;
@@ -186,6 +190,7 @@ interface GroupProps {
 
 function OwnerGroup({ owner, accounts, totalCents, canEdit, onEdit }: GroupProps) {
   const label = OWNER_LABEL[owner];
+  const { hidden } = useHideValues();
   return (
     <div role="group" aria-label={`Saldos de ${label}`}>
       <Card>
@@ -193,7 +198,7 @@ function OwnerGroup({ owner, accounts, totalCents, canEdit, onEdit }: GroupProps
           <h2 className="acc-group__title">{label}</h2>
           {totalCents !== null ? (
             <p className="acc-group__total" style={{ margin: 0 }}>
-              <span>Total de {label}</span>
+              <span>Saldo líquido de {label}</span>
               <Money cents={totalCents} />
             </p>
           ) : null}
@@ -207,7 +212,7 @@ function OwnerGroup({ owner, accounts, totalCents, canEdit, onEdit }: GroupProps
                 subtitle={`${ACCOUNT_TYPE_LABEL[a.type]}${a.active ? "" : " · inativa"}`}
                 trailing={
                   <span className="acc-trail">
-                    <Money cents={a.current_balance_cents} className={a.current_balance_cents < 0 ? "acc-neg" : undefined} />
+                    <Money cents={a.current_balance_cents} className={a.current_balance_cents < 0 && !hidden ? "acc-neg" : undefined} />
                     {canEdit(a) ? (
                       <IconButton icon={Pencil} label={`Editar conta ${a.name}`} onClick={() => onEdit(a)} />
                     ) : null}

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { todayIso } from "../chat/dates";
+import { HideValuesProvider } from "../../ui";
 import { bodyOf, json, makeServer, MATHEUS, renderApp, RUTH, writes } from "../../test/appTesting";
 import AccountsPage from "./AccountsPage";
 
@@ -39,10 +40,35 @@ describe("saldos", () => {
     const ruth = screen.getByRole("group", { name: "Saldos de Ruth" });
     expect(within(ruth).getByText("Nubank Ruth")).toBeTruthy();
     expect(within(ruth).getByText("Cartão Nubank")).toBeTruthy();
-    expect(await within(ruth).findByText("Total de Ruth")).toBeTruthy();
+    expect(await within(ruth).findByText("Saldo líquido de Ruth")).toBeTruthy();
     expect(within(ruth).getByText("R$ 1.080,00")).toBeTruthy(); // 1.500 − 420
     expect(within(screen.getByRole("group", { name: "Saldos de Matheus" })).getByText("Itaú Matheus")).toBeTruthy();
     expect(within(screen.getByRole("group", { name: "Saldos de Ambos" })).getByText("Reserva casal")).toBeTruthy();
+  });
+
+  it("saldo negativo é pintado; com o olho fechado a cor (conta e total do casal) não denuncia o sinal", async () => {
+    const { state } = isolate(makeServer(RUTH));
+    state.accounts = state.accounts.filter((a) => a.id === 4); // só o cartão: −420 e total do casal negativo
+    const view = renderApp(<AccountsPage />);
+    await screen.findByRole("group", { name: "Saldos de Ruth" });
+    expect(document.querySelector(".acc-neg")).not.toBeNull();
+    expect((await screen.findByRole("group", { name: "Total do casal" })).className).toContain("ui-stat--expense");
+    view.unmount();
+
+    localStorage.setItem("finance.hideValues", "1");
+    try {
+      renderApp(
+        <HideValuesProvider>
+          <AccountsPage />
+        </HideValuesProvider>,
+      );
+      await screen.findByRole("group", { name: "Saldos de Ruth" });
+      await screen.findByRole("group", { name: "Total do casal" });
+      expect(document.querySelector(".acc-neg")).toBeNull();
+      expect(screen.getByRole("group", { name: "Total do casal" }).className).not.toContain("ui-stat--expense");
+    } finally {
+      localStorage.removeItem("finance.hideValues");
+    }
   });
 
   it("subtítulo traz o tipo da conta; conta inativa é marcada", async () => {
@@ -68,7 +94,7 @@ describe("saldos", () => {
     await openAs(RUTH, { "GET /overview": () => json({ detail: "x" }, 500) });
     expect(await screen.findByText("Não foi possível carregar os saldos.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
-    expect(screen.queryByText("Total de Ruth")).toBeNull(); // sem o total da API, não inventa
+    expect(screen.queryByText("Saldo líquido de Ruth")).toBeNull(); // sem o total da API, não inventa
     expect(editBtn("Nubank Ruth")).toBeTruthy();
   });
 

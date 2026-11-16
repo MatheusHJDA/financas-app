@@ -18,10 +18,8 @@
   height: 200px;
 }
 
-.chart__area .recharts-wrapper,
-.chart__area .recharts-surface {
-  max-width: 100%;
-}
+/* Não pôr max-width no wrapper/surface: o ResponsiveContainer do Recharts mede por um div de largura 0
+   (overflow visível), e max-width: 100% zerava o gráfico no navegador. */
 
 .chart__center {
   position: absolute;
@@ -113,9 +111,16 @@
   color: var(--color-muted);
 }
 
-.chart .recharts-wrapper:focus,
-.chart .recharts-surface:focus {
+/* Sem contorno só para foco por mouse; teclado ganha o anel visível */
+.chart .recharts-wrapper:focus:not(:focus-visible),
+.chart .recharts-surface:focus:not(:focus-visible) {
   outline: none;
+}
+.chart .recharts-wrapper:focus-visible,
+.chart .recharts-surface:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .chart__svg {

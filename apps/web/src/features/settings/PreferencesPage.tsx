@@ -44,6 +44,9 @@ function ThemeCard() {
   );
 }
 
+// O aparelho atual é destacado na cor e também dito em texto, para o leitor de tela.
+const THIS_DEVICE = " (este aparelho)";
+
 // Preferências: notificações deste aparelho, tema e como instalar.
 export default function PreferencesPage() {
   const platform = detectPlatform();
@@ -54,11 +57,11 @@ export default function PreferencesPage() {
       <ThemeCard />
       <Card title="Como instalar no celular" icon={Smartphone}>
         <div className={platform === "iphone" ? "install install--mine" : "install"}>
-          <h3>iPhone</h3>
+          <h3>iPhone{platform === "iphone" ? THIS_DEVICE : ""}</h3>
           <p>Safari → Compartilhar → Adicionar à Tela de Início.</p>
         </div>
         <div className={platform === "android" ? "install install--mine" : "install"}>
-          <h3>Android</h3>
+          <h3>Android{platform === "android" ? THIS_DEVICE : ""}</h3>
           <p>Chrome → menu → Instalar app.</p>
         </div>
       </Card>

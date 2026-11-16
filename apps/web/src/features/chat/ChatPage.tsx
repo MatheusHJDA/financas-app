@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../../auth/AuthProvider";
 import { Sheet, SparkleIcon } from "../../ui";
 import { ErrorState } from "../../ui/States";
@@ -14,7 +14,8 @@ import { useDraftController } from "./useDraftController";
 type ChatMessage =
   | { id: number; role: "user"; text: string; fileName: string | null }
   | { id: number; role: "ai"; result: IngestResult }
-  | { id: number; role: "error" | "info"; text: string };
+  | { id: number; role: "error"; text: string }
+  | { id: number; role: "info"; text: ReactNode };
 
 type NewMessage = ChatMessage extends infer M ? (M extends { id: number } ? Omit<M, "id"> : never) : never;
 
@@ -142,7 +143,7 @@ export default function ChatPage() {
           onCancel={closeManual}
           onCreated={(summary) => {
             closeManual();
-            push({ role: "info", text: `Lançamento criado — ${summary}` });
+            push({ role: "info", text: <>Lançamento criado — {summary}</> });
           }}
         />
       </Sheet>

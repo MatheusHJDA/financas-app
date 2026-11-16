@@ -23,6 +23,10 @@ export function PinPad({ value, disabled, onChange }: PinPadProps) {
           <span key={i} className={i < value.length ? "login-dot login-dot--on" : "login-dot"} />
         ))}
       </div>
+      {/* Os pontos são imagem; esta região avisa o leitor de tela a cada dígito (sem dizer qual). */}
+      <span role="status" className="visually-hidden">
+        {value.length === 0 ? "Nenhum dígito digitado" : `${value.length} de ${PIN_LENGTH} dígitos digitados`}
+      </span>
       <div className="login-keys">
         {DIGITS.map((d) => (
           <button key={d} type="button" className="login-key" disabled={disabled} onClick={() => add(d)}>

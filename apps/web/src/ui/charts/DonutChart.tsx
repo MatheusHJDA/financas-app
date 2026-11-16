@@ -52,7 +52,7 @@ export function DonutChart({
         ) : null
       }
       table={
-        <table className="visually-hidden">
+        <table>
           <caption>{label}</caption>
           <thead>
             <tr>

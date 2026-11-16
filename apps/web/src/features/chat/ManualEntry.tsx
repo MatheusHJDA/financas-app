@@ -1,11 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
-import { Skeleton, SkeletonGroup } from "../../ui";
+import { Money, Skeleton, SkeletonGroup } from "../../ui";
 import { ErrorState } from "../../ui/States";
 import { formatDate } from "./dates";
-import { formatCents } from "./money";
 import { emptyForm } from "./proposal";
 import { serverWarnings } from "./useDraftController";
 import { TransactionForm } from "./TransactionForm";
@@ -22,7 +21,8 @@ interface Props {
   onRetry?: () => void;
   /** Mensagem de contexto acima do formulário (ex.: a IA falhou). */
   reason?: string | null;
-  onCreated: (summary: string) => void;
+  /** Resumo em JSX (não string) para o valor passar pelo `Money` e respeitar o olho de ocultar. */
+  onCreated: (summary: ReactNode) => void;
   onCancel: () => void;
 }
 
@@ -68,9 +68,21 @@ export function ManualEntry({
         for (const key of ["transactions", "overview", "accounts", "bill-instances", "report"]) {
           void queryClient.invalidateQueries({ queryKey: [key] });
         }
-        const summary = `${KIND_LABEL[p.kind]} de ${formatCents(p.amount_cents)} em ${formatDate(p.date)}: ${p.description}`;
+        const summary = (
+          <>
+            {KIND_LABEL[p.kind]} de <Money cents={p.amount_cents} /> em {formatDate(p.date)}: {p.description}
+          </>
+        );
         const warning = serverWarnings(response);
-        onCreated(warning ? `${summary}. ${warning}` : summary);
+        onCreated(
+          warning ? (
+            <>
+              {summary}. {warning}
+            </>
+          ) : (
+            summary
+          ),
+        );
       } else if (response.status === 403) {
         setError("Você não pode lançar nessa conta.");
       } else {

@@ -100,6 +100,14 @@ describe("LoginPage", () => {
     expect(screen.getByRole("img", { name: "1 de 6 dígitos" })).toBeTruthy();
   });
 
+  it("anuncia o progresso do PIN numa região de status, sem revelar os dígitos", async () => {
+    renderLogin();
+    await pickUser("Ruth");
+    expect(screen.getByRole("status").textContent).toBe("Nenhum dígito digitado");
+    tap("12");
+    expect(screen.getByRole("status").textContent).toBe("2 de 6 dígitos digitados");
+  });
+
   it("PIN incorreto mostra o erro e zera os pontos", async () => {
     loginStatus = 401;
     renderLogin();

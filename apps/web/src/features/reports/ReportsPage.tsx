@@ -10,6 +10,7 @@ import {
   Skeleton,
   SkeletonGroup,
   StatCard,
+  useHideValues,
   monthLabel,
   shiftMonth,
 } from "../../ui";
@@ -53,6 +54,7 @@ function ReportSkeleton() {
 function ReportBody({ report, month }: { report: MonthReport; month: string }) {
   const empty = report.by_category.length === 0 && report.income_cents === 0 && report.expense_cents === 0;
   const { current, previous } = report.daily_cumulative_expense;
+  const { hidden } = useHideValues(); // olho fechado: o tom do Balanço não denuncia o sinal
   return (
     <>
       <div className="rep-stats">
@@ -62,7 +64,7 @@ function ReportBody({ report, month }: { report: MonthReport; month: string }) {
           <StatCard
             label="Balanço"
             icon={Scale}
-            tone={report.balance_cents < 0 ? "expense" : "info"}
+            tone={report.balance_cents < 0 && !hidden ? "expense" : "info"}
             cents={report.balance_cents}
           />
         </div>

@@ -245,6 +245,20 @@ describe("ReportsPage", () => {
     expect(within(balanco).getByText("-R$ 1.234.567,89")).toBeTruthy();
   });
 
+  it("balanço negativo fica em tom de despesa; com o olho fechado o tom não denuncia o sinal", async () => {
+    stubReports(() => ({ ...FULL, income_cents: 0, expense_cents: 123456789, balance_cents: -123456789 }));
+    renderPage();
+    const balanco = await screen.findByRole("group", { name: "Balanço" });
+    expect(balanco.className).toContain("ui-stat--expense");
+
+    cleanup();
+    localStorage.setItem("finance.hideValues", "1");
+    renderPage();
+    const oculto = await screen.findByRole("group", { name: "Balanço" });
+    expect(within(oculto).getByRole("img", { name: "Valor oculto" })).toBeTruthy();
+    expect(oculto.className).not.toContain("ui-stat--expense");
+  });
+
   it("erro da API mostra mensagem e permite tentar de novo", async () => {
     let falhar = true;
     stubReports(() => (falhar ? 500 : FULL));

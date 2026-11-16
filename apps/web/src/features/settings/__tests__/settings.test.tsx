@@ -119,6 +119,18 @@ describe("PreferencesPage", () => {
     }
   });
 
+  it("diz em texto qual é o aparelho atual nas instruções (não só destaque visual)", () => {
+    vi.stubGlobal("navigator", { ...navigator, userAgent: "Mozilla/5.0 (Linux; Android 13)" });
+    try {
+      renderPrefs();
+      const install = screen.getByRole("region", { name: "Como instalar no celular" });
+      expect(within(install).getByRole("heading", { name: "Android (este aparelho)" })).toBeTruthy();
+      expect(within(install).getByRole("heading", { name: "iPhone" })).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("começa em Automático e não marca data-theme", () => {
     renderPrefs();
     expect((screen.getByRole("radio", { name: "Automático" }) as HTMLInputElement).checked).toBe(true);

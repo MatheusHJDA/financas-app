@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, LogOut, Users } from "lucide-react";
-import { Fragment, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../../auth/AuthProvider";
 import { Avatar, Button, Card, ListItem } from "../../ui";
 import { ErrorState } from "../../ui/States";
@@ -37,8 +37,26 @@ export function UsersSection() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<NoticeValue | null>(null);
   const busyRef = useRef(false);
+  const lastOpened = useRef<Pending | null>(null);
+
+  // Foco: ao abrir a confirmação vai para o campo do PIN (ou para "Cancelar", na opção
+  // sem campo); ao fechar, volta ao botão que abriu (que é recriado ao reaparecer).
+  useEffect(() => {
+    if (pending) {
+      const target =
+        pending.kind === "pin"
+          ? document.getElementById(`pin-${pending.userId}`)
+          : document.querySelector<HTMLElement>("[data-admin-cancel]");
+      target?.focus();
+    } else if (lastOpened.current) {
+      const { userId, kind } = lastOpened.current;
+      document.querySelector<HTMLElement>(`[data-admin-action="${userId}-${kind}"]`)?.focus();
+      lastOpened.current = null;
+    }
+  }, [pending]);
 
   function open(next: Pending) {
+    lastOpened.current = next;
     setPending(next);
     setPin("");
     setPin2("");
@@ -171,7 +189,7 @@ export function UsersSection() {
               ? "Confirmar redefinição"
               : "Confirmar encerramento"}
           </Button>
-          <Button onClick={close} disabled={busy}>
+          <Button onClick={close} disabled={busy} data-admin-cancel="">
             Cancelar
           </Button>
         </div>
@@ -185,6 +203,7 @@ export function UsersSection() {
         <Button
           icon={KeyRound}
           aria-label={`Redefinir PIN de ${user.name}`}
+          data-admin-action={`${user.id}-pin`}
           onClick={() => open({ userId: user.id, kind: "pin" })}
         >
           Redefinir PIN
@@ -192,6 +211,7 @@ export function UsersSection() {
         <Button
           icon={LogOut}
           aria-label={`Encerrar sessões de ${user.name}`}
+          data-admin-action={`${user.id}-sessions`}
           onClick={() => open({ userId: user.id, kind: "sessions" })}
         >
           Encerrar sessões
@@ -206,7 +226,7 @@ export function UsersSection() {
   let body: ReactNode;
   if (desktop) {
     body = (
-      <div className="admin-scroll">
+      <div className="admin-scroll" role="region" aria-label="Tabela de usuários" tabIndex={0}>
         <table className="admin-table" aria-label="Usuários">
           <thead>
             <tr>

@@ -154,6 +154,28 @@ it("desativar: cancela a inscrição no aparelho e apaga no servidor", async () 
   expect(writes()).toEqual(["DELETE /push/subscriptions/7"]);
 });
 
+it("a lista de aparelhos diz em texto qual é este", async () => {
+  setupBrowser({ existing: true, permission: "granted" });
+  mockFetch({
+    "GET /push/vapid-public-key": () => json({ public_key: VAPID }),
+    "GET /push/subscriptions": () =>
+      json([SERVER_SUB, { ...SERVER_SUB, id: 8, endpoint: "https://push.example.test/outro", device_label: "iPhone" }]),
+  });
+  renderCard();
+  expect(await screen.findByText("Aparelhos cadastrados: Android (este aparelho), iPhone")).toBeTruthy();
+});
+
+it("'Verificando…' é um status para o leitor de tela", async () => {
+  setupBrowser();
+  mockFetch({
+    "GET /push/vapid-public-key": () => new Promise<Response>(() => {}),
+    "GET /push/subscriptions": () => new Promise<Response>(() => {}),
+  });
+  renderCard();
+  const status = await screen.findByText("Verificando…");
+  expect(status.getAttribute("role")).toBe("status");
+});
+
 it("aparelho inscrito mas ausente no servidor volta a oferecer o botão", async () => {
   setupBrowser({ existing: true, permission: "granted" });
   renderCard();

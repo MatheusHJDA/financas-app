@@ -8,7 +8,7 @@ Transferências (`kind == "transfer"`) ficam fora de receita, despesa e categori
 import calendar
 import datetime as dt
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, case, func, select
 from sqlalchemy.orm import Session
 
 from finance_api.core.permissions import Owner
@@ -90,11 +90,22 @@ def _by_category(
 
 
 def _bills(db: Session, first: dt.date, owner: Owner | None) -> MonthBills:
-    stmt = select(
-        BillInstance.status,
-        func.count(BillInstance.id),
-        func.coalesce(func.sum(BillInstance.amount_cents), 0),
-    ).where(BillInstance.month == first)
+    # Conta paga vale o que saiu de fato (lançamento vinculado); sem ele, o valor da instância.
+    settled = case(
+        (
+            BillInstance.status == "paid",
+            func.coalesce(Transaction.amount_cents, BillInstance.amount_cents),
+        ),
+        else_=BillInstance.amount_cents,
+    )
+    stmt = (
+        select(
+            BillInstance.status, func.count(BillInstance.id), func.coalesce(func.sum(settled), 0)
+        )
+        .select_from(BillInstance)
+        .outerjoin(Transaction, Transaction.id == BillInstance.paid_transaction_id)
+        .where(BillInstance.month == first)
+    )
     if owner is not None:
         stmt = stmt.join(RecurringBill, RecurringBill.id == BillInstance.recurring_bill_id).where(
             RecurringBill.owner == owner.value

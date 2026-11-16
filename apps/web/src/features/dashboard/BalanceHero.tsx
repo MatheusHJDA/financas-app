@@ -1,7 +1,7 @@
 import { ChevronDown, Wallet } from "lucide-react";
 import { useId, useState } from "react";
 import type { components } from "../../api/schema";
-import { Card, Money } from "../../ui";
+import { Card, Money, useHideValues } from "../../ui";
 import { ACCOUNT_TYPE_LABEL, OWNER_LABEL } from "./format";
 
 type Overview = components["schemas"]["Overview"];
@@ -24,7 +24,7 @@ export function BalanceHero({ overview }: { overview: Overview }) {
         aria-controls={panelId}
         onClick={() => setOpen((o) => !o)}
       >
-        {open ? "Recolher" : "Expandir"}
+        {open ? "Recolher" : "Expandir"} <span className="visually-hidden">saldos por dono e faturas</span>
         <ChevronDown aria-hidden="true" size={18} strokeWidth={1.75} className={open ? "dash-expand__icon dash-expand__icon--up" : "dash-expand__icon"} />
       </button>
 
@@ -36,6 +36,9 @@ export function BalanceHero({ overview }: { overview: Overview }) {
 }
 
 function OwnerGroups({ overview }: { overview: Overview }) {
+  const { hidden } = useHideValues();
+  // Com o olho fechado a cor também não pode denunciar o sinal.
+  const negClass = (cents: number) => (cents < 0 && !hidden ? "dash-neg" : undefined);
   return (
     <>
       {overview.balances_by_owner.map((group) => (
@@ -51,14 +54,14 @@ function OwnerGroups({ overview }: { overview: Overview }) {
                     {a.name}
                     <span className="muted dash-small"> · {ACCOUNT_TYPE_LABEL[a.type]}</span>
                   </span>
-                  <Money cents={a.current_balance_cents} className={a.current_balance_cents < 0 ? "dash-neg" : undefined} />
+                  <Money cents={a.current_balance_cents} className={negClass(a.current_balance_cents)} />
                 </li>
               ))}
             </ul>
           )}
           <p className="dash-owner__total">
             <strong>Total de {OWNER_LABEL[group.owner]}</strong>
-            <Money cents={group.total_cents} className={group.total_cents < 0 ? "dash-neg" : undefined} />
+            <Money cents={group.total_cents} className={negClass(group.total_cents)} />
           </p>
         </div>
       ))}

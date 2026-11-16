@@ -52,7 +52,8 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-1);
-  padding: var(--space-1);
+  padding: 3px;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-pill);
   background: var(--color-surface-2);
 }
@@ -71,17 +72,27 @@
 }
 .pref-seg__face {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: var(--space-1);
+  gap: 0 var(--space-1);
   min-height: 48px;
-  padding: 0 var(--space-2);
+  padding: 0 var(--space-1);
   border-radius: var(--radius-pill);
   font-size: var(--text-sm);
   font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
   color: var(--color-muted);
-  white-space: nowrap;
+  /* "Automático" cabe em 360px: quebra em vez de estourar ou cortar */
+  overflow-wrap: anywhere;
   transition: background-color 0.15s, color 0.15s;
+}
+@media (max-width: 420px) {
+  .pref-seg__face {
+    font-size: var(--text-xs);
+    padding: 0 2px;
+  }
 }
 .pref-seg__input:checked + .pref-seg__face {
   background: var(--color-surface);

@@ -34,7 +34,9 @@ export function AuditSection() {
   const details = (event: AuditEvent) =>
     event.before || event.after ? (
       <details>
-        <summary>Ver detalhes</summary>
+        <summary>
+          Ver detalhes <span className="visually-hidden">de {what(event)}</span>
+        </summary>
         {event.before ? <pre className="admin-json">Antes: {JSON.stringify(event.before, null, 2)}</pre> : null}
         {event.after ? <pre className="admin-json">Depois: {JSON.stringify(event.after, null, 2)}</pre> : null}
       </details>
@@ -85,7 +87,7 @@ export function AuditSection() {
           {audit.data.items.length === 0 ? (
             <EmptyState title="Nenhum evento encontrado" />
           ) : desktop ? (
-            <div className="admin-scroll">
+            <div className="admin-scroll" role="region" aria-label="Tabela de eventos de auditoria" tabIndex={0}>
               <table className="admin-table admin-table--wrap" aria-label="Eventos de auditoria">
                 <thead>
                   <tr>

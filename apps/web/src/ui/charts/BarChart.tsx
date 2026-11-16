@@ -46,7 +46,7 @@ export function BarChart({ label, data }: BarChartProps) {
       className="chart--bar"
       legend={<ChartLegend items={series.map((s, i) => ({ key: String(i), name: s.name, color: toneColor(s.tone) }))} />}
       table={
-        <table className="visually-hidden">
+        <table>
           <caption>{label}</caption>
           <thead>
             <tr>

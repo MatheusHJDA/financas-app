@@ -43,7 +43,10 @@ describe("resumo e aviso D14", () => {
     expect(cells("Quitação")).toEqual(["abril de 2027", "Não quita no período"]);
     expect(cells("Juros em 2 meses")).toEqual(["R$ 1.428,87", "R$ 8.017,69"]);
     expect(cells("Saldo devedor no fim")).toEqual(["R$ 8.565,26", "R$ 20.773,36"]);
-    expect(screen.getByText(/Amortizando agora, saem R\$ 6\.588,82 a menos de juros/)).toBeTruthy();
+    const diff = screen.getByText(/a menos de juros nesses/);
+    expect(diff.textContent).toBe("Amortizando agora, saem R$ 6.588,82 a menos de juros nesses 2 meses.");
+    // a rolagem horizontal da tabela é focável e tem nome
+    expect(screen.getByRole("region", { name: "Tabela de comparação dos cenários" }).getAttribute("tabindex")).toBe("0");
   });
 });
 
@@ -151,6 +154,10 @@ describe("olho de ocultar valores", () => {
     expect(within(box).queryByText("R$ 1.428,87")).toBeNull();
     expect(screen.getByRole("note").textContent).not.toContain("8.000,00");
     expect(screen.getByRole("note").textContent).toContain("•••••");
+    // leitor de tela diz "Valor oculto", não "R cifrão bolinhas"
+    expect(within(screen.getByRole("note")).getAllByRole("img", { name: "Valor oculto" })).toHaveLength(2);
+    const diff = screen.getByText(/a menos de juros nesses/);
+    expect(within(diff).getAllByRole("img", { name: "Valor oculto" })).toHaveLength(1);
   });
 });
 

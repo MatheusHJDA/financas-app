@@ -95,8 +95,8 @@ function GoalsCard() {
       icon={Target}
       className="dash-goals"
       action={
-        <Link to="/metas" className="dash-link" aria-label="Ver metas">
-          Ver tudo
+        <Link to="/metas" className="dash-link">
+          Ver tudo <span className="visually-hidden">de metas</span>
         </Link>
       }
     >
@@ -107,12 +107,15 @@ function GoalsCard() {
           {active.slice(0, MAX_ITEMS).map((g) => {
             const percent = Math.round(g.progress.percent);
             // Teto de gasto estourado é ruim; nas demais metas passar de 100% é bom.
-            const over = g.type === "category_cap" && percent >= 100;
+            // Decide pelos centavos (como GoalCard): 99,5% arredonda para 100 mas não estourou.
+            const over = g.type === "category_cap" && g.progress.current_cents > g.progress.target_cents;
             return (
               <li key={g.id} className="dash-goal">
                 <div className="dash-goal__head">
                   <span className="dash-goal__name">{g.name}</span>
-                  <span className={over ? "dash-goal__pct dash-neg" : "dash-goal__pct"}>{percent}%</span>
+                  <span className={over ? "dash-goal__pct dash-neg" : "dash-goal__pct"}>
+                    {percent}%{over ? " · teto estourado" : ""}
+                  </span>
                 </div>
                 <div
                   role="progressbar"
@@ -120,6 +123,7 @@ function GoalsCard() {
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-valuenow={Math.min(100, percent)}
+                  aria-valuetext={over ? `${percent}% · teto estourado` : undefined}
                   className="dash-bar"
                 >
                   <div className={over ? "dash-bar__fill dash-bar__fill--over" : "dash-bar__fill"} style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />

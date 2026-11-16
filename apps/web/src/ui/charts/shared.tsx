@@ -29,7 +29,8 @@ export function ChartFigure({
     <figure className={["chart", className].filter(Boolean).join(" ")} aria-label={label}>
       {children}
       {legend}
-      {table}
+      {/* Tabela com .visually-hidden ignora a largura de 1px e alarga a página em 360px: ocultar o div. */}
+      <div className="visually-hidden">{table}</div>
     </figure>
   );
 }

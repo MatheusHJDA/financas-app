@@ -12,6 +12,8 @@ afterEach(() => {
 
 const card = (name: string) => screen.getByRole("listitem", { name });
 const btn = (label: string) => screen.queryByRole("button", { name: label });
+/** Parágrafo cujo texto inteiro (somando os spans do Money) é `text`. */
+const para = (text: string) => (_: string, el: Element | null) => el?.tagName === "P" && el.textContent === text;
 
 async function openAs(me: typeof RUTH, overrides = {}) {
   const server = makeServer(me, overrides);
@@ -24,13 +26,14 @@ it("mostra o progresso de cada tipo de meta (barra + texto)", async () => {
   await openAs(RUTH);
 
   const reserva = card("Reserva de emergência");
-  expect(within(reserva).getByText("R$ 1.200 de R$ 5.000 · 24%")).toBeTruthy();
+  expect(within(reserva).getByText(para("R$ 1.200 de R$ 5.000 · 24%"))).toBeTruthy();
+  expect(within(reserva).getByRole("progressbar").getAttribute("aria-valuetext")).toBe("R$ 1.200 de R$ 5.000 · 24%");
   expect(within(reserva).getByText(/Acumular valor · Ambos · Prazo 30\/06\/2027/)).toBeTruthy();
   const bar = within(reserva).getByRole("progressbar", { name: "Progresso de Reserva de emergência" });
   expect(bar.getAttribute("aria-valuenow")).toBe("24");
 
   const uber = card("Uber diário");
-  expect(within(uber).getByText("R$ 110 de R$ 130 · 84,6%")).toBeTruthy();
+  expect(within(uber).getByText(para("R$ 110 de R$ 130 · 84,6%"))).toBeTruthy();
   expect(await within(uber).findByText(/Receita por período · Matheus · Diária · Uber/)).toBeTruthy();
   expect(within(uber).getByText("Nível atingido: Piso")).toBeTruthy();
   const levels = within(uber).getByRole("list", { name: "Níveis" });
@@ -40,12 +43,12 @@ it("mostra o progresso de cada tipo de meta (barra + texto)", async () => {
   expect(within(levels).getByText("R$ 160")).toBeTruthy();
 
   const ifood = card("iFood do mês");
-  expect(within(ifood).getByText("R$ 520 de R$ 400 · 130%")).toBeTruthy();
-  expect(within(ifood).getByText("Acima do teto em R$ 120.")).toBeTruthy();
+  expect(within(ifood).getByText(para("R$ 520 de R$ 400 · 130%"))).toBeTruthy();
+  expect(within(ifood).getByText(para("Acima do teto em R$ 120."))).toBeTruthy();
   expect(within(ifood).getByRole("progressbar").getAttribute("aria-valuenow")).toBe("100"); // barra limitada a 100%
 
   const debt = card("Quitar empréstimo");
-  expect(within(debt).getByText("R$ 2.500 de R$ 10.000 · 25%")).toBeTruthy();
+  expect(within(debt).getByText(para("R$ 2.500 de R$ 10.000 · 25%"))).toBeTruthy();
   expect(within(debt).getByText("Quanto da dívida já foi quitado.")).toBeTruthy();
 });
 
@@ -79,7 +82,7 @@ it("aporte manual só em meta de acumular sem conta vinculada", async () => {
   await waitFor(() => expect(writes(calls)).toEqual(["POST /goals/1/entries"]));
   expect(await bodyOf(calls, "POST /goals/1/entries")).toEqual({ amount_cents: 20_000, date: todayIso() });
   // o servidor simulado soma o aporte; a lista é recarregada
-  expect(await within(card("Reserva de emergência")).findByText("R$ 1.400 de R$ 5.000 · 28%")).toBeTruthy();
+  expect(await within(card("Reserva de emergência")).findByText(para("R$ 1.400 de R$ 5.000 · 28%"))).toBeTruthy();
 });
 
 it("aporte inválido não chama a API", async () => {
@@ -191,6 +194,52 @@ it("excluir meta só grava depois da confirmação", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Sim, excluir" }));
   await waitFor(() => expect(writes(calls)).toEqual(["DELETE /goals/3"]));
   await waitFor(() => expect(screen.queryByText("iFood do mês")).toBeNull());
+});
+
+it("excluir: o foco vai para Cancelar ao abrir e volta ao botão Excluir ao cancelar", async () => {
+  await openAs(RUTH);
+  await waitFor(() => expect(btn("Excluir meta iFood do mês")).toBeTruthy());
+  fireEvent.click(btn("Excluir meta iFood do mês")!);
+  const cancelar = within(card("iFood do mês")).getByRole("button", { name: "Cancelar" });
+  expect(document.activeElement).toBe(cancelar);
+  fireEvent.click(cancelar);
+  expect(document.activeElement).toBe(btn("Excluir meta iFood do mês"));
+});
+
+it("editar e aportar: o foco vai ao primeiro campo e volta ao botão ao cancelar", async () => {
+  await openAs(MATHEUS);
+  await waitFor(() => expect(btn("Registrar aporte em Reserva de emergência")).toBeTruthy());
+  fireEvent.click(btn("Registrar aporte em Reserva de emergência")!);
+  expect(document.activeElement).toBe(screen.getByLabelText("Valor do aporte (R$)"));
+  fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+  expect(document.activeElement).toBe(btn("Registrar aporte em Reserva de emergência"));
+
+  fireEvent.click(btn("Editar meta iFood do mês")!);
+  const form = within(card("iFood do mês")).getByRole("form");
+  expect(form.contains(document.activeElement)).toBe(true);
+  fireEvent.click(within(form).getByRole("button", { name: "Cancelar" }));
+  expect(document.activeElement).toBe(btn("Editar meta iFood do mês"));
+});
+
+it("teto estourado aparece em texto e o valor passa pelo Money (leitor diz 'Valor oculto')", async () => {
+  localStorage.setItem("finance.hideValues", "1");
+  try {
+    makeServer(MATHEUS);
+    renderApp(
+      <HideValuesProvider>
+        <GoalsPage />
+      </HideValuesProvider>,
+    );
+    await screen.findByText("Reserva de emergência");
+    const ifood = card("iFood do mês");
+    expect(within(ifood).getByText(/Acima do teto/).textContent).toContain("•••••");
+    expect(within(ifood).getAllByRole("img", { name: "Valor oculto" }).length).toBeGreaterThanOrEqual(3);
+    const bar = within(ifood).getByRole("progressbar");
+    expect(bar.getAttribute("aria-valuetext")).not.toMatch(/R\$|•/);
+    expect(bar.getAttribute("aria-valuetext")).toContain("valor oculto");
+  } finally {
+    localStorage.removeItem("finance.hideValues");
+  }
 });
 
 it("estados de vazio e de erro", async () => {

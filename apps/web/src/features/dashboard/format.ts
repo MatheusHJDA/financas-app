@@ -1,4 +1,5 @@
 import type { components } from "../../api/schema";
+import { currentMonthSP, todaySP } from "../transactions/filters";
 
 // Apoio só de exibição do Dashboard (texto e datas). Nenhum cálculo de dinheiro mora aqui.
 
@@ -16,16 +17,14 @@ export const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   loan: "Empréstimo",
 };
 
-/** Hoje (fuso do aparelho) como "aaaa-mm-dd". */
+/** Hoje em São Paulo (o mesmo fuso da API) como "aaaa-mm-dd". */
 export function todayIso(now: Date = new Date()): string {
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${mm}-${dd}`;
+  return todaySP(now);
 }
 
-/** Mês corrente como "aaaa-mm". */
+/** Mês corrente em São Paulo como "aaaa-mm". */
 export function currentMonth(now: Date = new Date()): string {
-  return todayIso(now).slice(0, 7);
+  return currentMonthSP(now);
 }
 
 /** "2026-11-12" -> "12/11/2026". */

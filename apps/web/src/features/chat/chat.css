@@ -63,7 +63,7 @@
   font: inherit;
   color: var(--color-text);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
 }
 .chat-control[aria-invalid="true"],
@@ -359,7 +359,8 @@
 .chat-seg {
   display: flex;
   gap: 2px;
-  padding: 4px;
+  padding: 3px;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--color-text) 8%, transparent);
 }
@@ -377,7 +378,10 @@
   background: transparent;
   color: var(--color-text);
   font-size: 0.8125rem;
-  white-space: nowrap;
+  line-height: 1.15;
+  text-align: center;
+  /* palavra curta nunca é cortada: encolhe a fonte e, se preciso, quebra */
+  overflow-wrap: anywhere;
   cursor: pointer;
   transition: background-color 0.15s;
 }
@@ -390,6 +394,10 @@
 @media (max-width: 420px) {
   .chat-seg__opt svg {
     display: none;
+  }
+  .chat-seg__opt {
+    font-size: 0.75rem;
+    padding: 0 2px;
   }
 }
 
@@ -498,7 +506,7 @@
   width: 48px;
   height: 48px;
   flex: none;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: 50%;
   background: var(--color-surface);
   color: var(--color-text);

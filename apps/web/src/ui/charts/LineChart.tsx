@@ -57,7 +57,7 @@ export function LineChart({ label, series, xLabel }: LineChartProps) {
         />
       }
       table={
-        <table className="visually-hidden">
+        <table>
           <caption>{label}</caption>
           <thead>
             <tr>

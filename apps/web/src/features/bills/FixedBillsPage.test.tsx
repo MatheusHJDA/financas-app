@@ -232,10 +232,13 @@ describe("excluir, encerrar e reativar", () => {
   it("excluir: pede confirmação, nada é gravado antes, e depois remove", async () => {
     const { calls } = await openAs(MATHEUS);
     await act("Excluir", "Luz");
-    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    // dentro do Sheet (que já é o diálogo modal): grupo nomeado, não um segundo diálogo
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    const bar = screen.getByRole("group", { name: /^Excluir Luz\?/ });
+    expect(document.activeElement).toBe(bar); // o foco acompanha a troca de painel
     expect(writes(calls)).toEqual([]);
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.queryByRole("group", { name: /^Excluir Luz\?/ })).toBeNull();
     expect(writes(calls)).toEqual([]);
 
     click("Excluir", "Luz");
@@ -249,7 +252,7 @@ describe("excluir, encerrar e reativar", () => {
     const { calls } = await openAs(MATHEUS, { conflictIds: [2] });
     await act("Excluir", "Luz");
     fireEvent.click(screen.getByRole("button", { name: "Sim, excluir" }));
-    const confirm = await screen.findByRole("alertdialog");
+    const confirm = await screen.findByRole("group", { name: /^Excluir Luz\?/ });
     await within(confirm).findByText(/já tem pagamentos registrados/);
     expect(within(confirm).queryByRole("button", { name: "Sim, excluir" })).toBeNull(); // não adianta repetir
     expect(writes(calls)).toEqual(["DELETE /recurring-bills/2"]);

@@ -60,7 +60,7 @@ describe("DonutChart", () => {
     render(<DonutChart label="Gastos por categoria" data={donut} centerLabel="Total" />);
     const fig = screen.getByRole("figure", { name: "Gastos por categoria" });
     const table = within(fig).getByRole("table");
-    expect(table.classList.contains("visually-hidden")).toBe(true);
+    expect(table.closest(".visually-hidden")).not.toBeNull(); // oculta pelo div (tabela com a classe alargava a página)
     const rows = within(table).getAllByRole("row");
     expect(rows).toHaveLength(3); // cabeçalho + 2
     expect(within(rows[1]).getByText("Mercado")).toBeTruthy();
@@ -155,7 +155,7 @@ describe("BarChart", () => {
   it("tabela com uma linha por barra", () => {
     render(<BarChart label="Saldo devedor até a quitação" data={data} />);
     const table = within(screen.getByRole("figure", { name: "Saldo devedor até a quitação" })).getByRole("table");
-    expect(table.classList.contains("visually-hidden")).toBe(true);
+    expect(table.closest(".visually-hidden")).not.toBeNull(); // oculta pelo div (tabela com a classe alargava a página)
     const rows = within(table).getAllByRole("row");
     expect(rows).toHaveLength(3);
     expect(rows[1].textContent).toContain("dez/26");

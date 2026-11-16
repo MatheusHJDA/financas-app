@@ -65,6 +65,28 @@ describe("Money", () => {
     expect(el.className).toContain("money--income");
   });
 
+  it("short omite os centavos zerados", () => {
+    render(
+      <>
+        <Money cents={120000} short />
+        <Money cents={120050} short />
+      </>,
+    );
+    expect(screen.getByText("R$ 1.200")).toBeTruthy();
+    expect(screen.getByText("R$ 1.200,50")).toBeTruthy();
+  });
+
+  it("short também respeita o olho", () => {
+    localStorage.setItem("finance.hideValues", "1");
+    render(
+      <HideValuesProvider>
+        <Money cents={120000} short />
+      </HideValuesProvider>,
+    );
+    expect(screen.getByRole("img", { name: "Valor oculto" })).toBeTruthy();
+    expect(screen.queryByText(/1\.200/)).toBeNull();
+  });
+
   it("sem provider mostra o valor", () => {
     render(<Money cents={100} />);
     expect(screen.getByText("R$ 1,00")).toBeTruthy();
@@ -163,6 +185,79 @@ describe("Sheet", () => {
     fireEvent.click(screen.getByRole("button", { name: "Abrir" }));
     fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  function WithFields() {
+    const [open, setOpen] = useState(false);
+    return (
+      <main>
+        <button type="button" onClick={() => setOpen(true)}>
+          Abrir
+        </button>
+        <a href="#fundo">Link do fundo</a>
+        <Sheet open={open} title="Editar" onClose={() => setOpen(false)}>
+          <input aria-label="Nome" />
+          <button type="button">Salvar</button>
+        </Sheet>
+      </main>
+    );
+  }
+
+  it("põe o foco inicial no diálogo", () => {
+    render(<WithFields />);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir" }));
+    expect(document.activeElement).toBe(screen.getByRole("dialog", { name: "Editar" }));
+  });
+
+  it("Tab no último volta ao primeiro e Shift+Tab no primeiro vai ao último", () => {
+    render(<WithFields />);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir" }));
+    const dialog = screen.getByRole("dialog", { name: "Editar" });
+    const fechar = screen.getByRole("button", { name: "Fechar" });
+    const salvar = screen.getByRole("button", { name: "Salvar" });
+    salvar.focus();
+    fireEvent.keyDown(salvar, { key: "Tab" });
+    expect(document.activeElement).toBe(fechar);
+    fireEvent.keyDown(fechar, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(salvar);
+    dialog.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(salvar);
+  });
+
+  it("Tab no meio do diálogo segue o curso normal do navegador", () => {
+    render(<WithFields />);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir" }));
+    const nome = screen.getByLabelText("Nome");
+    nome.focus();
+    expect(fireEvent.keyDown(nome, { key: "Tab" })).toBe(true);
+  });
+
+  it("deixa o conteúdo de trás inerte enquanto aberto e restaura ao fechar", () => {
+    render(<WithFields />);
+    const trigger = screen.getByRole("button", { name: "Abrir" });
+    const link = screen.getByRole("link", { name: "Link do fundo" });
+    fireEvent.click(trigger);
+    expect(trigger.hasAttribute("inert")).toBe(true);
+    expect(link.hasAttribute("inert")).toBe(true);
+    expect(screen.getByRole("dialog", { name: "Editar" }).closest("[inert]")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    expect(trigger.hasAttribute("inert")).toBe(false);
+    expect(link.hasAttribute("inert")).toBe(false);
+  });
+
+  it("não remove o inert que já existia antes", () => {
+    render(
+      <>
+        <div data-testid="ja-inerte" {...{ inert: "" }}>
+          x
+        </div>
+        <WithFields />
+      </>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Abrir" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    expect(screen.getByTestId("ja-inerte").hasAttribute("inert")).toBe(true);
   });
 });
 

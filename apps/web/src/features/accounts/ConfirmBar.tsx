@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
 
 interface Props {
   /** Pergunta, ex.: "Marcar Luz como paga?". */
@@ -15,7 +15,12 @@ interface Props {
   onCancel: () => void;
 }
 
-/** Confirmação em linha: nada é gravado até o toque em "confirmar". */
+/**
+ * Confirmação em linha: nada é gravado até o toque em "confirmar".
+ * Vive dentro de um `Sheet` (que já é o diálogo modal), então é um grupo nomeado, não um
+ * segundo `alertdialog`. Ao aparecer recebe o foco (o botão que a abriu sumiu) e, ao sair,
+ * devolve o foco a quem estava com ele, se ainda existir.
+ */
 export function ConfirmBar({
   message,
   confirmLabel,
@@ -28,9 +33,19 @@ export function ConfirmBar({
   onCancel,
 }: Props) {
   const id = useId();
+  const root = useRef<HTMLDivElement>(null);
   const showConfirm = !error || retryable;
+
+  useEffect(() => {
+    const returnTo = document.activeElement as HTMLElement | null;
+    root.current?.focus();
+    return () => {
+      if (returnTo?.isConnected) returnTo.focus();
+    };
+  }, []);
+
   return (
-    <div className="u8-confirm" role="alertdialog" aria-labelledby={id}>
+    <div ref={root} className="u8-confirm" role="group" aria-labelledby={id} tabIndex={-1}>
       <p id={id}>
         <strong>{message}</strong>
       </p>

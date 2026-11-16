@@ -1,10 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Gauge, Landmark, PiggyBank, TrendingUp, type LucideIcon } from "lucide-react";
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { api } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
-import { Button, useHideValues } from "../../ui";
-import { formatReaisShort } from "../accounts/money";
+import { Button, Money, useHideValues } from "../../ui";
 import { assertOk, canWrite, errorMessage, OWNER_LABEL, type Account, type Category, type Goal } from "../accounts/shared";
 import { formatDate, isValidIsoDate, todayIso } from "../chat/dates";
 import { parseBRL } from "../chat/money";
@@ -33,10 +32,26 @@ interface Props {
 export function GoalCard({ goal, accounts, categories, onNotice }: Props) {
   const { me } = useAuth();
   const { hidden } = useHideValues();
-  const short = (cents: number) => (hidden ? "R$ •••••" : formatReaisShort(cents));
   const queryClient = useQueryClient();
   const titleId = useId();
+  const root = useRef<HTMLLIElement>(null);
+  const lastAction = useRef<Mode | null>(null);
   const [mode, setMode] = useState<Mode>("view");
+
+  // Foco: ao abrir um painel vai para dentro dele (Excluir: o "Cancelar", a opção segura);
+  // ao voltar para a visão normal, volta ao botão que abriu.
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    if (mode === "delete") {
+      el.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    } else if (mode === "edit" || mode === "entry") {
+      el.querySelector<HTMLElement>("form input, form select")?.focus();
+    } else if (lastAction.current) {
+      el.querySelector<HTMLElement>(`[data-goal-action="${lastAction.current}"]`)?.focus();
+      lastAction.current = null;
+    }
+  }, [mode]);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["goals"] });
   const done = async (text: string) => {
@@ -84,12 +99,17 @@ export function GoalCard({ goal, accounts, categories, onNotice }: Props) {
     remove.reset();
     entry.reset();
     onNotice("");
+    if (next !== "view") lastAction.current = next;
     setMode(next);
   };
   const close = () => open("view");
 
+  const pct = `${formatPercent(p.percent)}%`;
+  // Texto do leitor na barra: com o olho ligado não leva o dinheiro.
+  const valueText = hidden ? `valor oculto · ${pct}` : progressText(goal);
+
   return (
-    <li className="goal-card" aria-labelledby={titleId}>
+    <li ref={root} className="goal-card" aria-labelledby={titleId}>
       <div className="goal-card__top">
         <span className={`goal-card__bubble${tone ? ` goal-card__bubble--${tone}` : ""}`} aria-hidden="true">
           <Icon size={22} strokeWidth={1.75} />
@@ -121,15 +141,17 @@ export function GoalCard({ goal, accounts, categories, onNotice }: Props) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(width)}
-        aria-valuetext={progressText(goal, short)}
+        aria-valuetext={valueText}
       >
         <div className="goal-bar__fill" style={{ width: `${width}%` }} />
       </div>
-      <p className="goal-amount">{progressText(goal, short)}</p>
+      <p className="goal-amount">
+        <Money cents={p.current_cents} short /> de <Money cents={p.target_cents} short /> · {pct}
+      </p>
 
       {over ? (
         <p className="goal-alert" role="status">
-          Acima do teto em {short(p.current_cents - p.target_cents)}.
+          Acima do teto em <Money cents={p.current_cents - p.target_cents} short />.
         </p>
       ) : null}
       {goal.type === "category_cap" && !over ? <p className="goal-note">Gasto do mês na categoria.</p> : null}
@@ -150,7 +172,7 @@ export function GoalCard({ goal, accounts, categories, onNotice }: Props) {
                     {l.name}
                     {reached ? <span className="visually-hidden"> (atingido)</span> : null}
                   </span>
-                  <span className="goal-level__amount">{short(l.target_cents)}</span>
+                  <span className="goal-level__amount"><Money cents={l.target_cents} short /></span>
                 </li>
               );
             })}
@@ -198,14 +220,24 @@ export function GoalCard({ goal, accounts, categories, onNotice }: Props) {
       {writable && mode === "view" ? (
         <div className="goal-actions">
           {manualEntries ? (
-            <Button variant="primary" aria-label={`Registrar aporte em ${goal.name}`} onClick={() => open("entry")}>
+            <Button
+              variant="primary"
+              aria-label={`Registrar aporte em ${goal.name}`}
+              data-goal-action="entry"
+              onClick={() => open("entry")}
+            >
               Aportar
             </Button>
           ) : null}
-          <Button aria-label={`Editar meta ${goal.name}`} onClick={() => open("edit")}>
+          <Button aria-label={`Editar meta ${goal.name}`} data-goal-action="edit" onClick={() => open("edit")}>
             Editar
           </Button>
-          <Button variant="danger" aria-label={`Excluir meta ${goal.name}`} onClick={() => open("delete")}>
+          <Button
+            variant="danger"
+            aria-label={`Excluir meta ${goal.name}`}
+            data-goal-action="delete"
+            onClick={() => open("delete")}
+          >
             Excluir
           </Button>
         </div>
@@ -245,7 +277,7 @@ function DeleteConfirm({
             Sim, excluir
           </Button>
         ) : null}
-        <Button disabled={busy} onClick={onCancel}>
+        <Button disabled={busy} data-autofocus="" onClick={onCancel}>
           {error ? "Fechar" : "Cancelar"}
         </Button>
       </div>

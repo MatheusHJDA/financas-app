@@ -138,7 +138,11 @@ export function NotificationsCard() {
   } else if (vapid.isError || subs.isError) {
     body = <p role="alert">Não foi possível carregar as notificações. Tente de novo mais tarde.</p>;
   } else if (vapid.isPending || subs.isPending || local.isPending) {
-    body = <p className="muted">Verificando…</p>;
+    body = (
+      <p className="muted" role="status">
+        Verificando…
+      </p>
+    );
   } else if (vapid.data === "") {
     body = <p>Notificações não configuradas no servidor.</p>;
   } else if (mine) {
@@ -163,7 +167,10 @@ export function NotificationsCard() {
     );
   }
 
-  const devices = subs.data?.map((s) => s.device_label ?? "Aparelho").join(", ");
+  // O aparelho atual é dito em texto (não só por destaque visual).
+  const devices = subs.data
+    ?.map((s) => `${s.device_label ?? "Aparelho"}${local.data && s.endpoint === local.data ? " (este aparelho)" : ""}`)
+    .join(", ");
   return (
     <section aria-labelledby="notifications-title" className="card">
       <h2 id="notifications-title">Notificações</h2>

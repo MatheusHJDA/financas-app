@@ -2,7 +2,7 @@
 // Todos os totais vêm da API (/overview); aqui só se exibe.
 import { CreditCard, Landmark, Wallet } from "lucide-react";
 import type { components } from "../../api/schema";
-import { Avatar, Card, EmptyState, ListItem, Money, StatCard } from "../../ui";
+import { Avatar, Card, EmptyState, ListItem, Money, StatCard, useHideValues } from "../../ui";
 import { formatDate } from "../chat/dates";
 import type { Owner } from "./shared";
 import "./accounts.css";
@@ -16,11 +16,13 @@ export function ownerTotalCents(overview: Overview | undefined, owner: Owner): n
 
 /** "Total do casal": soma dos saldos de todas as contas agora. */
 export function CoupleTotal({ overview }: { overview: Overview }) {
+  const { hidden } = useHideValues();
   return (
     <StatCard
       label="Total do casal"
       icon={Wallet}
-      tone={overview.couple_total_cents < 0 ? "expense" : "income"}
+      // Com o olho fechado o tom não pode denunciar o sinal: fica neutro.
+      tone={hidden ? "info" : overview.couple_total_cents < 0 ? "expense" : "income"}
       cents={overview.couple_total_cents}
       hint="Soma dos saldos de todas as contas, agora"
     />

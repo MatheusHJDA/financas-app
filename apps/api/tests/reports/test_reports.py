@@ -184,6 +184,24 @@ def test_contas_fixas_do_mes(db, users):
     }
 
 
+def test_contas_pagas_somam_o_valor_do_lancamento_vinculado(db, users, make_account, make_tx):
+    conta = make_account("Corrente")
+    luz = _bill(db, "Luz", dt.date(2026, 11, 10), status="paid", amount=18000)
+    luz.paid_transaction_id = make_tx(conta, "expense", 19540, date=dt.date(2026, 11, 10)).id
+    _bill(db, "Aluguel", dt.date(2026, 11, 5), status="paid", amount=10000)  # sem lançamento
+    _bill(db, "Internet", dt.date(2026, 11, 20), amount=9000)
+    db.flush()
+
+    report = build_month_report(db, NOV, None, dt.date(2026, 11, 14))
+    assert report.bills.model_dump() == {
+        "total_count": 3,
+        "paid_count": 2,
+        "paid_cents": 29540,  # 19540 (lançamento) + 10000 (valor da instância)
+        "open_count": 1,
+        "open_cents": 9000,
+    }
+
+
 def test_contas_fixas_respeitam_owner(db, users):
     _bill(db, "Aluguel", dt.date(2026, 11, 5), amount=10000, owner="RUTH")
     _bill(db, "Luz", dt.date(2026, 11, 10), amount=15000, owner="MATHEUS")

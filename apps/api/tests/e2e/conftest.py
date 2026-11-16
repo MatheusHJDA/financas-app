@@ -1,4 +1,4 @@
-"""E2E com navegador real (Playwright/Chromium com emulação de celular).
+"""E2E com navegador real (Playwright/Chromium: celulares 414/412 e computador 1280×800).
 
 Sobe o app de verdade (`create_app` + PWA de `apps/web/dist`) numa thread com `uvicorn`, contra um
 banco descartável `..._e2e` no Postgres de teste (recriado por sessão, dados COMMITADOS), com uma
@@ -64,7 +64,31 @@ DEVICES: dict[str, dict[str, Any]] = {
             f"Chrome/{CHROME_VERSION} Mobile Safari/537.36"
         ),
     },
+    # Computador (>= 1024px): menu lateral em vez da barra flutuante. Mantém o toque ligado
+    # (notebook com tela sensível) para os fluxos continuarem usando `.tap()`.
+    "desktop": {
+        "viewport": {"width": 1280, "height": 800},
+        "screen": {"width": 1280, "height": 800},
+        "device_scale_factor": 1,
+        "is_mobile": False,
+        "user_agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+            f"Chrome/{CHROME_VERSION} Safari/537.36"
+        ),
+    },
+    # Só para a checagem de layout (test_e2e_redesign): celular pequeno, fora dos fluxos comuns.
+    "small-360": {
+        "viewport": {"width": 360, "height": 740},
+        "screen": {"width": 360, "height": 740},
+        "device_scale_factor": 2,
+        "user_agent": (
+            "Mozilla/5.0 (Linux; Android 13; SM-A035M) AppleWebKit/537.36 (KHTML, like Gecko) "
+            f"Chrome/{CHROME_VERSION} Mobile Safari/537.36"
+        ),
+    },
 }
+# Aparelhos em que TODO fluxo roda (o "small-360" é pedido à parte, por teste).
+FLOW_DEVICES = ["iphone-11", "galaxy-a13", "desktop"]
 
 
 # --- Banco descartável -------------------------------------------------------------------------
@@ -328,21 +352,21 @@ def e2e_env(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Env]:
 # --- Navegador ---------------------------------------------------------------------------------
 
 
-@pytest.fixture(params=list(DEVICES), ids=list(DEVICES))
+@pytest.fixture(params=FLOW_DEVICES, ids=FLOW_DEVICES)
 def device(request: pytest.FixtureRequest) -> str:
     return str(request.param)
 
 
 @pytest.fixture
 def context(browser: Browser, device: str, e2e_env: Env) -> Iterator[BrowserContext]:
+    spec = {"is_mobile": True, **DEVICES[device]}
     ctx = browser.new_context(
         base_url=e2e_env.base_url,
-        is_mobile=True,
         has_touch=True,
         locale="pt-BR",
         timezone_id="America/Sao_Paulo",
         service_workers="block",
-        **DEVICES[device],
+        **spec,
     )
     ctx.set_default_timeout(10_000)
     yield ctx

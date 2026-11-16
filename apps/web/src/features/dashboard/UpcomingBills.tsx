@@ -25,8 +25,8 @@ export function UpcomingBills({ upcoming, overdue }: { upcoming: BillInstance[];
       icon={CalendarClock}
       className="dash-bills"
       action={
-        <Link to="/contas-fixas" className="dash-link" aria-label="Ver contas fixas">
-          Ver tudo
+        <Link to="/contas-fixas" className="dash-link">
+          Ver tudo <span className="visually-hidden">de contas fixas</span>
         </Link>
       }
     >

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardPage from "./DashboardPage";
 import {
   emptyReport,
+  GOALS,
   json,
   mockApi,
   OVERVIEW,
@@ -68,7 +69,7 @@ describe("saldo", () => {
     const saldos = await region("Saldos");
     expect(screen.queryByRole("group", { name: "Saldos de Ruth" })).toBeNull();
 
-    const toggle = within(saldos).getByRole("button", { name: "Expandir" });
+    const toggle = within(saldos).getByRole("button", { name: "Expandir saldos por dono e faturas" });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(toggle);
 
@@ -83,7 +84,7 @@ describe("saldo", () => {
     const faturas = screen.getByRole("group", { name: "Faturas abertas dos cartões" });
     expect(within(faturas).getByText("R$ 420,00")).toBeTruthy();
 
-    fireEvent.click(within(saldos).getByRole("button", { name: "Recolher" }));
+    fireEvent.click(within(saldos).getByRole("button", { name: "Recolher saldos por dono e faturas" }));
     expect(screen.queryByRole("group", { name: "Saldos de Ruth" })).toBeNull();
   });
 
@@ -92,6 +93,21 @@ describe("saldo", () => {
     renderDashboard(<DashboardPage />);
     const saldos = await region("Saldos");
     expect(within(saldos).getByText("-R$ 1.234.567,89")).toBeTruthy();
+  });
+
+  it("saldo negativo é pintado; com o olho fechado a cor não denuncia o sinal", async () => {
+    mockApi(); // o Cartão Nubank (−R$ 420,00) é negativo
+    const view = renderDashboard(<DashboardPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Expandir saldos por dono e faturas" }));
+    const saldos = () => screen.getByRole("region", { name: "Saldos" });
+    expect(saldos().querySelector(".dash-neg")).not.toBeNull();
+    view.unmount();
+
+    localStorage.setItem("finance.hideValues", "1");
+    renderDashboard(<DashboardPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Expandir saldos por dono e faturas" }));
+    expect(screen.getByRole("group", { name: "Saldos de Ruth" })).toBeTruthy();
+    expect(saldos().querySelector(".dash-neg")).toBeNull();
   });
 
   it("o olho oculta o saldo e os cartões do mês", async () => {
@@ -221,7 +237,7 @@ describe("contas a pagar, dívidas e metas", () => {
     expect(within(card).getByText("Aluguel")).toBeTruthy();
     expect(within(card).getByText("Vence em 6 dias")).toBeTruthy();
     expect(within(card).getByText("R$ 189,50")).toBeTruthy();
-    expect(within(card).getByRole("link", { name: "Ver contas fixas" }).getAttribute("href")).toBe("/contas-fixas");
+    expect(within(card).getByRole("link", { name: "Ver tudo de contas fixas" }).getAttribute("href")).toBe("/contas-fixas");
   });
 
   it("sem contas a pagar mostra o estado vazio", async () => {
@@ -244,6 +260,48 @@ describe("contas a pagar, dívidas e metas", () => {
     expect(within(metas).getByText("24%")).toBeTruthy();
     expect(within(metas).getByRole("progressbar", { name: "Progresso de Mercado do mês" }).getAttribute("aria-valuenow")).toBe("100");
     expect(within(metas).queryByText("Meta arquivada")).toBeNull();
+  });
+
+  it("teto estourado aparece também em texto, não só na cor", async () => {
+    mockApi();
+    renderDashboard(<DashboardPage />);
+    const metas = await region("Metas");
+    const bar = await within(metas).findByRole("progressbar", { name: "Progresso de Mercado do mês" });
+    const item = bar.closest("li")!;
+    expect(within(item).getByText(/teto estourado/i)).toBeTruthy();
+    expect(bar.getAttribute("aria-valuetext")).toMatch(/teto estourado/i);
+    // meta de acumular não estoura teto
+    const reserva = (await within(metas).findByRole("progressbar", { name: "Progresso de Reserva de emergência" })).closest("li")!;
+    expect(within(reserva).queryByText(/teto estourado/i)).toBeNull();
+  });
+
+  it("teto estourado decide pelos centavos: 99,5% e 100% exatos não estouram; 100,1% estoura", async () => {
+    const cap = (id: number, name: string, current: number, percent: number): (typeof GOALS)[number] => ({
+      id,
+      owner: "RUTH",
+      type: "category_cap",
+      name,
+      target_cents: 40_000,
+      active: true,
+      progress: { current_cents: current, target_cents: 40_000, percent, level: null },
+    });
+    mockApi({ goals: [cap(1, "Quase", 39_800, 99.5), cap(2, "Exato", 40_000, 100), cap(3, "Passou", 40_040, 100.1)] });
+    renderDashboard(<DashboardPage />);
+    const metas = await region("Metas");
+    const itemOf = async (name: string) => (await within(metas).findByRole("progressbar", { name: `Progresso de ${name}` })).closest("li")!;
+
+    expect(within(await itemOf("Quase")).queryByText(/teto estourado/i)).toBeNull();
+    expect(within(await itemOf("Exato")).queryByText(/teto estourado/i)).toBeNull();
+    expect(within(await itemOf("Passou")).getByText(/teto estourado/i)).toBeTruthy();
+  });
+
+  it("o link de metas tem nome que começa pelo texto visível", async () => {
+    mockApi();
+    renderDashboard(<DashboardPage />);
+    const metas = await region("Metas");
+    const link = within(metas).getByRole("link", { name: "Ver tudo de metas" });
+    expect(link.getAttribute("href")).toBe("/metas");
+    expect(link.textContent).toMatch(/^Ver tudo/);
   });
 
   it("sem dívidas e sem metas mostra convites", async () => {
