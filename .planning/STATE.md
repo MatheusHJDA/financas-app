@@ -2,6 +2,50 @@
 
 > Mantido pelo lead. Workers leem; não editam (exceto quando o brief mandar).
 
+## ▶ RETOMAR AQUI (16/11/2026 → amanhã, 17/11)
+**Onde estamos:** redesenho completo e no ar no PC. Branch `redesenho`, commits `b36e9b4` (R3) e `7ca0860` (revisão
+final + segurança). `check` verde (pytest 474, vitest 419), e2e 78/78 (iPhone 414×896, Galaxy 412×915, computador
+1280×800 + layout em 360px). Backup antes do deploy: `backups/financas-20261116-204659.dump`. Pilha real atualizada
+com `./tasks.ps1 up` (endereço `https://optimousprime.tail6cabb8.ts.net`, só tailnet). Merge `redesenho` → `main`
+ainda **não** feito (esperando os testes práticos).
+
+**Plano de amanhã (Matheus + lead):**
+1. **Iniciar o app no PC** (conferir o passo a passo junto):
+   - Docker Desktop aberto (exe em `%LOCALAPPDATA%\Programs\DockerDesktop\Docker Desktop.exe`; pode estar desligado
+     depois de reiniciar — o e2e/check também precisam dele).
+   - `./tasks.ps1 up` → `https://optimousprime.tail6cabb8.ts.net/api/health` = 200.
+   - `tailscale serve status` deve mostrar `/ → http://127.0.0.1:8000` (se vazio: `tailscale serve --bg 8000`).
+   - Conferir "iniciar com o Windows" (`docs/deploy-pc.md` seção 6) e PC sem suspender.
+   - Admin no computador: menu lateral → Administração (Usuários, Configurações, Avisos, IA, Auditoria, Sistema).
+2. **Testes práticos nos celulares** (iPhone 11 do Matheus, celular da Ruth, Galaxy A13):
+   - Tailscale instalado e "Connected" (Galaxy A13 ainda **fora** da tailnet; celular da Ruth: mesma conta ou
+     compartilhar o PC pelo painel do Tailscale).
+   - Abrir o endereço (Safari/Chrome), **apagar o ícone antigo** e reinstalar (iPhone: Compartilhar → Adicionar à Tela
+     de Início; Android: ⋮ → Instalar app); abrir pelo ícone; entrar com PIN.
+   - Notificações: Mais → Preferências → Notificações → Ativar (pelo ícone).
+   - Roteiro de uso: Início (saldo, cartões do mês, troca de mês, olho de ocultar valores), ✦ Lançar (IA com foto/PDF/
+     texto e "Lançar à mão"), Transações (filtros, editar/excluir), Contas fixas (marcar como paga), Contas, Metas,
+     Plano, Relatórios (rosca e ritmo de gasto), Preferências (tema claro/escuro/automático), Ruth sem Administração.
+   - **Abrir um PDF anexado** no celular e no PC (único ponto do CSP novo sem teste automático; se falhar, ver
+     `attachments/router.py`, CSP `default-src 'none'`).
+   - Conferir as capturas em `docs/referencia/visual/resultado/` (96 PNG, fora do git) contra as referências.
+   - Anotar tudo que estranharem → corrigir antes da VPS.
+3. **Limpezas de segurança no PC** (achadas nos testes ao vivo, fora do app):
+   - PostgreSQL nativo do Windows escutando em `0.0.0.0:5432` (não é o do app) → desinstalar/parar se não usa.
+   - `tailscale serve --https=8443 off` (sobra apontando para o dev server 5173).
+   - Remover o aparelho `robertocarlos` da tailnet (offline há 341 dias).
+4. **Se tudo der certo:** merge `redesenho` → `main` e **preparar a VPS** (`docs/deploy-vps.md`, Caddy já tem limite
+   de 11 MB e cabeçalhos). Lembrar na VPS: `ALLOWED_HOSTS` com o domínio novo (senão 400); mesmas chaves VAPID;
+   `ENABLE_DOCS` desligado; levar o backup mais recente + volume de uploads; celulares reinstalam o app no novo
+   endereço; `chmod 600` do backup (cópia como root em host Linux).
+5. Atualizar `docs/instalar-no-celular.md`: o caminho do admin agora é **Mais → Administração** (doc ainda diz
+   "Mais → Painel admin").
+
+**Pendências que continuam (seção "Falta fazer" abaixo):** testar o chat com envio real; D6 e "empréstimo num lugar
+só"; `start_date` real do empréstimo; vencimentos reais das 14 contas fixas; cada um cadastra contas/movimentações.
+Lows aceitos do redesenho: "Outras" do Dashboard somada no front; "Total de X" no hero; rate limit por IP no login;
+`/auth/users` público.
+
 ## Fase atual
 Onda 0 commitada (`1abd9ee`). Onda 1 (U1–U4) commitada (`32de996`).
 Onda 2 (U5–U6) commitada (`af48d2f`).
