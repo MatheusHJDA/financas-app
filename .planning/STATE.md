@@ -32,8 +32,11 @@ ainda **não** feito (esperando os testes práticos).
    - Anotar tudo que estranharem → corrigir antes da VPS.
 3. **Limpezas de segurança no PC** (achadas nos testes ao vivo, fora do app):
    - PostgreSQL nativo do Windows escutando em `0.0.0.0:5432` (não é o do app) → desinstalar/parar se não usa.
-   - `tailscale serve --https=8443 off` (sobra apontando para o dev server 5173).
-   - Remover o aparelho `robertocarlos` da tailnet (offline há 341 dias).
+   - ~~`tailscale serve --https=8443 off`~~ feito 17/11.
+   - ~~Remover o aparelho `robertocarlos` da tailnet~~ feito pelo Matheus 17/11.
+   - 17/11: Docker Desktop "Start when you sign in" ligado (estava desligado). PostgreSQL 18 nativo + Bluefin
+     desinstalados (serviço e porta 5432 nativos sumiram); sobra só `C:\Program Files\PostgreSQL\18\data` (apagar
+     como admin).
 4. **Se tudo der certo:** merge `redesenho` → `main` e **preparar a VPS** (`docs/deploy-vps.md`, Caddy já tem limite
    de 11 MB e cabeçalhos). Lembrar na VPS: `ALLOWED_HOSTS` com o domínio novo (senão 400); mesmas chaves VAPID;
    `ENABLE_DOCS` desligado; levar o backup mais recente + volume de uploads; celulares reinstalam o app no novo
