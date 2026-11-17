@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from finance_api.core.audit import record_audit
 from finance_api.core.deps import DbSession, get_current_user
 from finance_api.core.permissions import CurrentUser, Owner, ensure_can_write
-from finance_api.db.models import Category, RecurringBill, Transaction
+from finance_api.db.models import Category, Goal, RecurringBill, Transaction
 
 router = APIRouter(tags=["categories"])
 
@@ -163,6 +163,8 @@ def delete_category(category_id: int, db: DbSession, user: User) -> Response:
         ) or db.scalar(
             select(RecurringBill.id).where(RecurringBill.category_id == category.id).limit(1)
         )
+    if in_use is None:
+        in_use = db.scalar(select(Goal.id).where(Goal.linked_category_id == category.id).limit(1))
     if in_use is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "A categoria está em uso.")
 

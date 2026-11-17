@@ -1,6 +1,6 @@
 from sqlalchemy import select
 
-from finance_api.db.models import AuditLog
+from finance_api.db.models import AuditLog, Goal
 
 
 def _audits(db):
@@ -56,6 +56,21 @@ def test_delete_category_in_use_is_409(client_as, users, make_account, make_cate
     client = client_as(users["matheus"])
     assert client.delete(f"/api/categories/{used.id}").status_code == 409
     assert client.delete(f"/api/categories/{parent.id}").status_code == 409
+
+
+def test_delete_categoria_usada_por_meta_409(client_as, users, db, make_category):
+    used = make_category("Meta")
+    db.add(
+        Goal(
+            owner="AMBOS",
+            type="category_cap",
+            name="Teto",
+            target_cents=1000,
+            linked_category_id=used.id,
+        )
+    )
+    db.commit()
+    assert client_as(users["ruth"]).delete(f"/api/categories/{used.id}").status_code == 409
 
 
 def test_missing_category_is_404(client_as, users):

@@ -6,6 +6,7 @@ import {
   CalendarRange,
   Cpu,
   Home,
+  Tags,
   Landmark,
   LayoutDashboard,
   ListChecks,
@@ -53,6 +54,7 @@ export const SIDEBAR_GROUPS: { label: string; adminOnly?: boolean; items: (NavIt
       { to: "/transacoes", label: "Transações", icon: ReceiptText },
       { to: "/contas-fixas", label: "Contas fixas", icon: CalendarClock },
       { to: "/contas", label: "Contas", icon: Wallet },
+      { to: "/categorias", label: "Categorias", icon: Tags },
     ],
   },
   {
@@ -79,6 +81,7 @@ export const MORE_ITEMS: NavItem[] = [
   { to: "/plano", label: "Plano", icon: CalendarRange },
   { to: "/contas-fixas", label: "Contas fixas", icon: CalendarClock },
   { to: "/contas", label: "Contas", icon: Wallet },
+  { to: "/categorias", label: "Categorias", icon: Tags },
   { to: "/preferencias", label: "Preferências", icon: SlidersHorizontal },
   { to: "/admin/usuarios", label: "Administração", icon: Settings, adminOnly: true },
 ];

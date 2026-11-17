@@ -1,0 +1,47 @@
+/* Tela de Categorias. Só tokens; classes .cat-. Sem larguras fixas (360 px). */
+.cat-page {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.cat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.cat-head h1,
+.cat-group h2 {
+  margin: 0;
+}
+.cat-group {
+  display: grid;
+  gap: var(--space-2);
+}
+.cat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.cat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.cat-row__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cat-row__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex: none;
+}
