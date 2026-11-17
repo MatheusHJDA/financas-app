@@ -38,6 +38,7 @@ def ensure_bill_instances(db: Session, month: date) -> int:
     month = first_of_month(month)
     bills = db.scalars(
         select(RecurringBill).where(
+            RecurringBill.debt_id.is_(None),  # as de dívida têm instâncias próprias (parcelas)
             RecurringBill.start_month <= month,
             or_(RecurringBill.end_month.is_(None), RecurringBill.end_month >= month),
         )

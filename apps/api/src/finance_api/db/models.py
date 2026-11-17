@@ -43,7 +43,8 @@ TX_KIND = Enum("income", "expense", "transfer", name="tx_kind")
 TX_STATUS = Enum("confirmed", name="tx_status")
 TX_SOURCE = Enum("chat", "manual", "import", name="tx_source")
 DRAFT_STATUS = Enum("pending", "confirmed", "discarded", name="draft_status")
-BILL_STATUS = Enum("open", "paid", name="bill_status")
+BILL_STATUS = Enum("open", "paid", "prepaid", name="bill_status")
+INSTALLMENT_STATUS = Enum("open", "paid", "prepaid", name="installment_status")
 
 ENUMS = (
     USER_ROLE,
@@ -55,6 +56,7 @@ ENUMS = (
     TX_SOURCE,
     DRAFT_STATUS,
     BILL_STATUS,
+    INSTALLMENT_STATUS,
 )
 
 # --- Tipos auxiliares -------------------------------------------------------------------------
@@ -206,8 +208,12 @@ class RecurringBill(Base):
     account_id: Mapped[int | None] = _fk("accounts.id", ondelete="RESTRICT", nullable=True)
     category_id: Mapped[int | None] = _fk("categories.id", ondelete="RESTRICT", nullable=True)
     payment_method: Mapped[str | None] = mapped_column(String(40))
+    # Conta fixa gerida por uma dívida (parcelas): o gerador mensal a ignora.
+    debt_id: Mapped[int | None] = _fk("debts.id", ondelete="RESTRICT", nullable=True)
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _updated_at()
+
+    __table_args__ = (UniqueConstraint("debt_id"),)
 
 
 class BillInstance(Base):
@@ -282,8 +288,33 @@ class Debt(Base):
     installment_cents: Mapped[int] = mapped_column(BigInteger)
     start_date: Mapped[date] = mapped_column(Date)
     current_balance_cents: Mapped[int] = mapped_column(BigInteger)
+    paid_before_app_cents: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _updated_at()
+
+
+class DebtInstallment(Base):
+    __tablename__ = "debt_installments"
+
+    id: Mapped[int] = _pk()
+    debt_id: Mapped[int] = _fk("debts.id", ondelete="RESTRICT")
+    number: Mapped[int] = mapped_column(Integer)
+    due_date: Mapped[date] = mapped_column(Date)
+    face_cents: Mapped[int] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(INSTALLMENT_STATUS, server_default="open")
+    paid_cents: Mapped[int | None] = mapped_column(BigInteger)
+    paid_on: Mapped[date | None] = mapped_column(Date)
+    transaction_id: Mapped[int | None] = _fk("transactions.id", ondelete="SET NULL", nullable=True)
+    bill_instance_id: Mapped[int] = _fk("bill_instances.id", ondelete="RESTRICT")
+    created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = _updated_at()
+
+    __table_args__ = (
+        UniqueConstraint("debt_id", "number"),
+        UniqueConstraint("bill_instance_id"),
+        CheckConstraint("face_cents > 0", name="face_positive"),
+        Index("ix_debt_installments_transaction_id", "transaction_id"),
+    )
 
 
 class Goal(Base):

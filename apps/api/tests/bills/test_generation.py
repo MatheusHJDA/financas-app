@@ -52,3 +52,26 @@ def test_varias_contas_contam_so_as_novas(db, make_bill):
     assert ensure_bill_instances(db, date(2026, 6, 1)) == 2
     make_bill(name="C")
     assert ensure_bill_instances(db, date(2026, 6, 1)) == 1
+
+
+def test_ensure_skips_debt_managed_bills(db, make_bill):
+    from finance_api.db.models import Debt
+
+    debt = Debt(
+        owner="AMBOS",
+        name="Empréstimo",
+        principal_cents=1000000,
+        monthly_rate="0.02",
+        installments=12,
+        installment_cents=100000,
+        start_date=date(2026, 12, 1),
+        current_balance_cents=1000000,
+    )
+    db.add(debt)
+    db.flush()
+    managed = make_bill(name="Empréstimo", debt_id=debt.id, start_month=date(2026, 12, 1))
+    make_bill(name="Comum", start_month=date(2026, 12, 1))
+    assert ensure_bill_instances(db, date(2026, 12, 1)) == 1
+    assert (
+        db.scalar(select(BillInstance).where(BillInstance.recurring_bill_id == managed.id)) is None
+    )

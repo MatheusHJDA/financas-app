@@ -31,7 +31,10 @@ def test_every_model_column_is_in_migration(offline_sql: str) -> None:
     for name, table in Base.metadata.tables.items():
         block = offline_sql.split(f"CREATE TABLE {name} (", 1)[1].split("\n);", 1)[0]
         for col in table.columns:
-            assert re.search(rf"^\s+{col.name} ", block, re.MULTILINE), f"{name}.{col.name}"
+            in_create = re.search(rf"^\s+{col.name} ", block, re.MULTILINE)
+            # colunas de migrações posteriores aparecem em ALTER TABLE ... ADD COLUMN
+            in_alter = re.search(rf"ALTER TABLE {name} ADD COLUMN {col.name} ", offline_sql)
+            assert in_create or in_alter, f"{name}.{col.name}"
 
 
 def test_enums_created_once(offline_sql: str) -> None:
@@ -45,6 +48,7 @@ def test_enums_created_once(offline_sql: str) -> None:
         "tx_source",
         "draft_status",
         "bill_status",
+        "installment_status",
     ):
         assert offline_sql.count(f"CREATE TYPE {enum} AS ENUM") == 1, enum
 
