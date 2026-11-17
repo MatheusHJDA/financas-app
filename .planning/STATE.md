@@ -2,7 +2,19 @@
 
 > Mantido pelo lead. Workers leem; não editam (exceto quando o brief mandar).
 
-## ▶ RETOMAR AQUI (16/11/2026 → amanhã, 17/11)
+## ▶ 17/11/2026 — empréstimo com parcelas (branch `emprestimo`, de `redesenho`)
+Spec `docs/superpowers/specs/2026-11-17-emprestimo-parcelas-design.md`, plano `docs/superpowers/plans/2026-11-17-emprestimo-parcelas.md`.
+Feito por subagentes (7 tarefas + revisão final, commits até `5475a7f`): `check` verde, e2e 85/85. Backup antes
+`backups/financas-20261117-152041.dump`; `up` aplicou a migração 0002; carga `seed.loan_nubank --apply` gravada
+(13 × R$ 1.417,57, 18/12/2026–20/12/2027, restante 18.428,42, pago antes 8.187,99; nome mantido "Empréstimo" por
+causa da meta). Quitar hoje no app 14.627,51 vs Nubank 14.634,95 (estimativa). Tela `/dividas/1` (Mais → Dívidas).
+Desvio conhecido: Contas fixas não mostra a parcela adiantada no mês dela (só a tela do empréstimo mostra "Adiantada").
+**Próximo:** Matheus testa nos aparelhos (recarregar o app); depois as correções de
+`docs/referencia/correcoes/correcoes-pendentes.txt` (Começa em na edição, forma de pagamento, rolagem de Contas fixas
+no PC, botões do chat quebrando, puxar para atualizar, filtro de contas fixas, editar categorias no PC, lembrete da
+meta Uber, avisos no iPhone); merge e VPS.
+
+## RETOMAR AQUI (16/11/2026 → 17/11) — itens 1 e 3 feitos em 17/11
 **Onde estamos:** redesenho completo e no ar no PC. Branch `redesenho`, commits `b36e9b4` (R3) e `7ca0860` (revisão
 final + segurança). `check` verde (pytest 474, vitest 419), e2e 78/78 (iPhone 414×896, Galaxy 412×915, computador
 1280×800 + layout em 360px). Backup antes do deploy: `backups/financas-20261116-204659.dump`. Pilha real atualizada
