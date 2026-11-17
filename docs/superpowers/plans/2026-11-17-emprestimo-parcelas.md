@@ -292,8 +292,8 @@ Tela (texto, pt-BR):
 - Produces: `python -m finance_api.seed.loan_nubank [--apply]` — sem `--apply` só imprime o que faria (dry-run).
   Dados fixos: dívida `id=1`; corrige `principal_cents=2265965`, `monthly_rate=0.0345`, `installments=13`,
   `installment_cents=141757`, `name="Empréstimo Nubank"`; 13 `InstallmentSpec` com as datas do spec e
-  `face_cents=141757`, exceto a 13ª com `141758` (centavo do total 18.428,42 — **lead confirma com Matheus antes do
-  `--apply`**); `paid_before_app_cents=818799`; conta `Nubank (Matheus)` (busca por nome; falha se não achar);
+  `face_cents=141757`, exceto a 13ª com `141758` (centavo do total 18.428,42; Matheus aceitou: o app é aproximado
+  ); `paid_before_app_cents=818799`; conta `Nubank (Matheus)` (busca por nome; falha se não achar);
   categoria `Dívidas/Empréstimo` (busca por nome). Usuário de auditoria: o primeiro admin.
 
 - [ ] **Step 1: Testes que falham**: `test_dry_run_changes_nothing`; `test_apply_loads_schedule` (13 parcelas,
@@ -310,7 +310,7 @@ Tela (texto, pt-BR):
 
 - [ ] `./tasks.ps1 backup` → anotar o arquivo.
 - [ ] `./tasks.ps1 up` (sobe o código novo; migração roda na subida).
-- [ ] Confirmar o centavo com Matheus; `docker exec financas-api-1 python -m finance_api.seed.loan_nubank` (dry-run),
+- [ ] `docker exec financas-api-1 python -m finance_api.seed.loan_nubank` (dry-run),
   conferir, depois com `--apply`.
 - [ ] Abrir `https://optimousprime.tail6cabb8.ts.net/dividas/1` e comparar com as capturas do Nubank.
 - [ ] Atualizar `.planning/STATE.md`.
