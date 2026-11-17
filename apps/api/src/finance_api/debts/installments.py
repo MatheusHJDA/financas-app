@@ -289,6 +289,53 @@ def pay_installments(
     return tx
 
 
+def link_installment_payment(
+    db: Session, user: CurrentUser, debt: Debt, installment: DebtInstallment, tx: Transaction
+) -> None:
+    """Vincula uma despesa já lançada a uma parcela: ela vale o valor e a data do lançamento."""
+    ensure_can_write(user, Owner(debt.owner))
+    if installment.debt_id != debt.id:
+        raise HTTPException(422, "Parcela não encontrada nesta dívida.")
+    if installment.status != "open":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Parcela já paga.")
+    if tx.kind != "expense":
+        raise HTTPException(422, "Só uma despesa pode pagar uma parcela.")
+    # vincular mexe no lançamento: exige poder alterá-lo (D6/D12)
+    ensure_can_write(user, Owner(tx.owner))
+    busy = (
+        tx.bill_instance_id is not None
+        or db.scalar(select(BillInstance.id).where(BillInstance.paid_transaction_id == tx.id))
+        is not None
+        or db.scalar(select(DebtInstallment.id).where(DebtInstallment.transaction_id == tx.id))
+        is not None
+    )
+    if busy:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Lançamento já vinculado a outra conta.")
+
+    before = _inst_snap(installment)
+    installment.status = _status_for(installment.due_date, tx.date)
+    installment.paid_cents = tx.amount_cents
+    installment.paid_on = tx.date
+    installment.transaction_id = tx.id
+    inst = db.get(BillInstance, installment.bill_instance_id)
+    assert inst is not None  # FK RESTRICT
+    inst_before = {"status": inst.status, "paid_transaction_id": inst.paid_transaction_id}
+    inst.status = installment.status
+    inst.paid_transaction_id = tx.id
+    db.flush()
+    _audit_installment(db, user, installment, before)
+    record_audit(
+        db,
+        user_id=user.id,
+        entity="bill_instances",
+        entity_id=inst.id,
+        action="update",
+        before=inst_before,
+        after={"status": inst.status, "paid_transaction_id": tx.id},
+    )
+    sync_balance(db, debt)
+
+
 def release_installments(db: Session, user: CurrentUser, tx: Transaction) -> bool:
     """Reabre as parcelas (e instâncias) pagas por `tx`. Devolve False se não havia nenhuma."""
     parcels = list(

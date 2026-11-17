@@ -1,4 +1,6 @@
+import datetime as dt
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -18,6 +20,7 @@ class RecurringBillOut(BaseModel):
     account_id: int | None = None
     category_id: int | None = None
     payment_method: str | None = None
+    debt_id: int | None = None  # conta gerida por um empréstimo (só leitura)
 
 
 class RecurringBillCreate(BaseModel):
@@ -57,8 +60,9 @@ class BillInstanceOut(BaseModel):
     month: date
     due_date: date
     amount_cents: int
-    status: str
+    status: Literal["open", "paid", "prepaid"]  # prepaid = parcela de empréstimo adiantada
     paid_transaction_id: int | None = None
+    debt_id: int | None = None  # empréstimo dono da conta, se houver
 
 
 class BillInstancePage(BaseModel):
@@ -68,3 +72,7 @@ class BillInstancePage(BaseModel):
 
 class BillPayRequest(BaseModel):
     transaction_id: int | None = None
+    # Parcela de empréstimo: valor realmente cobrado, conta de origem e data (padrão hoje).
+    amount_cents: int | None = Field(default=None, gt=0)
+    account_id: int | None = None
+    date: dt.date | None = None

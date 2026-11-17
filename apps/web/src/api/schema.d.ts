@@ -380,8 +380,46 @@ export interface paths {
         delete: operations["deleteDebt"];
         options?: never;
         head?: never;
-        /** Altera dívida */
+        /** Altera dívida (com parcelas, saldo e valor da parcela são derivados e dão 409) */
         patch: operations["updateDebt"];
+        trace?: never;
+    };
+    "/debts/{id}/installments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Resumo do empréstimo e suas parcelas (valor hoje calculado na data de São Paulo) */
+        get: operations["getDebtInstallments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/debts/{id}/installments/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Paga ou adianta parcelas com uma única despesa no valor cobrado */
+        post: operations["payDebtInstallments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/goals": {
@@ -853,8 +891,11 @@ export interface components {
         TxSource: "chat" | "manual" | "import";
         /** @enum {string} */
         DraftStatus: "pending" | "confirmed" | "discarded";
-        /** @enum {string} */
-        BillStatus: "open" | "paid";
+        /**
+         * @description prepaid = parcela de empréstimo adiantada (paga antes do mês do vencimento)
+         * @enum {string}
+         */
+        BillStatus: "open" | "paid" | "prepaid";
         LoginUser: {
             /** Format: int64 */
             id: number;
@@ -1150,6 +1191,11 @@ export interface components {
             /** Format: int64 */
             category_id?: number | null;
             payment_method?: string | null;
+            /**
+             * Format: int64
+             * @description Empréstimo que gere esta conta (só leitura; alterar ou excluir dá 409)
+             */
+            debt_id?: number | null;
         };
         RecurringBillCreate: {
             owner: components["schemas"]["Owner"];
@@ -1204,6 +1250,11 @@ export interface components {
             status: components["schemas"]["BillStatus"];
             /** Format: int64 */
             paid_transaction_id?: number | null;
+            /**
+             * Format: int64
+             * @description Empréstimo dono da conta
+             */
+            debt_id?: number | null;
         };
         BillInstancePage: {
             items: components["schemas"]["BillInstance"][];
@@ -1215,6 +1266,21 @@ export interface components {
              * @description Lançamento existente a vincular; se omitido, um lançamento é criado
              */
             transaction_id?: number | null;
+            /**
+             * Format: int64
+             * @description Parcela de empréstimo, valor realmente cobrado (obrigatório sem transaction_id)
+             */
+            amount_cents?: number | null;
+            /**
+             * Format: int64
+             * @description Parcela de empréstimo, conta de onde saiu o dinheiro (obrigatório sem transaction_id)
+             */
+            account_id?: number | null;
+            /**
+             * Format: date
+             * @description Parcela de empréstimo, data do pagamento (padrão hoje)
+             */
+            date?: string | null;
         };
         Debt: {
             /** Format: int64 */
@@ -1232,6 +1298,13 @@ export interface components {
             start_date: string;
             /** Format: int64 */
             current_balance_cents: number;
+            /**
+             * Format: int64
+             * @description Total pago antes de usar o app
+             */
+            paid_before_app_cents: number;
+            /** @description Há parcelas cadastradas (saldo derivado delas) */
+            has_installments: boolean;
         };
         DebtCreate: {
             owner: components["schemas"]["Owner"];
@@ -1264,6 +1337,64 @@ export interface components {
         DebtPage: {
             items: components["schemas"]["Debt"][];
             total: number;
+        };
+        /** @enum {string} */
+        InstallmentStatus: "open" | "paid" | "prepaid";
+        Installment: {
+            /** Format: int64 */
+            id: number;
+            number: number;
+            /** Format: date */
+            due_date: string;
+            /**
+             * Format: int64
+             * @description Valor cheio da parcela
+             */
+            face_cents: number;
+            /**
+             * Format: int64
+             * @description Valor para quitar hoje (nulo se já paga ou adiantada)
+             */
+            today_cents: number | null;
+            /**
+             * Format: int64
+             * @description Cheio menos hoje (nulo se já paga ou adiantada)
+             */
+            savings_cents: number | null;
+            status: components["schemas"]["InstallmentStatus"];
+            /** Format: int64 */
+            paid_cents: number | null;
+            /** Format: date */
+            paid_on: string | null;
+            /** Format: int64 */
+            bill_instance_id: number;
+        };
+        LoanSummary: {
+            /**
+             * Format: int64
+             * @description Soma do valor cheio das abertas
+             */
+            remaining_cents: number;
+            /**
+             * Format: int64
+             * @description Pago antes do app mais pago no app
+             */
+            paid_cents: number;
+            /**
+             * Format: int64
+             * @description Quitar tudo hoje
+             */
+            payoff_today_cents: number;
+            items: components["schemas"]["Installment"][];
+        };
+        PayInstallments: {
+            installment_ids: number[];
+            /** Format: int64 */
+            amount_cents: number;
+            /** Format: int64 */
+            account_id: number;
+            /** Format: date */
+            date: string;
         };
         GoalLevel: {
             name: string;
@@ -2286,6 +2417,7 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
     updateRecurringBill: {
@@ -2313,6 +2445,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
     listBillInstances: {
@@ -2367,6 +2500,7 @@ export interface operations {
             };
             404: components["responses"]["Error"];
             409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
         };
     };
     listDebts: {
@@ -2459,6 +2593,7 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
     updateDebt: {
@@ -2486,6 +2621,60 @@ export interface operations {
                 };
             };
             404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    getDebtInstallments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resumo; dívida sem parcelas devolve items vazio e remaining_cents = saldo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoanSummary"];
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    payDebtInstallments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayInstallments"];
+            };
+        };
+        responses: {
+            /** @description Resumo atualizado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoanSummary"];
+                };
+            };
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
         };
     };
     listGoals: {

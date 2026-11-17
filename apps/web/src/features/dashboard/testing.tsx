@@ -102,6 +102,8 @@ export const DEBTS: Debt[] = [
     installment_cents: 50_000,
     start_date: "2026-01-10",
     current_balance_cents: 800_000,
+    paid_before_app_cents: 0,
+    has_installments: false,
   },
 ];
 

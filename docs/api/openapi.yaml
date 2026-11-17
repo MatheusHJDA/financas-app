@@ -410,6 +410,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/RecurringBill"}
         "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
     delete:
       tags: [bills]
       operationId: deleteRecurringBill
@@ -417,6 +418,7 @@ paths:
       responses:
         "204": {description: Removida}
         "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
   /bill-instances:
     get:
       tags: [bills]
@@ -454,6 +456,7 @@ paths:
               schema: {$ref: "#/components/schemas/BillInstance"}
         "404": {$ref: "#/components/responses/Error"}
         "409": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
 
   /debts:
     get:
@@ -501,7 +504,7 @@ paths:
     patch:
       tags: [debts]
       operationId: updateDebt
-      summary: Altera dívida
+      summary: Altera dívida (com parcelas, saldo e valor da parcela são derivados e dão 409)
       requestBody:
         required: true
         content:
@@ -514,6 +517,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Debt"}
         "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
     delete:
       tags: [debts]
       operationId: deleteDebt
@@ -521,6 +525,41 @@ paths:
       responses:
         "204": {description: Removida}
         "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+  /debts/{id}/installments:
+    parameters: [{$ref: "#/components/parameters/Id"}]
+    get:
+      tags: [debts]
+      operationId: getDebtInstallments
+      summary: Resumo do empréstimo e suas parcelas (valor hoje calculado na data de São Paulo)
+      responses:
+        "200":
+          description: Resumo; dívida sem parcelas devolve items vazio e remaining_cents = saldo
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/LoanSummary"}
+        "404": {$ref: "#/components/responses/Error"}
+  /debts/{id}/installments/pay:
+    parameters: [{$ref: "#/components/parameters/Id"}]
+    post:
+      tags: [debts]
+      operationId: payDebtInstallments
+      summary: Paga ou adianta parcelas com uma única despesa no valor cobrado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PayInstallments"}
+      responses:
+        "200":
+          description: Resumo atualizado
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/LoanSummary"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
 
   /goals:
     get:
@@ -1117,7 +1156,8 @@ components:
       enum: [pending, confirmed, discarded]
     BillStatus:
       type: string
-      enum: [open, paid]
+      enum: [open, paid, prepaid]
+      description: prepaid = parcela de empréstimo adiantada (paga antes do mês do vencimento)
     LoginUser:
       type: object
       required: [id, name]
@@ -1403,6 +1443,10 @@ components:
         account_id: {type: [integer, "null"], format: int64}
         category_id: {type: [integer, "null"], format: int64}
         payment_method: {type: [string, "null"]}
+        debt_id:
+          type: [integer, "null"]
+          format: int64
+          description: Empréstimo que gere esta conta (só leitura; alterar ou excluir dá 409)
     RecurringBillCreate:
       type: object
       required: [owner, name, amount_cents, due_day, start_month]
@@ -1449,6 +1493,7 @@ components:
         amount_cents: {type: integer, format: int64}
         status: {$ref: "#/components/schemas/BillStatus"}
         paid_transaction_id: {type: [integer, "null"], format: int64}
+        debt_id: {type: [integer, "null"], format: int64, description: Empréstimo dono da conta}
     BillInstancePage:
       type: object
       required: [items, total]
@@ -1464,10 +1509,23 @@ components:
           type: [integer, "null"]
           format: int64
           description: Lançamento existente a vincular; se omitido, um lançamento é criado
+        amount_cents:
+          type: [integer, "null"]
+          format: int64
+          minimum: 1
+          description: Parcela de empréstimo, valor realmente cobrado (obrigatório sem transaction_id)
+        account_id:
+          type: [integer, "null"]
+          format: int64
+          description: Parcela de empréstimo, conta de onde saiu o dinheiro (obrigatório sem transaction_id)
+        date:
+          type: [string, "null"]
+          format: date
+          description: Parcela de empréstimo, data do pagamento (padrão hoje)
 
     Debt:
       type: object
-      required: [id, owner, name, principal_cents, monthly_rate, installments, installment_cents, start_date, current_balance_cents]
+      required: [id, owner, name, principal_cents, monthly_rate, installments, installment_cents, start_date, current_balance_cents, paid_before_app_cents, has_installments]
       properties:
         id: {type: integer, format: int64}
         owner: {$ref: "#/components/schemas/Owner"}
@@ -1480,6 +1538,8 @@ components:
         installment_cents: {type: integer, format: int64}
         start_date: {type: string, format: date}
         current_balance_cents: {type: integer, format: int64}
+        paid_before_app_cents: {type: integer, format: int64, description: Total pago antes de usar o app}
+        has_installments: {type: boolean, description: Há parcelas cadastradas (saldo derivado delas)}
     DebtCreate:
       type: object
       required: [owner, name, principal_cents, monthly_rate, installments, installment_cents, start_date, current_balance_cents]
@@ -1511,6 +1571,50 @@ components:
           type: array
           items: {$ref: "#/components/schemas/Debt"}
         total: {type: integer}
+    InstallmentStatus:
+      type: string
+      enum: [open, paid, prepaid]
+    Installment:
+      type: object
+      required: [id, number, due_date, face_cents, today_cents, savings_cents, status, paid_cents, paid_on, bill_instance_id]
+      properties:
+        id: {type: integer, format: int64}
+        number: {type: integer}
+        due_date: {type: string, format: date}
+        face_cents: {type: integer, format: int64, description: Valor cheio da parcela}
+        today_cents:
+          type: [integer, "null"]
+          format: int64
+          description: Valor para quitar hoje (nulo se já paga ou adiantada)
+        savings_cents:
+          type: [integer, "null"]
+          format: int64
+          description: Cheio menos hoje (nulo se já paga ou adiantada)
+        status: {$ref: "#/components/schemas/InstallmentStatus"}
+        paid_cents: {type: [integer, "null"], format: int64}
+        paid_on: {type: [string, "null"], format: date}
+        bill_instance_id: {type: integer, format: int64}
+    LoanSummary:
+      type: object
+      required: [remaining_cents, paid_cents, payoff_today_cents, items]
+      properties:
+        remaining_cents: {type: integer, format: int64, description: Soma do valor cheio das abertas}
+        paid_cents: {type: integer, format: int64, description: Pago antes do app mais pago no app}
+        payoff_today_cents: {type: integer, format: int64, description: Quitar tudo hoje}
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/Installment"}
+    PayInstallments:
+      type: object
+      required: [installment_ids, amount_cents, account_id, date]
+      properties:
+        installment_ids:
+          type: array
+          minItems: 1
+          items: {type: integer, format: int64}
+        amount_cents: {type: integer, format: int64, minimum: 1}
+        account_id: {type: integer, format: int64}
+        date: {type: string, format: date}
 
     GoalLevel:
       type: object

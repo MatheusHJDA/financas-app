@@ -28,6 +28,8 @@ EXPECTED: dict[str, set[str]] = {
     "/bill-instances/{id}/pay": {"post"},
     "/debts": {"get", "post"},
     "/debts/{id}": {"get", "patch", "delete"},
+    "/debts/{id}/installments": {"get"},
+    "/debts/{id}/installments/pay": {"post"},
     "/goals": {"get", "post"},
     "/goals/{id}": {"get", "patch", "delete"},
     "/goals/{id}/entries": {"post"},

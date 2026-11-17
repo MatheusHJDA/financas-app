@@ -27,9 +27,12 @@ from finance_api.db.models import (
     Account,
     BillInstance,
     Category,
+    Debt,
+    DebtInstallment,
     RecurringBill,
     Transaction,
 )
+from finance_api.debts.installments import link_installment_payment, pay_installments
 from finance_api.transactions.service import TxData, create_transaction, ensure_can_move
 
 router = APIRouter(tags=["bills"])
@@ -39,6 +42,7 @@ Limit = Annotated[int, Query(ge=1, le=200)]
 Offset = Annotated[int, Query(ge=0)]
 
 _NOT_FOUND = "Conta não encontrada."
+_DEBT_BILL = "Esta conta é do empréstimo; altere pela tela do empréstimo."
 
 
 def _snap(bill: RecurringBill) -> dict:
@@ -86,6 +90,7 @@ def _instance_out(inst: BillInstance, bill: RecurringBill) -> BillInstanceOut:
         amount_cents=inst.amount_cents,
         status=inst.status,
         paid_transaction_id=inst.paid_transaction_id,
+        debt_id=bill.debt_id,
     )
 
 
@@ -136,6 +141,8 @@ def update_recurring_bill(
     if bill is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
     ensure_can_write(user, Owner(bill.owner))
+    if bill.debt_id is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, _DEBT_BILL)
     before = _snap(bill)
     data = body.model_dump(exclude_unset=True)
     if "owner" in data:
@@ -198,6 +205,8 @@ def delete_recurring_bill(id: int, db: DbSession, user: User) -> Response:
     if bill is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
     ensure_can_write(user, Owner(bill.owner))
+    if bill.debt_id is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, _DEBT_BILL)
     paid = db.scalar(
         select(func.count())
         .select_from(BillInstance)
@@ -230,7 +239,7 @@ def delete_recurring_bill(id: int, db: DbSession, user: User) -> Response:
 def list_bill_instances(
     db: DbSession,
     user: User,
-    status_: Annotated[str | None, Query(alias="status", pattern="^(open|paid)$")] = None,
+    status_: Annotated[str | None, Query(alias="status", pattern="^(open|paid|prepaid)$")] = None,
     date_from: date | None = None,
     date_to: date | None = None,
     limit: Limit = 50,
@@ -258,6 +267,32 @@ def list_bill_instances(
     return BillInstancePage(items=[_instance_out(i, b) for i, b in rows], total=total)
 
 
+def _pay_debt_instance(
+    db: DbSession, user: CurrentUser, inst: BillInstance, debt_id: int, body: BillPayRequest
+) -> None:
+    """Parcela de empréstimo: paga pelo serviço das parcelas (valor real, saldo, adiantada)."""
+    debt = db.get(Debt, debt_id)
+    parcel = db.scalar(select(DebtInstallment).where(DebtInstallment.bill_instance_id == inst.id))
+    assert debt is not None and parcel is not None  # FKs RESTRICT
+    if body.transaction_id is not None:
+        tx = db.get(Transaction, body.transaction_id)
+        if tx is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Lançamento não encontrado.")
+        link_installment_payment(db, user, debt, parcel, tx)
+        return
+    if body.amount_cents is None or body.account_id is None:
+        raise HTTPException(422, "Informe o valor pago e a conta de onde saiu o dinheiro.")
+    pay_installments(
+        db,
+        user,
+        debt,
+        [parcel.id],
+        body.amount_cents,
+        body.account_id,
+        body.date or today_sp(),
+    )
+
+
 @router.post("/bill-instances/{id}/pay", response_model=BillInstanceOut)
 def pay_bill_instance(
     id: int, db: DbSession, user: User, body: BillPayRequest | None = None
@@ -270,6 +305,12 @@ def pay_bill_instance(
     ensure_can_write(user, Owner(bill.owner))
     if inst.status == "paid":
         raise HTTPException(status.HTTP_409_CONFLICT, "Esta conta já foi paga.")
+    if inst.status == "prepaid":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Esta parcela já foi adiantada.")
+    if bill.debt_id is not None:
+        _pay_debt_instance(db, user, inst, bill.debt_id, body or BillPayRequest())
+        db.commit()
+        return _instance_out(inst, bill)
     before = _inst_snap(inst)
 
     tx_id = body.transaction_id if body else None
