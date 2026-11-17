@@ -3,10 +3,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "../../auth/AuthProvider";
 import { afterEach, expect, it, vi } from "vitest";
-import { bodyOf, MATHEUS } from "../../test/appTesting";
+import { bodyOf, MATHEUS, RUTH } from "../../test/appTesting";
 import { AFTER_LOAN_PAID } from "./api";
 import LoanPage, { DebtsRedirect } from "./LoanPage";
-import { makeInstallments, makeLoanServer, renderLoan } from "./testing";
+import { LOAN_DEBT, makeInstallments, makeLoanServer, renderLoan } from "./testing";
 
 afterEach(() => {
   cleanup();
@@ -119,6 +119,7 @@ it("erro 409 mostra \"Essa parcela já foi paga.\" e recarrega", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar 13ª parcela" }));
   fireEvent.click(btn("Revisar"));
   await screen.findByLabelText("Valor cobrado");
+  await waitFor(() => expect((screen.getByLabelText("Conta") as HTMLSelectElement).value).toBe("2")); // contas carregadas
   const before = calls.filter((c) => c.key === "GET /debts/7/installments").length;
   fireEvent.click(btn("Confirmar pagamento"));
   expect((await screen.findByRole("alert")).textContent).toContain("Essa parcela já foi paga.");
@@ -157,4 +158,17 @@ it("/dividas leva à primeira dívida com parcelas", async () => {
     </QueryClientProvider>,
   );
   expect(await screen.findByText("Tela da dívida")).toBeTruthy();
+});
+
+it("só oferece contas que o usuário movimenta (Ruth não vê conta só do Matheus)", async () => {
+  makeLoanServer(RUTH, { debt: { ...LOAN_DEBT, owner: "AMBOS" } });
+  renderLoan(<LoanPage />);
+  await screen.findByText(/13ª/);
+  fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar 12ª parcela" }));
+  fireEvent.click(btn("Revisar"));
+  const select = (await screen.findByLabelText("Conta")) as HTMLSelectElement;
+  const labels = () => Array.from(select.options).map((o) => o.textContent ?? "");
+  await waitFor(() => expect(labels().some((l) => l.includes("Nubank Ruth"))).toBe(true));
+  expect(labels().some((l) => l.includes("Itaú Matheus"))).toBe(false);
+  expect(select.value).not.toBe("2"); // a conta padrão da conta fixa é do Matheus
 });

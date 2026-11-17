@@ -65,3 +65,14 @@ def test_indexes_present(offline_sql: str) -> None:
         "uq_bill_instances_recurring_bill_id",
     ):
         assert fragment in offline_sql, fragment
+
+
+def test_downgrade_0002_turns_prepaid_into_paid() -> None:
+    cfg = Config(str(API_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(API_DIR / "alembic"))
+    buffer = io.StringIO()
+    cfg.output_buffer = buffer
+    command.downgrade(cfg, "0002_debt_installments:0001_initial", sql=True)
+    sql = buffer.getvalue()
+    update = sql.index("UPDATE bill_instances SET status = 'paid' WHERE status = 'prepaid'")
+    assert update < sql.index("DROP TABLE debt_installments")

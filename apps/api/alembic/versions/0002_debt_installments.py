@@ -87,6 +87,8 @@ def downgrade() -> None:
     O valor 'prepaid' de `bill_status` NÃO volta: o Postgres não remove valores de enum.
     Ele permanece no tipo, inofensivo, mas instâncias com esse estado devem ser tratadas antes.
     """
+    # 'prepaid' não existe no app antigo: vira 'paid' (o valor do enum fica, inofensivo).
+    op.execute("UPDATE bill_instances SET status = 'paid' WHERE status = 'prepaid'")
     op.drop_index("ix_debt_installments_transaction_id", table_name="debt_installments")
     op.drop_table("debt_installments")
     op.execute("DROP TYPE installment_status")

@@ -34,9 +34,11 @@ const reportInvalidated = () => client.getQueryState(REPORT_KEY)?.isInvalidated 
 // Telas que mostram saldo/progresso e precisam refazer a busca depois de gravar.
 const GOALS_KEY = ["goals", "list"];
 const ACCOUNTS_KEY = ["accounts", "all"];
+const DEBTS_KEY = ["debts", "list"];
 const seedKeys = () => {
   client.setQueryData(GOALS_KEY, { stale: false });
   client.setQueryData(ACCOUNTS_KEY, { stale: false });
+  client.setQueryData(DEBTS_KEY, { stale: false });
 };
 const invalidated = (key: unknown[]) => client.getQueryState(key)?.isInvalidated === true;
 
@@ -683,4 +685,5 @@ it("marcar a conta como paga invalida contas e metas", async () => {
   await within(c).findByText(/marcada como paga/);
   await waitFor(() => expect(invalidated(GOALS_KEY)).toBe(true));
   expect(invalidated(ACCOUNTS_KEY)).toBe(true);
+  expect(invalidated(DEBTS_KEY)).toBe(true); // pode ser parcela de empréstimo
 });

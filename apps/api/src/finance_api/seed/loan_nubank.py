@@ -11,16 +11,16 @@ import sys
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from finance_api.core.permissions import CurrentUser, Owner
-from finance_api.db.models import Account, Category, Debt, User
+from finance_api.db.models import Account, Category, Debt, DebtInstallment, User
 from finance_api.db.session import get_sessionmaker
 from finance_api.debts.installments import InstallmentSpec, set_schedule
 
 DEBT_ID = 1
-DEBT_NAME = "Empréstimo Nubank"
+DEBT_NAME = "Empréstimo"  # não renomear: a meta "Quitar o empréstimo" e o seed.yaml casam por nome
 ACCOUNT_NAME = "Nubank (Matheus)"
 CATEGORY_NAME = "Dívidas/Empréstimo"
 PRINCIPAL_CENTS = 2265965
@@ -77,10 +77,27 @@ def run(db: Session, *, apply: bool, debt_id: int = DEBT_ID) -> list[str]:
     if admin is None:
         raise LookupError("Nenhum usuário admin para a auditoria.")
 
+    existing = db.scalar(
+        select(func.count()).select_from(DebtInstallment).where(DebtInstallment.debt_id == debt.id)
+    )
+    existing_paid = db.scalar(
+        select(func.count())
+        .select_from(DebtInstallment)
+        .where(DebtInstallment.debt_id == debt.id, DebtInstallment.status != "open")
+    )
+    if not existing and (
+        debt.name.casefold() != DEBT_NAME.casefold() or debt.monthly_rate != MONTHLY_RATE
+    ):
+        raise ValueError(
+            f"Dívida id={debt_id} não é o empréstimo esperado: nome '{debt.name}', "
+            f"taxa {debt.monthly_rate} (esperado '{DEBT_NAME}', {MONTHLY_RATE})."
+        )
+
     plan = specs()
     total = sum(s.face_cents for s in plan)
     lines = [
-        f"Dívida {debt.id}: '{debt.name}' -> '{DEBT_NAME}'",
+        f"Dívida {debt.id}: '{debt.name}' (nome mantido)",
+        f"  {existing} parcelas já cadastradas, {existing_paid} pagas",
         f"  principal {_brl(debt.principal_cents)} -> {_brl(PRINCIPAL_CENTS)}",
         f"  taxa {debt.monthly_rate} -> {MONTHLY_RATE} a.m.",
         f"  parcelas {debt.installments} x {_brl(debt.installment_cents)}"
@@ -95,7 +112,6 @@ def run(db: Session, *, apply: bool, debt_id: int = DEBT_ID) -> list[str]:
         return lines
 
     user = CurrentUser(id=admin.id, name=admin.name, role="admin", owner=Owner.MATHEUS)
-    debt.name = DEBT_NAME
     debt.principal_cents = PRINCIPAL_CENTS
     debt.monthly_rate = MONTHLY_RATE
     debt.installments = INSTALLMENTS

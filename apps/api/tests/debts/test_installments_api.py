@@ -212,3 +212,28 @@ def test_patch_name_syncs_bill(users, client_as, loan):
         "/api/bill-instances", params={"date_from": "2026-12-01", "date_to": "2027-12-31"}
     ).json()["items"]
     assert {i["name"] for i in insts if i["debt_id"] == debt.id} == {"Nubank"}
+
+
+def test_ruth_reads_but_cannot_pay_matheus_loan(db, users, client_as, loan):
+    debt, account = loan["debt"], loan["account"]
+    assert (
+        client_as(users["matheus"]).patch(f"/api/debts/{debt.id}", json={"owner": "MATHEUS"})
+    ).status_code == 200
+    ids = _ids(db, debt)
+    ruth = client_as(users["ruth"])
+    # leitura é do casal (D6): só escrever exige ser o dono
+    assert ruth.get(f"/api/debts/{debt.id}/installments").status_code == 200
+    body = {
+        "installment_ids": ids[:1],
+        "amount_cents": FACE,
+        "account_id": account.id,
+        "date": "2026-12-18",
+    }
+    before = db.scalar(select(func.count()).select_from(Transaction))
+    assert ruth.post(f"/api/debts/{debt.id}/installments/pay", json=body).status_code == 403
+    inst_id = db.scalar(
+        select(DebtInstallment.bill_instance_id).where(DebtInstallment.id == ids[0])
+    )
+    pay = {"amount_cents": FACE, "account_id": account.id, "date": "2026-12-18"}
+    assert ruth.post(f"/api/bill-instances/{inst_id}/pay", json=pay).status_code == 403
+    assert db.scalar(select(func.count()).select_from(Transaction)) == before

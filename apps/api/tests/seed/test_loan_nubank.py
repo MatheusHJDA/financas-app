@@ -55,7 +55,7 @@ def test_apply_loads_schedule(db, setup):
     assert sum(p.face_cents for p in items) == 1842842
     assert items[-1].face_cents == 141758
     assert debt.paid_before_app_cents == 818799
-    assert debt.name == "Empréstimo Nubank"
+    assert debt.name == "Empréstimo"  # o nome fica: meta e seed.yaml casam por nome
     assert (debt.principal_cents, debt.installments, debt.installment_cents) == (
         2265965,
         13,
@@ -83,3 +83,44 @@ def test_missing_account_fails_clearly(db, setup):
     db.flush()
     with pytest.raises(LookupError, match="Nubank"):
         loan_nubank.run(db, apply=True, debt_id=debt.id)
+
+
+def test_apply_keeps_goal_matching_debt(db, setup, users):
+    from finance_api.db.models import Goal
+    from finance_api.goals.service import compute_progress
+
+    debt, _ = setup
+    goal = Goal(owner="AMBOS", type="debt_payoff", name="Quitar o empréstimo", target_cents=0)
+    db.add(goal)
+    db.flush()
+    loan_nubank.run(db, apply=True, debt_id=debt.id)
+    db.refresh(debt)
+    progress = compute_progress(db, goal, date(2026, 11, 17))
+    assert progress["current_cents"] == debt.principal_cents - debt.current_balance_cents > 0
+
+
+def test_guard_refuses_other_debt_name(db, setup):
+    debt, _ = setup
+    debt.name = "Financiamento"
+    db.flush()
+    with pytest.raises(ValueError, match="Financiamento"):
+        loan_nubank.run(db, apply=True, debt_id=debt.id)
+
+
+def test_guard_refuses_other_rate(db, setup):
+    debt, _ = setup
+    debt.monthly_rate = Decimal("0.0200")
+    db.flush()
+    with pytest.raises(ValueError, match="0.0200"):
+        loan_nubank.run(db, apply=True, debt_id=debt.id)
+
+
+def test_guard_allows_rerun_with_installments_and_dry_run_reports_them(db, setup, users):
+    debt, account = setup
+    loan_nubank.run(db, apply=True, debt_id=debt.id)
+    debt.monthly_rate = Decimal("0.0350")  # já tem parcelas: guarda não bloqueia
+    db.flush()
+    first = db.scalar(select(DebtInstallment).order_by(DebtInstallment.number))
+    lines = loan_nubank.run(db, apply=False, debt_id=debt.id)
+    assert any("13 parcelas já cadastradas, 0 pagas" in line for line in lines)
+    assert first is not None

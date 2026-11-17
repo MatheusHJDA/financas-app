@@ -236,7 +236,7 @@ def update_transaction(
     _apply(tx, data)
     db.flush()
     if resplit:
-        resplit_installments(db, tx)  # parcelas pagas por ele: reparte valor e refaz status
+        resplit_installments(db, user, tx)  # parcelas pagas por ele: reparte valor e refaz status
     record_audit(
         db,
         user_id=user.id,

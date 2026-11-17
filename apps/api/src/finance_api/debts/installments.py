@@ -372,10 +372,10 @@ def release_installments(db: Session, user: CurrentUser, tx: Transaction) -> boo
     return True
 
 
-def resplit_installments(db: Session, tx: Transaction) -> None:
+def resplit_installments(db: Session, user: CurrentUser, tx: Transaction) -> None:
     """Após editar valor/data do lançamento: reparte `paid_cents` e refaz `paid_on`/status.
 
-    Pesos = valor hoje de cada parcela na data do lançamento. Auditado pela edição do lançamento.
+    Pesos = valor hoje de cada parcela na data do lançamento. Audita o que mudou.
     """
     parcels = list(
         db.scalars(
@@ -392,13 +392,27 @@ def resplit_installments(db: Session, tx: Transaction) -> None:
         present_value_cents(p.face_cents, p.due_date, tx.date, debt.monthly_rate) for p in parcels
     ]
     for p, part in zip(parcels, split_amount(tx.amount_cents, weights), strict=True):
+        before = _inst_snap(p)
         p.paid_cents = part
         p.paid_on = tx.date
         p.status = _status_for(p.due_date, tx.date)
         inst = db.get(BillInstance, p.bill_instance_id)
         assert inst is not None
+        inst_before = {"status": inst.status, "paid_transaction_id": inst.paid_transaction_id}
         inst.status = p.status
-    db.flush()
+        db.flush()
+        if _inst_snap(p) != before:
+            _audit_installment(db, user, p, before)
+        if inst.status != inst_before["status"]:
+            record_audit(
+                db,
+                user_id=user.id,
+                entity="bill_instances",
+                entity_id=inst.id,
+                action="update",
+                before=inst_before,
+                after={"status": inst.status, "paid_transaction_id": inst.paid_transaction_id},
+            )
 
 
 def loan_summary(db: Session, debt: Debt, today: date) -> LoanSummary:

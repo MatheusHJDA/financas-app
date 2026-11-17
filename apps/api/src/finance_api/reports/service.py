@@ -12,7 +12,13 @@ from sqlalchemy import Select, case, func, select
 from sqlalchemy.orm import Session
 
 from finance_api.core.permissions import Owner
-from finance_api.db.models import BillInstance, Category, RecurringBill, Transaction
+from finance_api.db.models import (
+    BillInstance,
+    Category,
+    DebtInstallment,
+    RecurringBill,
+    Transaction,
+)
 from finance_api.reports.schemas import (
     CategoryShare,
     DailyCumulative,
@@ -90,11 +96,14 @@ def _by_category(
 
 
 def _bills(db: Session, first: dt.date, owner: Owner | None) -> MonthBills:
-    # Conta paga vale o que saiu de fato (lançamento vinculado); sem ele, o valor da instância.
+    # Conta paga vale o que saiu de fato: a parte da parcela do empréstimo (uma despesa pode pagar
+    # várias instâncias), senão o lançamento vinculado; sem ele, o valor da instância.
     settled = case(
         (
             BillInstance.status == "paid",
-            func.coalesce(Transaction.amount_cents, BillInstance.amount_cents),
+            func.coalesce(
+                DebtInstallment.paid_cents, Transaction.amount_cents, BillInstance.amount_cents
+            ),
         ),
         else_=BillInstance.amount_cents,
     )
@@ -104,6 +113,7 @@ def _bills(db: Session, first: dt.date, owner: Owner | None) -> MonthBills:
         )
         .select_from(BillInstance)
         .outerjoin(Transaction, Transaction.id == BillInstance.paid_transaction_id)
+        .outerjoin(DebtInstallment, DebtInstallment.bill_instance_id == BillInstance.id)
         .where(BillInstance.month == first)
     )
     if owner is not None:

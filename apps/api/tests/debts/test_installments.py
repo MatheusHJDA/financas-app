@@ -298,3 +298,77 @@ def test_set_schedule_recreates_and_validates(db, users, loan):
     ):
         with pytest.raises(ValueError):
             set_schedule(db, users["matheus"], debt, bad, 0, loan["account"].id, None)
+
+
+def test_report_paid_bills_use_each_installment_share(db, users, loan):
+    """Uma despesa cobrindo parcela do mês + adiantada não infla 'Contas pagas' do mês."""
+    from finance_api.reports.service import build_month_report
+
+    debt = loan["debt"]
+    ps = _parcelas(db, debt)
+    # 1ª (dez/2026, paga no mês) + 13ª (dez/2027, adiantada) em uma única despesa
+    pay_installments(
+        db,
+        users["matheus"],
+        debt,
+        [ps[0].id, ps[12].id],
+        200000,
+        loan["account"].id,
+        date(2026, 12, 10),
+    )
+    report = build_month_report(db, date(2026, 12, 1), None, date(2026, 12, 10))
+    assert (report.bills.paid_count, report.bills.paid_cents) == (1, ps[0].paid_cents)
+    assert ps[0].paid_cents < 200000
+
+
+def test_report_overdue_and_current_paid_together_split_by_month(db, users, loan):
+    from finance_api.reports.service import build_month_report
+
+    debt = loan["debt"]
+    ps = _parcelas(db, debt)
+    pay_installments(
+        db,
+        users["matheus"],
+        debt,
+        [ps[0].id, ps[1].id],
+        283514,
+        loan["account"].id,
+        date(2027, 1, 25),
+    )
+    dez = build_month_report(db, date(2026, 12, 1), None, date(2027, 1, 25))
+    jan = build_month_report(db, date(2027, 1, 1), None, date(2027, 1, 25))
+    assert dez.bills.paid_cents == ps[0].paid_cents
+    assert jan.bills.paid_cents == ps[1].paid_cents
+    assert dez.bills.paid_cents + jan.bills.paid_cents == 283514
+
+
+def test_resplit_audits_installment_and_instance(db, users, loan):
+    from finance_api.db.models import AuditLog
+
+    debt = loan["debt"]
+    p = _parcelas(db, debt)[0]
+    tx = pay_installments(db, users["matheus"], debt, [p.id], FACE, loan["account"].id, HOJE)
+    update_transaction(db, users["matheus"], tx, {"date": date(2026, 12, 18)})  # prepaid -> paid
+    rows = list(
+        db.scalars(
+            select(AuditLog).where(
+                AuditLog.entity == "bill_instances",
+                AuditLog.entity_id == str(p.bill_instance_id),
+            )
+        )
+    )
+    flip = [r for r in rows if r.before_json.get("status") == "prepaid"]
+    assert len(flip) == 1 and flip[0].after_json["status"] == "paid"
+    inst_rows = list(
+        db.scalars(
+            select(AuditLog).where(
+                AuditLog.entity == "debt_installments", AuditLog.entity_id == str(p.id)
+            )
+        )
+    )
+    assert any(
+        r.before_json["status"] == "prepaid"
+        and r.after_json["status"] == "paid"
+        and r.after_json["paid_on"] == "2026-12-18"
+        for r in inst_rows
+    )

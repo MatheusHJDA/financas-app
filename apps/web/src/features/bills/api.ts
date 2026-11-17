@@ -8,8 +8,8 @@ export type Overview = components["schemas"]["Overview"];
 export const RECURRING_BILLS_KEY = ["recurring-bills"] as const;
 /** Depois de gravar uma conta fixa, tudo isto fica velho (as contas a pagar nascem das fixas). */
 export const AFTER_FIXED_WRITE = ["recurring-bills", "bill-instances", "overview", "report"];
-/** Depois de pagar uma conta: lista, saldos, lançamentos e metas mudam. */
-export const AFTER_PAID = ["bill-instances", "overview", "transactions", "accounts", "goals", "report"];
+/** Depois de pagar uma conta: lista, saldos, lançamentos, metas e (parcela de empréstimo) dívidas mudam. */
+export const AFTER_PAID = ["debts", "bill-instances", "overview", "transactions", "accounts", "goals", "report"];
 
 async function loadRecurringBills(): Promise<RecurringBill[]> {
   const { data, response } = await api.GET("/recurring-bills", { params: { query: { limit: 200 } } });

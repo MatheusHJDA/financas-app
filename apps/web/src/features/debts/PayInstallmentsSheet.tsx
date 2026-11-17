@@ -2,7 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useState, type FormEvent } from "react";
 import { Button, Money, Sheet } from "../../ui";
 import { useAllAccounts } from "../accounts/queries";
-import { ApiError, accountOptionLabel, errorMessage } from "../accounts/shared";
+import { useAuth } from "../../auth/AuthProvider";
+import { ApiError, accountOptionLabel, canWrite, errorMessage } from "../accounts/shared";
 import { todayIso } from "../chat/dates";
 import { centsToInput, parseBRL } from "../chat/money";
 import { AFTER_LOAN_PAID, payInstallments, type Installment } from "./api";
@@ -35,6 +36,7 @@ function PayForm({ debtId, selected, defaultAccountId, onClose, onDone }: Props)
   const uid = useId();
   const queryClient = useQueryClient();
   const accounts = useAllAccounts();
+  const { me } = useAuth();
   const estimate = sum(selected, (i) => i.today_cents ?? i.face_cents);
   const savings = sum(selected, (i) => i.savings_cents ?? 0);
   const [amount, setAmount] = useState(centsToInput(estimate));
@@ -42,8 +44,12 @@ function PayForm({ debtId, selected, defaultAccountId, onClose, onDone }: Props)
   const [date, setDate] = useState(todayIso());
   const [fieldError, setFieldError] = useState("");
 
-  const accountId = accountChoice ?? (defaultAccountId != null ? String(defaultAccountId) : "");
-  const options = (accounts.data ?? []).filter((a) => a.active && a.type !== "credit_card" && a.type !== "loan");
+  // Só contas que o usuário movimenta (dono = ele, AMBOS ou admin); o servidor devolve 403 nas outras.
+  const options = (accounts.data ?? []).filter(
+    (a) => a.active && a.type !== "credit_card" && a.type !== "loan" && canWrite(me, a.owner),
+  );
+  const defaultId = defaultAccountId != null && options.some((a) => a.id === defaultAccountId) ? String(defaultAccountId) : "";
+  const accountId = accountChoice ?? defaultId;
 
   const pay = useMutation({
     mutationFn: () =>
