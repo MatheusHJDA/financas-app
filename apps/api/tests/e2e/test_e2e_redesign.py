@@ -489,3 +489,35 @@ def test_computador_menu_lateral_e_cabecalho_ficam_fixos_ao_rolar(
         " document.querySelector('.topbar').getBoundingClientRect().top]"
     )
     assert top == [0, 0]
+
+
+# 11. Puxar para atualizar (só celular) ------------------------------------------------------------
+
+PULL_JS = """() => {
+  const fire = (type, y) => {
+    const t = new Touch({ identifier: 1, target: document.body, clientX: 200, clientY: y });
+    const live = type === "touchend" ? [] : [t];
+    window.dispatchEvent(
+      new TouchEvent(type, { touches: live, changedTouches: [t], bubbles: true, cancelable: true }),
+    );
+  };
+  fire("touchstart", 150);
+  fire("touchmove", 200);
+  fire("touchmove", 300);
+  fire("touchend", 300);
+}"""
+
+
+@pytest.mark.parametrize("device", ["iphone-11", "galaxy-a13"])
+def test_puxar_para_atualizar_no_inicio_refaz_o_overview(
+    page: Page, login_as: Callable[[str], None]
+) -> None:
+    login_as("Matheus")
+    page.goto("/")
+    expect(page.get_by_role("heading", name="Início", exact=True)).to_be_visible()
+    expect(page.locator("[aria-busy='true']")).to_have_count(0)
+    with page.expect_request(
+        lambda req: req.url.split("?")[0].endswith("/api/overview"), timeout=10_000
+    ):
+        page.evaluate(PULL_JS)
+    expect(page.get_by_role("status").filter(has_text="Atualizando")).to_have_count(0)
