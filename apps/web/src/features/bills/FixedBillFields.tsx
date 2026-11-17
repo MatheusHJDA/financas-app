@@ -15,6 +15,12 @@ import {
 
 const PAYMENT_SUGGESTIONS = ["Boleto", "Pix", "Cartão", "Débito automático", "Dinheiro"];
 
+/** Opções da lista; um valor antigo fora dela continua aparecendo para não se perder. */
+function paymentOptions(current: string): string[] {
+  const value = current.trim();
+  return value && !PAYMENT_SUGGESTIONS.includes(value) ? [...PAYMENT_SUGGESTIONS, value] : PAYMENT_SUGGESTIONS;
+}
+
 interface Props {
   /** Edição: a conta fixa aberta. Criação: omitido. */
   bill?: RecurringBill;
@@ -54,7 +60,7 @@ export function FixedBillForm({
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (busy) return;
-    const result = parseForm(values, !editing);
+    const result = parseForm(values, true);
     if ("errors" in result) {
       setErrors(result.errors);
       return;
@@ -169,20 +175,19 @@ export function FixedBillForm({
 
       <div className="u8-field">
         <label htmlFor={id("payment")}>Forma de pagamento (opcional)</label>
-        <input
+        <select
           id={id("payment")}
-          list={id("payment-list")}
-          autoComplete="off"
-          placeholder="Boleto, Pix, Cartão…"
           value={values.paymentMethod}
           onChange={(e) => set("paymentMethod", e.target.value)}
           {...a11y("paymentMethod")}
-        />
-        <datalist id={id("payment-list")}>
-          {PAYMENT_SUGGESTIONS.map((p) => (
-            <option key={p} value={p} />
+        >
+          <option value="">Sem forma de pagamento</option>
+          {paymentOptions(values.paymentMethod).map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
           ))}
-        </datalist>
+        </select>
         {err("paymentMethod")}
       </div>
 
@@ -197,24 +202,24 @@ export function FixedBillForm({
         </select>
       </div>
 
-      {!editing ? (
-        <div className="u8-field">
-          <label htmlFor={id("start")}>Mês de início</label>
-          <input
-            id={id("start")}
-            type="month"
-            value={values.startMonth}
-            onChange={(e) => set("startMonth", e.target.value)}
-            {...a11y("startMonth")}
-          />
-          {err("startMonth")}
-        </div>
-      ) : (
+      <div className="u8-field">
+        <label htmlFor={id("start")}>Mês de início</label>
+        <input
+          id={id("start")}
+          type="month"
+          value={values.startMonth}
+          onChange={(e) => set("startMonth", e.target.value)}
+          {...a11y("startMonth")}
+        />
+        {err("startMonth")}
+      </div>
+
+      {editing ? (
         <p className="u8-note">
           Ao salvar, o novo valor e o novo vencimento valem para as contas a pagar em aberto deste mês em diante. O que já
           foi pago não muda.
         </p>
-      )}
+      ) : null}
 
       {serverError ? (
         <p className="u8-err" role="alert">

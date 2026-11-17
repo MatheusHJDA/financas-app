@@ -465,3 +465,27 @@ def test_valores_grandes_e_negativos_nao_estouram_o_layout(
         page,
         {"/contas": "Contas", "/transacoes": "Transações", "/relatorios": "Relatórios"},
     )
+
+
+def test_computador_menu_lateral_e_cabecalho_ficam_fixos_ao_rolar(
+    page: Page, login_as: Callable[[str], None]
+) -> None:
+    """Contas fixas no PC: ao rolar a página, o menu lateral e o cabeçalho não podem sumir."""
+    if not is_desktop(page):
+        pytest.skip("só o computador tem menu lateral")
+    login_as("Matheus")
+    page.goto("/contas-fixas")
+    expect(page.get_by_role("heading", name="Contas fixas", exact=True, level=1)).to_be_visible()
+    # Página longa de verdade, independente de quantas contas o banco de teste tem.
+    page.evaluate(
+        "document.querySelector('main').insertAdjacentHTML('beforeend',"
+        " '<div style=\"height:3000px\"></div>')"
+    )
+    page.evaluate("() => window.scrollTo(0, 2000)")
+    page.wait_for_timeout(300)
+    assert page.evaluate("() => window.scrollY") > 1000
+    top = page.evaluate(
+        "() => [document.querySelector('.sidebar').getBoundingClientRect().top,"
+        " document.querySelector('.topbar').getBoundingClientRect().top]"
+    )
+    assert top == [0, 0]

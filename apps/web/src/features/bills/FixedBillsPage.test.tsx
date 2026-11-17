@@ -159,6 +159,30 @@ describe("editar", () => {
     expect(await bodyOf(calls, "PATCH /recurring-bills/1")).toEqual({ account_id: 3, payment_method: null });
   });
 
+  it("editar mostra o mês de início e mudar envia start_month", async () => {
+    const { calls } = await openAs(MATHEUS);
+    const form = await editForm("Luz");
+    expect(field(form, "Mês de início").value).toBe("2026-01");
+    type(field(form, "Mês de início"), "2025-11");
+    fireEvent.click(within(form).getByRole("button", { name: "Salvar conta fixa" }));
+    await waitFor(() => expect(writes(calls)).toEqual(["PATCH /recurring-bills/2"]));
+    expect(await bodyOf(calls, "PATCH /recurring-bills/2")).toEqual({ start_month: "2025-11-01" });
+  });
+
+  it("forma de pagamento é uma lista de escolha", async () => {
+    const { calls } = await openAs(MATHEUS);
+    const form = await editForm("Luz");
+    const select = field(form, "Forma de pagamento (opcional)");
+    expect(select.tagName).toBe("SELECT");
+    const options = within(select).getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual(["Sem forma de pagamento", "Boleto", "Pix", "Cartão", "Débito automático", "Dinheiro"]);
+    expect(select.value).toBe("Pix");
+    type(select, "Boleto");
+    fireEvent.click(within(form).getByRole("button", { name: "Salvar conta fixa" }));
+    await waitFor(() => expect(writes(calls)).toEqual(["PATCH /recurring-bills/2"]));
+    expect(await bodyOf(calls, "PATCH /recurring-bills/2")).toEqual({ payment_method: "Boleto" });
+  });
+
   it("sem mudança nenhuma, Salvar não chama a API", async () => {
     const { calls } = await openAs(MATHEUS);
     const form = await editForm("Luz");

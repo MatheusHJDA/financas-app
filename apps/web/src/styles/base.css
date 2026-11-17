@@ -6,7 +6,8 @@ html,
 body {
   margin: 0;
   max-width: 100%;
-  overflow-x: hidden;
+  /* clip (e não hidden): hidden faz do body um contêiner de rolagem e quebra o sticky do menu lateral e do cabeçalho */
+  overflow-x: clip;
 }
 
 body {

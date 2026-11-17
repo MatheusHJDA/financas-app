@@ -12,6 +12,9 @@
   border-radius: var(--radius-pill);
   font: inherit;
   font-weight: 600;
+  /* texto do botão nunca quebra no meio da palavra (o balão do chat usa overflow-wrap: anywhere) */
+  white-space: nowrap;
+  overflow-wrap: normal;
   cursor: pointer;
   text-decoration: none;
   transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;

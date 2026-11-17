@@ -177,5 +177,6 @@ export function toPatchBody(bill: RecurringBill, p: Parsed): RecurringBillUpdate
   if (p.category_id !== (bill.category_id ?? null)) patch.category_id = p.category_id;
   if (p.payment_method !== (bill.payment_method?.trim() || null)) patch.payment_method = p.payment_method;
   if (p.owner !== bill.owner) patch.owner = p.owner;
+  if (p.start_month !== null && p.start_month !== bill.start_month) patch.start_month = p.start_month;
   return patch;
 }
