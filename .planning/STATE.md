@@ -9,10 +9,18 @@ Feito por subagentes (7 tarefas + revisão final, commits até `5475a7f`): `chec
 (13 × R$ 1.417,57, 18/12/2026–20/12/2027, restante 18.428,42, pago antes 8.187,99; nome mantido "Empréstimo" por
 causa da meta). Quitar hoje no app 14.627,51 vs Nubank 14.634,95 (estimativa). Tela `/dividas/1` (Mais → Dívidas).
 Desvio conhecido: Contas fixas não mostra a parcela adiantada no mês dela (só a tela do empréstimo mostra "Adiantada").
-**Próximo:** Matheus testa nos aparelhos (recarregar o app); depois as correções de
-`docs/referencia/correcoes/correcoes-pendentes.txt` (Começa em na edição, forma de pagamento, rolagem de Contas fixas
-no PC, botões do chat quebrando, puxar para atualizar, filtro de contas fixas, editar categorias no PC, lembrete da
-meta Uber, avisos no iPhone); merge e VPS.
+Testado e aprovado por Matheus nos aparelhos.
+
+## ▶ 17/11/2026 (tarde) — ajustes após os testes (`correcoes-pendentes.txt`), no ar
+Spec `docs/superpowers/specs/2026-11-17-ajustes-apos-testes-design.md`, plano `.../plans/2026-11-17-ajustes-apos-testes.md`.
+Commits `2b7fe85`..`b020815`: mês de início na edição; forma de pagamento como lista; menu/cabeçalho fixos no PC
+(`overflow-x: clip`); botões sem quebra no meio da palavra; aviso das 21h com a linha da meta Uber e link
+`/lancar?meta=4` (Lançar à mão já como receita Uber/99); filtros Situação/Categoria em Contas fixas; tela
+Mais → Categorias (os dois editam; excluir em uso → 409, incluindo metas); puxar para atualizar no celular.
+`check` verde (api 535, web 469), e2e 91. Backup `financas-20261117-182307.dump`; `up` feito.
+Avisos no iPhone: era a notificação desligada no aparelho. "Sem categoria" da IA: Pix a destinatário desconhecido,
+a própria IA marcou categoria não identificada — comportamento esperado ("Confira").
+**Próximo:** Matheus testa os ajustes; merge `emprestimo` (contém `redesenho`) → `main`; preparar a VPS.
 
 ## RETOMAR AQUI (16/11/2026 → 17/11) — itens 1 e 3 feitos em 17/11
 **Onde estamos:** redesenho completo e no ar no PC. Branch `redesenho`, commits `b36e9b4` (R3) e `7ca0860` (revisão
