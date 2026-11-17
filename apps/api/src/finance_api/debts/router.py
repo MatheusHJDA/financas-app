@@ -7,7 +7,7 @@ from finance_api.bills.service import today_sp
 from finance_api.core.audit import record_audit
 from finance_api.core.deps import DbSession, get_current_user
 from finance_api.core.permissions import CurrentUser, Owner, ensure_can_write
-from finance_api.db.models import Debt, DebtInstallment
+from finance_api.db.models import Debt, DebtInstallment, RecurringBill
 from finance_api.debts.installments import loan_summary, pay_installments
 from finance_api.debts.schemas import (
     DebtCreate,
@@ -87,6 +87,26 @@ def get_debt(id: int, db: DbSession, user: User) -> DebtOut:
     return _out(db, _get(db, id))
 
 
+def _sync_bill(db: DbSession, user: CurrentUser, debt: Debt) -> None:
+    """A conta fixa das parcelas segue o dono e o nome da dívida (ela não se edita à mão)."""
+    bill = db.scalar(select(RecurringBill).where(RecurringBill.debt_id == debt.id))
+    if bill is None or (bill.owner, bill.name) == (debt.owner, debt.name):
+        return
+    before = {"owner": bill.owner, "name": bill.name}
+    bill.owner = debt.owner
+    bill.name = debt.name
+    db.flush()
+    record_audit(
+        db,
+        user_id=user.id,
+        entity="recurring_bills",
+        entity_id=bill.id,
+        action="update",
+        before=before,
+        after={"owner": bill.owner, "name": bill.name},
+    )
+
+
 @router.patch("/debts/{id}", response_model=DebtOut)
 def update_debt(id: int, body: DebtUpdate, db: DbSession, user: User) -> DebtOut:
     debt = _get(db, id)
@@ -107,6 +127,7 @@ def update_debt(id: int, body: DebtUpdate, db: DbSession, user: User) -> DebtOut
     for key, value in data.items():
         setattr(debt, key, value)
     db.flush()
+    _sync_bill(db, user, debt)
     record_audit(
         db,
         user_id=user.id,

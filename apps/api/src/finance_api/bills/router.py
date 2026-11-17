@@ -272,7 +272,10 @@ def _pay_debt_instance(
 ) -> None:
     """Parcela de empréstimo: paga pelo serviço das parcelas (valor real, saldo, adiantada)."""
     debt = db.get(Debt, debt_id)
-    parcel = db.scalar(select(DebtInstallment).where(DebtInstallment.bill_instance_id == inst.id))
+    # trava a parcela: dois pagamentos simultâneos não podem vinculá-la duas vezes
+    parcel = db.scalar(
+        select(DebtInstallment).where(DebtInstallment.bill_instance_id == inst.id).with_for_update()
+    )
     assert debt is not None and parcel is not None  # FKs RESTRICT
     if body.transaction_id is not None:
         tx = db.get(Transaction, body.transaction_id)

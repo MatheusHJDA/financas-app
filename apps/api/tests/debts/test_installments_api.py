@@ -6,7 +6,14 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import func, select
 
-from finance_api.db.models import Account, Category, Debt, DebtInstallment, Transaction
+from finance_api.db.models import (
+    Account,
+    AuditLog,
+    Category,
+    Debt,
+    DebtInstallment,
+    Transaction,
+)
 from finance_api.debts.installments import InstallmentSpec, set_schedule
 
 FACE = 141757
@@ -162,3 +169,46 @@ def test_patch_derived_fields_conflict(users, client_as, loan):
     assert client.patch(url, json={"installment_cents": 1}).status_code == 409
     resp = client.patch(url, json={"name": "Empréstimo Nubank"})
     assert resp.status_code == 200 and resp.json()["name"] == "Empréstimo Nubank"
+
+
+def _bill_of(client, debt_id):
+    bills = client.get("/api/recurring-bills").json()["items"]
+    return next(b for b in bills if b["debt_id"] == debt_id)
+
+
+def test_patch_owner_syncs_bill_and_permission(db, users, client_as, loan):
+    debt, account = loan["debt"], loan["account"]
+    matheus = client_as(users["matheus"])
+    resp = matheus.patch(f"/api/debts/{debt.id}", json={"owner": "MATHEUS"})
+    assert resp.status_code == 200
+    bill = _bill_of(matheus, debt.id)
+    assert bill["owner"] == "MATHEUS"
+    audit = db.scalar(
+        select(AuditLog).where(
+            AuditLog.entity == "recurring_bills",
+            AuditLog.entity_id == str(bill["id"]),
+            AuditLog.action == "update",
+        )
+    )
+    assert audit.before_json["owner"] == "AMBOS" and audit.after_json["owner"] == "MATHEUS"
+    # a permissão de pagar a parcela segue o novo dono
+    inst_id = db.scalar(
+        select(DebtInstallment.bill_instance_id).where(
+            DebtInstallment.debt_id == debt.id, DebtInstallment.number == 1
+        )
+    )
+    body = {"amount_cents": FACE, "account_id": account.id, "date": "2026-12-18"}
+    pay_url = f"/api/bill-instances/{inst_id}/pay"
+    assert client_as(users["ruth"]).post(pay_url, json=body).status_code == 403
+    assert client_as(users["matheus"]).post(pay_url, json=body).status_code == 200
+
+
+def test_patch_name_syncs_bill(users, client_as, loan):
+    debt = loan["debt"]
+    client = client_as(users["matheus"])
+    assert client.patch(f"/api/debts/{debt.id}", json={"name": "Nubank"}).status_code == 200
+    assert _bill_of(client, debt.id)["name"] == "Nubank"
+    insts = client.get(
+        "/api/bill-instances", params={"date_from": "2026-12-01", "date_to": "2027-12-31"}
+    ).json()["items"]
+    assert {i["name"] for i in insts if i["debt_id"] == debt.id} == {"Nubank"}
