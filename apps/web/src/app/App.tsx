@@ -17,6 +17,8 @@ const PreferencesPage = lazy(() => import("../features/settings/PreferencesPage"
 const FixedBillsPage = lazy(() => import("../features/bills/FixedBillsPage"));
 const AccountsPage = lazy(() => import("../features/accounts/AccountsPage"));
 const GoalsPage = lazy(() => import("../features/goals/GoalsPage"));
+const LoanPage = lazy(() => import("../features/debts/LoanPage"));
+const DebtsRedirect = lazy(() => import("../features/debts/LoanPage").then((m) => ({ default: m.DebtsRedirect })));
 const PlanPage = lazy(() => import("../features/plan/PlanPage"));
 const AdminSectionPage = lazy(() => import("../features/admin/routes"));
 const KitPage = import.meta.env.DEV ? lazy(() => import("../dev/KitPage")) : null;
@@ -38,6 +40,8 @@ export default function App() {
               <Route path="contas-fixas" element={<FixedBillsPage />} />
               <Route path="contas" element={<AccountsPage />} />
               <Route path="metas" element={<GoalsPage />} />
+              <Route path="dividas" element={<DebtsRedirect />} />
+              <Route path="dividas/:id" element={<LoanPage />} />
               <Route path="plano" element={<PlanPage />} />
               <Route path="geral" element={<Navigate to="/" replace />} />
               <Route element={<AdminRoute />}>

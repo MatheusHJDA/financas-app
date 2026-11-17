@@ -1,0 +1,138 @@
+/* Tela do empréstimo. Só tokens; classes .loan-. Sem larguras fixas (360 px). */
+.loan-page {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.loan-page--bar {
+  padding-bottom: calc(96px + var(--space-3));
+}
+.loan-title {
+  margin: 0;
+}
+.loan-summary {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.loan-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.loan-stat {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  min-width: 0;
+  font-weight: 600;
+}
+.loan-stat .muted {
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+.loan-stat__big {
+  font-size: var(--text-xl);
+}
+.loan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.loan-row + .loan-row {
+  border-top: 1px solid var(--color-border);
+}
+.loan-row__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+.loan-row--done .loan-row__label {
+  cursor: default;
+  color: var(--color-muted);
+}
+.loan-row__label input {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.loan-row__text {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.loan-row__title {
+  font-weight: 600;
+}
+.loan-row__save {
+  font-size: var(--text-sm);
+  color: var(--color-ok);
+}
+.loan-row__values {
+  display: grid;
+  justify-items: end;
+  flex: none;
+}
+.loan-row__today {
+  font-weight: 700;
+}
+.loan-row__face {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+.loan-badge {
+  justify-self: start;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+}
+.loan-sheet__sum {
+  margin: 0;
+}
+
+/* Barra fixa: acima da barra de navegação do celular */
+.loan-bar {
+  position: fixed;
+  left: calc(var(--space-3) + var(--safe-left));
+  right: calc(var(--space-3) + var(--safe-right));
+  bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--space-4));
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+.loan-bar__text {
+  display: grid;
+  min-width: 0;
+}
+.loan-bar__total {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+.loan-bar__save {
+  font-size: var(--text-sm);
+  color: var(--color-ok);
+}
+@media (min-width: 1024px) {
+  .loan-bar {
+    bottom: var(--space-4);
+  }
+}

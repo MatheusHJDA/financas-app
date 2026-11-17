@@ -63,13 +63,14 @@ function DebtsCard({ debtsBalanceCents }: { debtsBalanceCents: number }) {
           </p>
           <div className="dash-list">
             {items.slice(0, MAX_ITEMS).map((d) => (
-              <ListItem
-                key={d.id}
-                leading={<Avatar name={d.name} tone="expense" />}
-                title={d.name}
-                subtitle={OWNER_LABEL[d.owner]}
-                trailing={<Money cents={d.current_balance_cents} />}
-              />
+              <Link key={d.id} to={`/dividas/${d.id}`} className="dash-debt-link">
+                <ListItem
+                  leading={<Avatar name={d.name} tone="expense" />}
+                  title={d.name}
+                  subtitle={OWNER_LABEL[d.owner]}
+                  trailing={<Money cents={d.current_balance_cents} />}
+                />
+              </Link>
             ))}
           </div>
         </>

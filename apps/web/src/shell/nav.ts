@@ -6,6 +6,7 @@ import {
   CalendarRange,
   Cpu,
   Home,
+  Landmark,
   LayoutDashboard,
   ListChecks,
   MoreHorizontal,
@@ -58,6 +59,7 @@ export const SIDEBAR_GROUPS: { label: string; adminOnly?: boolean; items: (NavIt
     label: "Planejamento",
     items: [
       { to: "/metas", label: "Metas", icon: Target },
+      { to: "/dividas", label: "Dívidas", icon: Landmark },
       { to: "/plano", label: "Plano", icon: CalendarRange },
       { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
     ],
@@ -73,6 +75,7 @@ export const SIDEBAR_GROUPS: { label: string; adminOnly?: boolean; items: (NavIt
 /** Itens da tela Mais (celular). */
 export const MORE_ITEMS: NavItem[] = [
   { to: "/metas", label: "Metas", icon: Target },
+  { to: "/dividas", label: "Dívidas", icon: Landmark },
   { to: "/plano", label: "Plano", icon: CalendarRange },
   { to: "/contas-fixas", label: "Contas fixas", icon: CalendarClock },
   { to: "/contas", label: "Contas", icon: Wallet },
@@ -87,6 +90,7 @@ export function titleFor(pathname: string): string {
     const s = ADMIN_SECTIONS.find((a) => pathname === `/admin/${a.slug}`);
     return s ? `Administração / ${s.label}` : "Administração";
   }
+  if (pathname.startsWith("/dividas")) return "Dívidas";
   const all = [...SIDEBAR_GROUPS.flatMap((g) => g.items), ...MORE_ITEMS, ...MOBILE_TABS];
   return all.find((i) => i.to === pathname)?.label ?? "";
 }
