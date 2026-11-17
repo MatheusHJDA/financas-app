@@ -1,4 +1,5 @@
 import { CalendarOff, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useId, useState, type ReactNode } from "react";
 import { useAuth } from "../../auth/AuthProvider";
 import { Button, ErrorState, LoadingState, Money } from "../../ui";
@@ -254,7 +255,13 @@ function BillDetail({ bill, accounts, categories, editable, go }: DetailProps) {
         <p className="bill-detail__warn">Sem conta bancária, “Marcar como paga” não funciona.</p>
       ) : null}
 
-      {editable ? (
+      {bill.debt_id != null ? (
+        <div className="bill-actions">
+          <Link to={`/dividas/${bill.debt_id}`} className="ui-btn ui-btn--primary">
+            Ver empréstimo
+          </Link>
+        </div>
+      ) : editable ? (
         <div className="bill-actions">
           <Button variant="primary" icon={Pencil} aria-label={`Editar ${bill.name}`} onClick={() => open("edit")}>
             Editar

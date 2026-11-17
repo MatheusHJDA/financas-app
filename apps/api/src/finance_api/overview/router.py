@@ -56,8 +56,9 @@ class BillInstanceOut(BaseModel):
     month: dt.date
     due_date: dt.date
     amount_cents: int
-    status: Literal["open", "paid"]
+    status: Literal["open", "paid", "prepaid"]
     paid_transaction_id: int | None = None
+    debt_id: int | None = None  # empréstimo dono da conta, se houver
 
 
 class Overview(BaseModel):
@@ -99,6 +100,7 @@ def _bill_out(bill: BillInstance, recurring: RecurringBill) -> BillInstanceOut:
         amount_cents=bill.amount_cents,
         status=bill.status,
         paid_transaction_id=bill.paid_transaction_id,
+        debt_id=recurring.debt_id,
     )
 
 

@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { bodyOf, json, MATHEUS, renderApp, RUTH, writes } from "../../test/appTesting";
 import { currentMonth } from "./fixedBillForm";
@@ -422,5 +423,105 @@ describe("contas a pagar", () => {
     state.overdue = [];
     renderApp(<FixedBillsPage />);
     await screen.findByText("Nenhuma conta a pagar");
+  });
+});
+
+describe("parcelas de empréstimo", () => {
+  const LOAN_BILL = {
+    id: 9,
+    owner: "MATHEUS" as const,
+    name: "Empréstimo Nubank",
+    amount_cents: 100_000,
+    due_day: 18,
+    start_month: "2026-12-01",
+    end_month: null,
+    account_id: 2,
+    category_id: null,
+    payment_method: null,
+    debt_id: 7,
+  };
+  const instance = (id: number, status: "open" | "prepaid") => ({
+    id,
+    recurring_bill_id: 9,
+    name: "Empréstimo Nubank",
+    owner: "MATHEUS" as const,
+    month: "2026-11-01",
+    due_date: "2026-11-18",
+    amount_cents: 100_000,
+    status,
+    debt_id: 7,
+  });
+  const installment = (id: number, instanceId: number, status: "open" | "prepaid") => ({
+    id,
+    number: 1,
+    due_date: "2026-11-18",
+    face_cents: 100_000,
+    today_cents: status === "open" ? 100_000 : null,
+    savings_cents: status === "open" ? 0 : null,
+    status,
+    paid_cents: null,
+    paid_on: null,
+    bill_instance_id: instanceId,
+  });
+  const loanServer = (status: "open" | "prepaid" = "open") =>
+    makeBillsServer(MATHEUS, {
+      bills: [...FIXED_BILLS, LOAN_BILL],
+      extra: {
+        "GET /overview": () =>
+          json({
+            balances_by_owner: [],
+            couple_total_cents: 0,
+            open_card_invoices: [],
+            debts_balance_cents: 0,
+            upcoming_bills: [instance(700, status)],
+            overdue_bills: [],
+          }),
+        "GET /debts/:id/installments": () =>
+          json({ remaining_cents: 100_000, paid_cents: 0, payoff_today_cents: 100_000, items: [installment(800, 700, status)] }),
+        "POST /debts/:id/installments/pay": () => json({ remaining_cents: 0, paid_cents: 0, payoff_today_cents: 0, items: [] }),
+      },
+    });
+  const renderPage = () =>
+    renderApp(
+      <MemoryRouter>
+        <FixedBillsPage />
+      </MemoryRouter>,
+    );
+
+  it("pagar parcela do empréstimo abre o formulário com valor, conta e data", async () => {
+    const { calls } = loanServer();
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Pagar parcela" }));
+    const form = await screen.findByRole("form", { name: "Pagar parcelas" });
+    await waitFor(() => expect((within(form).getByLabelText("Conta") as HTMLSelectElement).value).toBe("2"));
+    expect((within(form).getByLabelText("Valor cobrado") as HTMLInputElement).value).toBe("1000,00");
+    fireEvent.change(within(form).getByLabelText("Data"), { target: { value: "2026-11-14" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Confirmar pagamento" }));
+    await waitFor(() => expect(writes(calls)).toEqual(["POST /debts/7/installments/pay"]));
+    expect(await bodyOf(calls, "POST /debts/7/installments/pay")).toEqual({
+      installment_ids: [800],
+      amount_cents: 100_000,
+      account_id: 2,
+      date: "2026-11-14",
+    });
+  });
+
+  it("conta fixa do empréstimo não tem Editar/Excluir e mostra link 'Ver empréstimo'", async () => {
+    loanServer();
+    renderPage();
+    await waitFor(() => expect(rowButton("Empréstimo Nubank")).toBeTruthy());
+    openRow("Empréstimo Nubank");
+    const sheet = dialog();
+    expect(sheet.queryByRole("button", { name: /^Editar/ })).toBeNull();
+    expect(sheet.queryByRole("button", { name: /^Excluir/ })).toBeNull();
+    expect(sheet.getByRole("link", { name: "Ver empréstimo" }).getAttribute("href")).toBe("/dividas/7");
+  });
+
+  it("instância adiantada mostra selo 'Adiantada' e não tem botão Pagar", async () => {
+    loanServer("prepaid");
+    renderPage();
+    const pay = within(await screen.findByRole("region", { name: "Contas a pagar" }));
+    expect(await pay.findByText("Adiantada")).toBeTruthy();
+    expect(pay.queryByRole("button", { name: /Pagar parcela|Marcar como paga/ })).toBeNull();
   });
 });

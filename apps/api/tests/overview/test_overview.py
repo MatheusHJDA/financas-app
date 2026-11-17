@@ -5,8 +5,9 @@ from finance_api.db.models import BillInstance, Debt, RecurringBill
 from finance_api.overview.router import _next_due_date, today_sao_paulo
 
 
-def _bill(db, owner, name, due, status="open", amount=10000):
+def _bill(db, owner, name, due, status="open", amount=10000, debt_id=None):
     recurring = RecurringBill(
+        debt_id=debt_id,
         owner=owner,
         name=name,
         amount_cents=amount,
@@ -151,3 +152,25 @@ def test_debts_table_counts_in_debt_balance(db, client_as, users, make_account):
     o = client_as(users["ruth"]).get("/api/overview").json()
     assert o["debts_balance_cents"] == 2063718 + 10000
     assert o["couple_total_cents"] == 0  # dívida não entra no dinheiro líquido
+
+
+def test_bills_expose_debt_id_for_loan_managed_instances(db, client_as, users):
+    today = today_sao_paulo()
+    debt = Debt(
+        owner="MATHEUS",
+        name="Empréstimo",
+        principal_cents=100000,
+        monthly_rate=Decimal("0.02"),
+        installments=10,
+        installment_cents=10000,
+        start_date=today,
+        current_balance_cents=100000,
+    )
+    db.add(debt)
+    db.flush()
+    managed = _bill(db, "MATHEUS", "Empréstimo", today + dt.timedelta(days=2), debt_id=debt.id)
+    plain = _bill(db, "MATHEUS", "Luz", today + dt.timedelta(days=3))
+    o = client_as(users["matheus"]).get("/api/overview").json()
+    by_id = {b["id"]: b for b in o["upcoming_bills"]}
+    assert by_id[managed.id]["debt_id"] == debt.id
+    assert by_id[plain.id]["debt_id"] is None

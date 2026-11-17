@@ -8,6 +8,7 @@ import { ConfirmBar } from "../accounts/ConfirmBar";
 import { ApiError, OWNER_LABEL, assertOk, canWrite, errorMessage, type BillInstance } from "../accounts/shared";
 import { formatDate } from "../chat/dates";
 import { AFTER_PAID } from "./api";
+import { LoanBillPay } from "./LoanBillPay";
 import { dueBadge, type DueBadge } from "./dueStatus";
 import "../accounts/ui.css";
 import "./bills.css";
@@ -22,6 +23,7 @@ export function PayableBills({ upcoming, overdue }: Props) {
   const { me } = useAuth();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<BillInstance | null>(null);
+  const [paying, setPaying] = useState<BillInstance | null>(null);
   const [notice, setNotice] = useState("");
 
   const pay = useMutation({
@@ -44,7 +46,9 @@ export function PayableBills({ upcoming, overdue }: Props) {
   const ask = (bill: BillInstance) => {
     pay.reset();
     setNotice("");
-    setConfirming(bill);
+    // Parcela de empréstimo: valor e conta vêm do formulário de revisar pagamento.
+    if (bill.debt_id != null) setPaying(bill);
+    else setConfirming(bill);
   };
   const close = () => {
     pay.reset();
@@ -86,6 +90,10 @@ export function PayableBills({ upcoming, overdue }: Props) {
           </div>
         ) : null}
       </Card>
+
+      {paying && paying.debt_id != null ? (
+        <LoanBillPay debtId={paying.debt_id} billInstanceId={paying.id} onClose={() => setPaying(null)} />
+      ) : null}
 
       <Sheet open={confirming !== null} title="Marcar como paga" onClose={close}>
         <ConfirmBar
@@ -135,14 +143,18 @@ function PayableRow({
               {bill.owner ? `${OWNER_LABEL[bill.owner]} · ` : ""}
               vence em {formatDate(bill.due_date)}
             </span>
-            {badge ? <span className={`bill-badge bill-badge--${badge.tone}`}>{badge.label}</span> : null}
+            {bill.status === "prepaid" ? (
+              <span className="bill-badge">Adiantada</span>
+            ) : badge ? (
+              <span className={`bill-badge bill-badge--${badge.tone}`}>{badge.label}</span>
+            ) : null}
           </span>
         }
         trailing={<Money cents={bill.amount_cents} />}
       />
-      {editable ? (
+      {bill.status === "prepaid" ? null : editable ? (
         <Button variant="secondary" icon={Check} aria-describedby={nameId} onClick={onAsk}>
-          Marcar como paga
+          {bill.debt_id != null ? "Pagar parcela" : "Marcar como paga"}
         </Button>
       ) : null}
     </li>

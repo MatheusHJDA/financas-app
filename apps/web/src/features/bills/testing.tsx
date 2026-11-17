@@ -57,7 +57,7 @@ export const FIXED_BILLS: RecurringBill[] = [
 type Me = Parameters<typeof makeServer>[0];
 
 /** Servidor da tela Geral + /recurring-bills com estado. `conflictIds`: DELETE devolve 409 (já há pagamento). */
-export function makeBillsServer(me: Me, opts: { bills?: RecurringBill[]; conflictIds?: number[] } = {}) {
+export function makeBillsServer(me: Me, opts: { bills?: RecurringBill[]; conflictIds?: number[]; extra?: Record<string, Handler> } = {}) {
   const bills = (opts.bills ?? FIXED_BILLS).map((b) => ({ ...b }));
   const state = { bills, nextId: 900 };
   const body = <T,>(req: Request) => req.clone().json() as Promise<T>;
@@ -106,6 +106,6 @@ export function makeBillsServer(me: Me, opts: { bills?: RecurringBill[]; conflic
     },
   };
 
-  const server = makeServer(me, routes);
+  const server = makeServer(me, { ...routes, ...opts.extra });
   return { ...server, bills: state };
 }
