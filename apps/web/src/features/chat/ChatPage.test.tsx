@@ -19,7 +19,7 @@ let calls: Call[] = [];
 let client: QueryClient;
 const REPORT_KEY = ["report", "2026-11", "all"];
 
-function setup(extra: Record<string, Handler> = {}) {
+function setup(extra: Record<string, Handler> = {}, route = "/lancar") {
   installFakeXHR();
   calls = mockFetch({
     "GET /auth/me": () => json(ME),
@@ -27,7 +27,7 @@ function setup(extra: Record<string, Handler> = {}) {
     "GET /categories": () => json({ items: CATEGORIES, total: CATEGORIES.length }),
     ...extra,
   });
-  ({ client } = renderChat());
+  ({ client } = renderChat(route));
   client.setQueryData(REPORT_KEY, { stale: false });
 }
 const reportInvalidated = () => client.getQueryState(REPORT_KEY)?.isInvalidated === true;
@@ -686,4 +686,44 @@ it("marcar a conta como paga invalida contas e metas", async () => {
   await waitFor(() => expect(invalidated(GOALS_KEY)).toBe(true));
   expect(invalidated(ACCOUNTS_KEY)).toBe(true);
   expect(invalidated(DEBTS_KEY)).toBe(true); // pode ser parcela de empréstimo
+});
+
+const UBER_GOAL = {
+  id: 4,
+  owner: "MATHEUS",
+  type: "income_period",
+  name: "Uber diário",
+  target_cents: 13000,
+  period: "daily",
+  linked_category_id: 2,
+  active: true,
+  progress: { current_cents: 11000, target_cents: 13000, percent: 84.6 },
+};
+
+it("/lancar?meta=4 abre o painel de receita com a categoria da meta, hoje e valor focado", async () => {
+  const categories = [...CATEGORIES, { id: 2, name: "Uber/99", kind: "income", is_recurring_card_allowed: false }];
+  setup(
+    {
+      "GET /categories": () => json({ items: categories, total: categories.length }),
+      "GET /goals/4": () => json(UBER_GOAL),
+    },
+    "/lancar?meta=4",
+  );
+  const sheet = await screen.findByRole("dialog", { name: "Lançar à mão" });
+  await within(sheet).findByRole("button", { name: "Salvar lançamento" });
+  const kind = within(sheet).getByRole("group", { name: "Tipo" });
+  expect(within(kind).getByRole("button", { name: "Receita" }).getAttribute("aria-pressed")).toBe("true");
+  expect((within(sheet).getByLabelText("Categoria") as HTMLSelectElement).selectedOptions[0].textContent).toBe("Uber/99");
+  expect(within(sheet).getByRole("button", { name: "Hoje" }).getAttribute("aria-pressed")).toBe("true");
+  const amount = within(sheet).getByLabelText("Valor (R$)") as HTMLInputElement;
+  expect(amount.value).toBe("");
+  await waitFor(() => expect(document.activeElement).toBe(amount));
+});
+
+it("/lancar?meta=999 (404) segue como chat normal, sem painel e sem alerta", async () => {
+  setup({ "GET /goals/999": () => json({ detail: "não encontrada" }, 404) }, "/lancar?meta=999");
+  await waitFor(() => expect(calls.some((c) => c.key === "GET /goals/999")).toBe(true));
+  await new Promise((r) => setTimeout(r, 20));
+  expect(screen.queryByRole("dialog", { name: "Lançar à mão" })).toBeNull();
+  expect(screen.queryByRole("alert")).toBeNull();
 });

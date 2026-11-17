@@ -1,10 +1,13 @@
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
+import { api } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
 import { Sheet, SparkleIcon } from "../../ui";
 import { ErrorState } from "../../ui/States";
 import "./chat.css";
 import { Composer } from "./Composer";
-import { ManualEntry } from "./ManualEntry";
+import { todayIso } from "./dates";
+import { ManualEntry, type ManualInitial } from "./ManualEntry";
 import { ResultGroup } from "./ResultGroup";
 import { IngestError, sendIngest } from "./sendIngest";
 import type { IngestResult } from "./types";
@@ -29,11 +32,44 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
-  const [manual, setManual] = useState<{ open: boolean; reason: string | null }>({ open: false, reason: null });
+  const [manual, setManual] = useState<{ open: boolean; reason: string | null; initial: ManualInitial | null }>({
+    open: false,
+    reason: null,
+    initial: null,
+  });
   const sendingRef = useRef(false);
   const nextId = useRef(1);
 
-  const closeManual = useCallback(() => setManual({ open: false, reason: null }), []);
+  const closeManual = useCallback(() => setManual({ open: false, reason: null, initial: null }), []);
+
+  // Lembrete da meta (push das 21h): /lancar?meta=<id> abre o lançamento à mão já preenchido.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const goalParam = searchParams.get("meta");
+  useEffect(() => {
+    if (goalParam === null) return;
+    const id = Number(goalParam);
+    // limpa o parâmetro para um recarregamento não reabrir o painel
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("meta");
+        return next;
+      },
+      { replace: true },
+    );
+    if (!Number.isInteger(id) || id <= 0) return;
+    void api
+      .GET("/goals/{id}", { params: { path: { id } } })
+      .then(({ data }) => {
+        if (!data || data.type !== "income_period" || data.linked_category_id == null) return;
+        setManual({
+          open: true,
+          reason: null,
+          initial: { kind: "income", categoryId: data.linked_category_id, owner: data.owner, date: todayIso() },
+        });
+      })
+      .catch(() => undefined);
+  }, [goalParam, setSearchParams]);
 
   const owner = me?.owner ?? "AMBOS";
   const push = useCallback((m: NewMessage) => {
@@ -60,7 +96,7 @@ export default function ChatPage() {
       } catch (e) {
         const err = e instanceof IngestError ? e : new IngestError("http", "Não foi possível enviar agora. Tente de novo.");
         push({ role: "error", text: err.message });
-        if (err.openManual) setManual({ open: true, reason: err.message });
+        if (err.openManual) setManual({ open: true, reason: err.message, initial: null });
         return false;
       } finally {
         sendingRef.current = false;
@@ -132,7 +168,8 @@ export default function ChatPage() {
 
       <Sheet open={manual.open} title="Lançar à mão" onClose={closeManual}>
         <ManualEntry
-          key={owner}
+          key={`${owner}-${manual.initial?.categoryId ?? ""}`}
+          initial={manual.initial}
           accounts={data.accounts}
           categories={data.categories}
           owner={owner}
@@ -152,7 +189,7 @@ export default function ChatPage() {
         sending={sending}
         progress={progress}
         onSend={send}
-        onManual={() => setManual((m) => ({ open: true, reason: m.reason }))}
+        onManual={() => setManual((m) => ({ open: true, reason: m.reason, initial: null }))}
       />
     </section>
   );

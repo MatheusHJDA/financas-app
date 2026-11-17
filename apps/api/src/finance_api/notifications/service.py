@@ -19,11 +19,13 @@ from finance_api.core import app_settings
 from finance_api.core.permissions import Owner
 from finance_api.db.models import (
     BillInstance,
+    Goal,
     NotificationLog,
     PushSubscription,
     RecurringBill,
     User,
 )
+from finance_api.goals.service import compute_progress
 from finance_api.notifications.channels import NotificationChannel, SendResult
 
 logger = logging.getLogger(__name__)
@@ -160,13 +162,34 @@ def _open_bills_due(db: Session, dates: set[date]) -> list[tuple[BillInstance, R
     return [(instance, bill) for instance, bill in rows]
 
 
-def _daily_body(due_today: list[tuple[BillInstance, RecurringBill]]) -> str:
-    body = "Hora de enviar as movimentações de hoje"
-    if not due_today:
-        return body
-    items = ", ".join(f"{bill.name} ({format_brl(i.amount_cents)})" for i, bill in due_today)
-    label = "Vence hoje" if len(due_today) == 1 else "Vencem hoje"
-    return f"{body}. {label}: {items}"
+def _daily_goals(db: Session) -> list[Goal]:
+    return list(
+        db.scalars(
+            select(Goal)
+            .where(Goal.type == "income_period", Goal.period == "daily", Goal.active.is_(True))
+            .order_by(Goal.id)
+        )
+    )
+
+
+def _goal_line(db: Session, goal: Goal, today: date) -> str:
+    progress = compute_progress(db, goal, today)
+    return (
+        f"{goal.name} hoje: {format_brl(progress['current_cents'])}"
+        f" de {format_brl(progress['target_cents'])} — quanto rodou?"
+    )
+
+
+def _daily_body(
+    due_today: list[tuple[BillInstance, RecurringBill]], goal_lines: list[str] | None = None
+) -> str:
+    parts = ["Hora de enviar as movimentações de hoje"]
+    if due_today:
+        items = ", ".join(f"{bill.name} ({format_brl(i.amount_cents)})" for i, bill in due_today)
+        label = "Vence hoje" if len(due_today) == 1 else "Vencem hoje"
+        parts[0] = f"{parts[0]}. {label}: {items}"
+    parts.extend(goal_lines or [])
+    return ". ".join(parts)
 
 
 def _run_daily(
@@ -178,13 +201,17 @@ def _run_daily(
     today = local.date()
     notification_type = f"daily:{today.isoformat()}"
     due_today = _open_bills_due(db, {today})
+    goals = _daily_goals(db)
     sent = 0
     for user in users:
         owner = _user_owner(user)
         if owner is None or _already_handled(db, user.id, notification_type):
             continue
         mine = [(i, bill) for i, bill in due_today if _visible(bill.owner, owner)]
-        payload = {"title": "Finanças", "body": _daily_body(mine), "url": "/"}
+        my_goals = [g for g in goals if _visible(g.owner, owner)]
+        url = f"/lancar?meta={my_goals[0].id}" if my_goals else "/"
+        body = _daily_body(mine, [_goal_line(db, g, today) for g in my_goals])
+        payload = {"title": "Finanças", "body": body, "url": url}
         sent += deliver(db, channel, user.id, notification_type, payload, now)
     return sent
 

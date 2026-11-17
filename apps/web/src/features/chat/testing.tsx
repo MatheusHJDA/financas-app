@@ -87,10 +87,10 @@ export function installFakeXHR() {
   return FakeXHR;
 }
 
-export function renderChat() {
+export function renderChat(route = "/lancar") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(
-    <MemoryRouter initialEntries={["/lancar"]}>
+    <MemoryRouter initialEntries={[route]}>
       <QueryClientProvider client={client}>
         <AuthProvider>
           <HideValuesProvider>

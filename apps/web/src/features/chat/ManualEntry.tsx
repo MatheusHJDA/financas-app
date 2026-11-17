@@ -10,6 +10,14 @@ import { serverWarnings } from "./useDraftController";
 import { TransactionForm } from "./TransactionForm";
 import { KIND_LABEL, type Account, type Category, type Owner, type Proposal } from "./types";
 
+/** Pré-preenchimento (lembrete da meta): tipo, categoria, dono e data; valor fica vazio e focado. */
+export interface ManualInitial {
+  kind: "income" | "expense";
+  categoryId: number;
+  owner: Owner;
+  date: string;
+}
+
 interface Props {
   accounts: Account[];
   categories: Category[];
@@ -21,6 +29,7 @@ interface Props {
   onRetry?: () => void;
   /** Mensagem de contexto acima do formulário (ex.: a IA falhou). */
   reason?: string | null;
+  initial?: ManualInitial | null;
   /** Resumo em JSX (não string) para o valor passar pelo `Money` e respeitar o olho de ocultar. */
   onCreated: (summary: ReactNode) => void;
   onCancel: () => void;
@@ -38,6 +47,7 @@ export function ManualEntry({
   loadError = false,
   onRetry,
   reason,
+  initial = null,
   onCreated,
   onCancel,
 }: Props) {
@@ -117,7 +127,17 @@ export function ManualEntry({
       ) : (
         <TransactionForm
           variant="sheet"
-          initial={emptyForm(owner)}
+          initial={
+            initial
+              ? {
+                  ...emptyForm(initial.owner),
+                  kind: initial.kind,
+                  categoryId: String(initial.categoryId),
+                  date: initial.date,
+                }
+              : emptyForm(owner)
+          }
+          autoFocusAmount={initial !== null}
           accounts={accounts}
           categories={categories}
           submitLabel="Salvar lançamento"

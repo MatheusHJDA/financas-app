@@ -3,7 +3,15 @@ from datetime import date
 from sqlalchemy import select
 
 from finance_api.core import app_settings
-from finance_api.db.models import NotificationLog, PushSubscription, Setting
+from finance_api.db.models import (
+    Account,
+    Category,
+    Goal,
+    NotificationLog,
+    PushSubscription,
+    Setting,
+    Transaction,
+)
 from finance_api.notifications.channels import SendResult
 from finance_api.notifications.service import format_brl, run_tick
 
@@ -91,6 +99,108 @@ def test_diario_lista_contas_abertas_do_dono_ou_ambos(db, users, subscribe, chan
     assert ruth == f"{DAILY_BODY}. Vencem hoje: Luz (R$ 150,00), Aluguel (R$ 1.200,00)"
     matheus = by_user[users["matheus"].id]
     assert matheus == f"{DAILY_BODY}. Vencem hoje: Academia (R$ 99,90), Aluguel (R$ 1.200,00)"
+
+
+def _uber_goal(db, users, owner="MATHEUS", income_cents=11000, **overrides):
+    """Meta diária "Uber diário" (alvo R$ 130,00) com uma receita na categoria hoje."""
+    category = Category(name="Uber/99", kind="income")
+    account = Account(
+        owner="AMBOS",
+        created_by=users["matheus"].id,
+        name="Conta",
+        type="checking",
+        initial_balance_date=date(2026, 1, 1),
+    )
+    db.add_all([category, account])
+    db.flush()
+    fields = {
+        "owner": owner,
+        "type": "income_period",
+        "name": "Uber diário",
+        "target_cents": 13000,
+        "period": "daily",
+        "linked_category_id": category.id,
+    }
+    goal = Goal(**{**fields, **overrides})
+    db.add(goal)
+    if income_cents:
+        db.add(
+            Transaction(
+                kind="income",
+                amount_cents=income_cents,
+                date=date(2026, 11, 13),
+                description="Uber",
+                account_id=account.id,
+                category_id=category.id,
+                owner="MATHEUS",
+                created_by=users["matheus"].id,
+                source="manual",
+            )
+        )
+    db.flush()
+    return goal
+
+
+def test_daily_inclui_meta_diaria_do_usuario(db, users, subscribe, channel):
+    subscribe(users["matheus"])
+    subscribe(users["ruth"])
+    goal = _uber_goal(db, users)
+
+    run_tick(db, at("2026-11-13", "21:00"), channel)
+    by_user = {user_id: payload for user_id, payload in channel.sent}
+
+    matheus = by_user[users["matheus"].id]
+    assert matheus["body"] == (
+        f"{DAILY_BODY}. Uber diário hoje: R$ 110,00 de R$ 130,00 — quanto rodou?"
+    )
+    assert matheus["url"] == f"/lancar?meta={goal.id}"
+    ruth = by_user[users["ruth"].id]
+    assert ruth == {"title": "Finanças", "body": DAILY_BODY, "url": "/"}
+
+
+def test_daily_meta_ambos_aparece_para_os_dois(db, users, subscribe, channel):
+    subscribe(users["matheus"])
+    subscribe(users["ruth"])
+    goal = _uber_goal(db, users, owner="AMBOS")
+
+    run_tick(db, at("2026-11-13", "21:00"), channel)
+
+    assert len(channel.sent) == 2
+    for _, payload in channel.sent:
+        assert "Uber diário hoje: R$ 110,00 de R$ 130,00 — quanto rodou?" in payload["body"]
+        assert payload["url"] == f"/lancar?meta={goal.id}"
+
+
+def test_daily_junta_vencimento_e_meta_com_ponto(db, users, subscribe, channel, make_bill):
+    subscribe(users["matheus"])
+    make_bill("MATHEUS", "Academia", date(2026, 11, 13), 9990)
+    _uber_goal(db, users)
+    db.add(Setting(key=app_settings.BILL_TIME, value_json="23:59"))
+    db.flush()
+
+    run_tick(db, at("2026-11-13", "21:00"), channel)
+
+    assert channel.sent[0][1]["body"] == (
+        f"{DAILY_BODY}. Vence hoje: Academia (R$ 99,90)"
+        ". Uber diário hoje: R$ 110,00 de R$ 130,00 — quanto rodou?"
+    )
+
+
+def test_daily_ignora_metas_que_nao_sao_diarias_de_renda(db, users, subscribe, channel):
+    subscribe(users["matheus"])
+    _uber_goal(db, users, period="weekly")
+    _uber_goal(db, users, type="category_cap")
+    _uber_goal(db, users, active=False)
+
+    run_tick(db, at("2026-11-13", "21:00"), channel)
+
+    assert channel.sent[0][1] == {"title": "Finanças", "body": DAILY_BODY, "url": "/"}
+
+
+def test_daily_sem_meta_fica_igual(db, users, subscribe, channel):
+    subscribe(users["matheus"])
+    run_tick(db, at("2026-11-13", "21:00"), channel)
+    assert channel.sent[0][1] == {"title": "Finanças", "body": DAILY_BODY, "url": "/"}
 
 
 def test_horario_do_admin_vale_sem_reiniciar(db, users, subscribe, channel):

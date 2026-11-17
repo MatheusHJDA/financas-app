@@ -1,5 +1,5 @@
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, CalendarDays } from "lucide-react";
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Button, Chip, ChipGroup } from "../../ui";
 import { todayIso, yesterdayIso } from "./dates";
 import { formToProposal, type FormErrors, type FormField, type FormValues } from "./proposal";
@@ -14,6 +14,8 @@ interface Props {
   /** "card": compacto, dentro do cartão de rascunho. "sheet": Lançar à mão (cabeçalho colorido, valor grande). */
   variant?: "card" | "sheet";
   busy?: boolean;
+  /** Foca o campo Valor ao abrir (ex.: lembrete da meta). */
+  autoFocusAmount?: boolean;
   /** Erro vindo do servidor (ex.: 403/422), mostrado acima dos botões. */
   serverError?: string | null;
   onSubmit: (proposal: Proposal) => void;
@@ -39,6 +41,7 @@ export function TransactionForm({
   submitLabel,
   variant = "card",
   busy = false,
+  autoFocusAmount = false,
   serverError = null,
   onSubmit,
   onCancel,
@@ -48,6 +51,10 @@ export function TransactionForm({
   const [errors, setErrors] = useState<FormErrors>({});
   const [pickDate, setPickDate] = useState(false);
   const sheet = variant === "sheet";
+  const amountRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (autoFocusAmount) amountRef.current?.focus();
+  }, [autoFocusAmount]);
 
   const set = <K extends FormField>(field: K, value: FormValues[K]) => {
     setValues((prev) => {
@@ -111,6 +118,7 @@ export function TransactionForm({
       <label htmlFor={id("amount")}>Valor (R$)</label>
       <input
         id={id("amount")}
+        ref={amountRef}
         className={sheet ? "tx-amount" : "chat-control"}
         inputMode="decimal"
         autoComplete="off"
