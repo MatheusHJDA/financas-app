@@ -430,7 +430,7 @@ def test_categorias_no_celular_o_nome_tem_largura_e_os_botoes_48px(
     expect(page.get_by_role("heading", name="Categorias", exact=True, level=1)).to_be_visible()
     row = page.get_by_role("list", name="Despesas").get_by_role("listitem").first
     expect(row).to_be_visible()
-    # O nome não quebra letra por letra: cabe em uma linha (~23px de altura) e os botões ficam na linha.
+    # O nome não quebra letra por letra: cabe em uma linha (~23px) e os botões ficam ao lado.
     name_box = row.locator(".cat-row__name").bounding_box()
     assert name_box is not None and name_box["height"] <= 30, f"nome quebrou em linhas: {name_box}"
     for button in row.get_by_role("button").all():
