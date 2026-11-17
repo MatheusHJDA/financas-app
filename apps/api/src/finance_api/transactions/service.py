@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from finance_api.core.audit import record_audit
 from finance_api.core.permissions import CurrentUser, Owner, ensure_can_write
 from finance_api.db.models import Account, BillInstance, Category, Transaction
+from finance_api.debts.installments import release_installments, resplit_installments
 from finance_api.transactions.dedupe import compute_dedupe_hash, find_possible_duplicates
 
 # ASCII de propósito: vai num cabeçalho HTTP, que não é seguro para acentos.
@@ -184,7 +185,10 @@ def release_bill_instance(db: Session, user: CurrentUser, tx: Transaction) -> No
 
     Chamado ao excluir o lançamento ou quando ele deixa de ser despesa; sem isso a conta
     ficaria "paga" para sempre sem dinheiro ter saído (e o pay devolveria 409).
+    Parcelas de empréstimo pagas por este lançamento são reabertas pelo serviço delas.
     """
+    if release_installments(db, user, tx):
+        return
     if tx.bill_instance_id is None:
         return
     inst = db.get(BillInstance, tx.bill_instance_id)
@@ -226,8 +230,13 @@ def update_transaction(
     before = snapshot(tx)
     if data.kind != "expense":
         release_bill_instance(db, user, tx)  # receita/transferência não paga conta
+    resplit = data.kind == "expense" and (
+        data.amount_cents != tx.amount_cents or data.date != tx.date
+    )
     _apply(tx, data)
     db.flush()
+    if resplit:
+        resplit_installments(db, tx)  # parcelas pagas por ele: reparte valor e refaz status
     record_audit(
         db,
         user_id=user.id,
