@@ -13,7 +13,6 @@
   font: inherit;
   font-weight: 600;
   /* texto do botão nunca quebra no meio da palavra (o balão do chat usa overflow-wrap: anywhere) */
-  white-space: nowrap;
   overflow-wrap: normal;
   cursor: pointer;
   text-decoration: none;

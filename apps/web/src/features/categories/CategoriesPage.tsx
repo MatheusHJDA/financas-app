@@ -78,11 +78,11 @@ export default function CategoriesPage() {
                       <li key={c.id} className="cat-row">
                         <span className="cat-row__name">{c.name}</span>
                         <span className="cat-row__actions">
-                          <Button icon={Pencil} aria-label={`Renomear ${c.name}`} onClick={() => open({ kind: "rename", category: c })}>
-                            Renomear
+                          <Button className="cat-row__btn" icon={Pencil} aria-label={`Renomear ${c.name}`} onClick={() => open({ kind: "rename", category: c })}>
+                            <span className="cat-row__label">Renomear</span>
                           </Button>
-                          <Button variant="danger" icon={Trash2} aria-label={`Excluir ${c.name}`} onClick={() => open({ kind: "delete", category: c })}>
-                            Excluir
+                          <Button variant="danger" className="cat-row__btn" icon={Trash2} aria-label={`Excluir ${c.name}`} onClick={() => open({ kind: "delete", category: c })}>
+                            <span className="cat-row__label">Excluir</span>
                           </Button>
                         </span>
                       </li>

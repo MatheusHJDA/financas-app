@@ -111,6 +111,11 @@ export default function FixedBillsPage() {
     const used = new Set((bills.data ?? []).map((b) => b.category_id));
     return (categories.data ?? []).filter((c) => c.kind === "expense" && used.has(c.id));
   }, [bills.data, categories.data]);
+  // Categoria salva que já não existe entre as opções (conta excluída ou outra categoria): volta para "todas".
+  if (bills.data && categories.data && filter.categoryId !== null && !categoryOptions.some((c) => c.id === filter.categoryId)) {
+    setFilter({ ...filter, categoryId: null });
+  }
+  const statusLoading = filter.status !== "all" && monthInstances.isLoading;
   const shown = useMemo(() => filterBills(list, monthInstances.data ?? [], filter, today), [list, monthInstances.data, filter, today]);
   const payables = overview.data ? [...overview.data.overdue_bills, ...overview.data.upcoming_bills] : [];
   const shownPay = filterBills(list, payables, filter, today).instances;
@@ -157,17 +162,25 @@ export default function FixedBillsPage() {
           {bills.data && list.length === 0 ? (
             <EmptyState title="Nenhuma conta fixa" hint="Cadastre as contas que se repetem todo mês." />
           ) : null}
-          {bills.data && list.length > 0 && filtering && shown.bills.length === 0 ? (
+          {bills.data && list.length > 0 && filter.status !== "all" && monthInstances.isError ? (
+            <ErrorState message="Não foi possível carregar as contas do mês." onRetry={() => void monthInstances.refetch()} />
+          ) : null}
+          {bills.data && list.length > 0 && statusLoading ? <ListSkeleton label="Carregando contas do mês" rows={3} /> : null}
+          {bills.data && list.length > 0 && filtering && !statusLoading && !monthInstances.isError && shown.bills.length === 0 ? (
             <EmptyState title="Nenhuma conta cadastrada com esses filtros." />
           ) : null}
-          {bills.data && list.length > 0 && !(filtering && shown.bills.length === 0) ? (
+          {bills.data && list.length > 0 && !statusLoading && !(filter.status !== "all" && monthInstances.isError) && !(filtering && shown.bills.length === 0) ? (
             <>
               <StatCard
                 label="Total mensal"
                 icon={CalendarRange}
                 tone="info"
                 cents={total}
-                hint="Inclui as que começam nos próximos meses"
+                hint={
+                  filtering
+                    ? "Inclui as que começam nos próximos meses (todas as contas, sem filtro)"
+                    : "Inclui as que começam nos próximos meses"
+                }
               />
               <Card title="Cadastradas" icon={Repeat}>
                 <ul className="bill-list">

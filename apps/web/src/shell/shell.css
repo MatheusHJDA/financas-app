@@ -218,6 +218,7 @@
   white-space: nowrap;
 }
 @media (max-width: 1023.98px) {
+  html,
   body {
     overscroll-behavior-y: contain;
   }

@@ -419,6 +419,26 @@ def test_todas_as_rotas_sem_rolagem_horizontal(
     go_to_each_route(page, routes)
 
 
+@pytest.mark.parametrize("device", ["iphone-11", "galaxy-a13", "small-360"])
+def test_categorias_no_celular_o_nome_tem_largura_e_os_botoes_48px(
+    page: Page, login_as: Callable[[str], None], device: str
+) -> None:
+    login_as("Matheus")
+    page.goto("/")
+    expect(page.get_by_role("heading", name="Início", exact=True)).to_be_visible()
+    push_route(page, "/categorias")
+    expect(page.get_by_role("heading", name="Categorias", exact=True, level=1)).to_be_visible()
+    row = page.get_by_role("list", name="Despesas").get_by_role("listitem").first
+    expect(row).to_be_visible()
+    # O nome não quebra letra por letra: cabe em uma linha (~23px de altura) e os botões ficam na linha.
+    name_box = row.locator(".cat-row__name").bounding_box()
+    assert name_box is not None and name_box["height"] <= 30, f"nome quebrou em linhas: {name_box}"
+    for button in row.get_by_role("button").all():
+        box = button.bounding_box()
+        assert box is not None and box["width"] >= 48 and box["height"] >= 48, box
+    assert_layout(page)
+
+
 @pytest.mark.parametrize("device", ALL_DEVICES)
 def test_valores_grandes_e_negativos_nao_estouram_o_layout(
     page: Page,

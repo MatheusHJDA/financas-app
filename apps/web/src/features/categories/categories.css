@@ -45,3 +45,13 @@
   gap: var(--space-2);
   flex: none;
 }
+/* Celular: só o ícone (o nome acessível continua no aria-label), para sobrar largura ao nome da categoria. */
+@media (max-width: 1023.98px) {
+  .cat-row__btn {
+    width: 48px;
+    padding: 0;
+  }
+  .cat-row__label {
+    display: none;
+  }
+}

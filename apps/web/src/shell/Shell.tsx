@@ -14,7 +14,7 @@ import "./shell.css";
 export function Shell() {
   const desktop = useMediaQuery(DESKTOP_QUERY);
   const queryClient = useQueryClient();
-  const { distance, refreshing } = usePullToRefresh({
+  const { distance, refreshing, armed } = usePullToRefresh({
     enabled: !desktop,
     onRefresh: async () => {
       void navigator.serviceWorker?.getRegistration().then((r) => r?.update());
@@ -40,7 +40,7 @@ export function Shell() {
   }
   return (
     <div className="shell">
-      <PullIndicator distance={distance} refreshing={refreshing} />
+      <PullIndicator distance={distance} refreshing={refreshing} armed={armed} />
       <main className="shell-main">{content}</main>
       <BottomBar />
     </div>

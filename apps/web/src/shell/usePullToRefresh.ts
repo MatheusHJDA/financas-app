@@ -1,6 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 
 const MAX_DISTANCE = 120;
+const FORM_FIELDS = "textarea, input, select, [contenteditable]";
+
+/** O toque começou num campo ou numa área que rola por conta própria (e não está no topo): não é puxar a página. */
+function startsInScrollable(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  if (target.closest(FORM_FIELDS)) return true;
+  for (let el: Element | null = target; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+    const style = getComputedStyle(el);
+    const y = /(auto|scroll)/.test(style.overflowY);
+    const x = /(auto|scroll)/.test(style.overflowX);
+    if (y && el.scrollHeight > el.clientHeight && el.scrollTop > 0) return true;
+    if (x && el.scrollWidth > el.clientWidth) return true;
+  }
+  return false;
+}
 
 interface Options {
   enabled: boolean;
@@ -13,6 +28,7 @@ interface Options {
 export function usePullToRefresh({ enabled, onRefresh, threshold = 72 }: Options) {
   const [distance, setDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [armed, setArmed] = useState(false);
   const refresh = useRef(onRefresh);
   useEffect(() => {
     refresh.current = onRefresh;
@@ -22,27 +38,48 @@ export function usePullToRefresh({ enabled, onRefresh, threshold = 72 }: Options
   useEffect(() => {
     if (!enabled) return;
     let startY: number | null = null;
+    let startX = 0;
     let pulled = 0;
+    const reset = () => {
+      startY = null;
+      pulled = 0;
+      setDistance(0);
+      setArmed(false);
+    };
 
     const onStart = (e: TouchEvent) => {
       const blocked =
-        busy.current || window.scrollY > 0 || document.querySelector('[role="dialog"]') !== null;
+        busy.current ||
+        window.scrollY > 0 ||
+        document.querySelector('[role="dialog"]') !== null ||
+        startsInScrollable(e.target);
       startY = blocked || e.touches.length !== 1 ? null : e.touches[0].clientY;
+      startX = e.touches[0]?.clientX ?? 0;
       pulled = 0;
     };
     const onMove = (e: TouchEvent) => {
       if (startY === null) return;
       if (window.scrollY > 0 || e.touches.length !== 1) {
-        startY = null;
-        setDistance(0);
+        reset();
         return;
       }
-      pulled = Math.max(0, e.touches[0].clientY - startY);
+      const dy = e.touches[0].clientY - startY;
+      const dx = e.touches[0].clientX - startX;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        reset();
+        return;
+      }
+      pulled = Math.max(0, dy);
       setDistance(Math.min(pulled / 2, MAX_DISTANCE));
+      setArmed(pulled >= threshold);
+    };
+    const onCancel = () => {
+      if (startY !== null) reset();
     };
     const onEnd = () => {
       if (startY === null) return;
       startY = null;
+      setArmed(false);
       if (pulled < threshold) {
         setDistance(0);
         return;
@@ -68,14 +105,14 @@ export function usePullToRefresh({ enabled, onRefresh, threshold = 72 }: Options
     window.addEventListener("touchstart", onStart, opts);
     window.addEventListener("touchmove", onMove, opts);
     window.addEventListener("touchend", onEnd, opts);
-    window.addEventListener("touchcancel", onEnd, opts);
+    window.addEventListener("touchcancel", onCancel, opts);
     return () => {
       window.removeEventListener("touchstart", onStart);
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onEnd);
-      window.removeEventListener("touchcancel", onEnd);
+      window.removeEventListener("touchcancel", onCancel);
     };
   }, [enabled, threshold]);
 
-  return { distance, refreshing };
+  return { distance, refreshing, armed };
 }

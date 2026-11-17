@@ -65,6 +65,10 @@ export function FixedBillForm({
       setErrors(result.errors);
       return;
     }
+    if (bill?.end_month && result.parsed.start_month && result.parsed.start_month > bill.end_month) {
+      setErrors({ startMonth: "O mês de início não pode ser depois do mês de encerramento." });
+      return;
+    }
     setErrors({});
     if (bill) onSubmitEdit?.(toPatchBody(bill, result.parsed));
     else onSubmitCreate?.(toCreateBody(result.parsed));
@@ -217,7 +221,8 @@ export function FixedBillForm({
       {editing ? (
         <p className="u8-note">
           Ao salvar, o novo valor e o novo vencimento valem para as contas a pagar em aberto deste mês em diante. O que já
-          foi pago não muda.
+          foi pago não muda. Mudar o mês de início não cria contas de meses passados; contas em aberto antes do novo
+          início são removidas.
         </p>
       ) : null}
 

@@ -169,6 +169,21 @@ describe("editar", () => {
     expect(await bodyOf(calls, "PATCH /recurring-bills/2")).toEqual({ start_month: "2025-11-01" });
   });
 
+  it("editar avisa que mudar o início não cria contas passadas e remove as abertas antes", async () => {
+    await openAs(MATHEUS);
+    const form = await editForm("Luz");
+    expect(within(form).getByText(/Mudar o mês de início não cria contas de meses passados; contas em aberto antes do novo início são removidas\./)).toBeTruthy();
+  });
+
+  it("início depois do mês de encerramento mostra erro e não chama a API", async () => {
+    const { calls } = await openAs(RUTH);
+    const form = await editForm("Internet");
+    type(field(form, "Mês de início"), "2100-01");
+    fireEvent.click(within(form).getByRole("button", { name: "Salvar conta fixa" }));
+    expect(await within(form).findByText("O mês de início não pode ser depois do mês de encerramento.")).toBeTruthy();
+    expect(writes(calls)).toEqual([]);
+  });
+
   it("forma de pagamento é uma lista de escolha", async () => {
     const { calls } = await openAs(MATHEUS);
     const form = await editForm("Luz");
@@ -592,5 +607,37 @@ describe("filtro", () => {
     await waitFor(() => expect(rowButton("Luz")).toBeTruthy());
     expect(payRegion().getByText("Luz")).toBeTruthy();
     expect(screen.queryByText("Nenhuma conta com esses filtros.")).toBeNull();
+  });
+
+  it("categoria salva que não existe mais volta para todas e é gravada", async () => {
+    localStorage.setItem("fixed-bills-filter", JSON.stringify({ status: "all", categoryId: 999 }));
+    await openAs(MATHEUS, { extra: extra() });
+    await waitFor(() => expect(JSON.parse(localStorage.getItem("fixed-bills-filter")!).categoryId).toBeNull());
+    expect((screen.getByLabelText("Categoria") as HTMLSelectElement).value).toBe("");
+    expect(rowButton("Luz")).toBeTruthy();
+  });
+
+  it("com situação ativa e o mês carregando mostra o skeleton, não 'Nenhuma conta'", async () => {
+    localStorage.setItem("fixed-bills-filter", JSON.stringify({ status: "paid", categoryId: null }));
+    makeBillsServer(MATHEUS, { extra: { "GET /bill-instances": () => new Promise<Response>(() => {}) } });
+    renderApp(<FixedBillsPage />);
+    expect(await screen.findByRole("status", { name: "Carregando contas do mês" })).toBeTruthy();
+    expect(screen.queryByText("Nenhuma conta cadastrada com esses filtros.")).toBeNull();
+  });
+
+  it("com situação ativa e erro no mês mostra o erro com tentar de novo", async () => {
+    localStorage.setItem("fixed-bills-filter", JSON.stringify({ status: "paid", categoryId: null }));
+    makeBillsServer(MATHEUS, { extra: { "GET /bill-instances": () => json({ detail: "x" }, 500) } });
+    renderApp(<FixedBillsPage />);
+    expect(await screen.findByText("Não foi possível carregar as contas do mês.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
+    expect(screen.queryByText("Nenhuma conta cadastrada com esses filtros.")).toBeNull();
+  });
+
+  it("com filtro ativo, o total mensal avisa que vale para todas as contas", async () => {
+    await openAs(MATHEUS, { extra: extra() });
+    expect(within(screen.getByRole("group", { name: "Total mensal" })).queryByText(/sem filtro/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Pagas" }));
+    await waitFor(() => expect(within(screen.getByRole("group", { name: "Total mensal" })).getByText(/todas as contas, sem filtro/)).toBeTruthy());
   });
 });
