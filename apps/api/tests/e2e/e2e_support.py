@@ -16,6 +16,7 @@ DESKTOP_MIN_WIDTH = 1024
 class Env:
     base_url: str
     ids: dict[str, int]
+    db_url: str = ""  # banco descartável do e2e (para preparar dados que a API não cria)
 
 
 def is_desktop(page: Page) -> bool:

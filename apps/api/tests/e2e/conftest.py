@@ -341,7 +341,7 @@ def e2e_env(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Env]:
             pytest.fail("O servidor do e2e não subiu.", pytrace=False)
         time.sleep(0.05)
     try:
-        yield Env(base_url=f"http://localhost:{port}", ids=ids)
+        yield Env(base_url=f"http://localhost:{port}", ids=ids, db_url=db_url)
     finally:
         server.should_exit = True
         thread.join(timeout=10)
