@@ -549,3 +549,48 @@ describe("parcelas de empréstimo", () => {
     expect(pay.queryByRole("button", { name: /Pagar parcela|Marcar como paga/ })).toBeNull();
   });
 });
+
+describe("filtro", () => {
+  // Hoje = 14/11/2026. Condomínio paga; Luz (conta 2) aberta; Internet (conta 3) vencida.
+  const inst = (id: number, billId: number, name: string, due: string, status: "open" | "paid") => ({
+    id,
+    recurring_bill_id: billId,
+    name,
+    owner: "AMBOS",
+    month: "2026-11-01",
+    due_date: due,
+    amount_cents: 1000,
+    status,
+  });
+  const month = [
+    inst(41, 1, "Condomínio", "2026-11-10", "paid"),
+    inst(42, 2, "Luz", "2026-11-20", "open"),
+    inst(43, 3, "Internet", "2026-11-05", "open"),
+  ];
+  const extra = () => ({ "GET /bill-instances": () => json({ items: month, total: month.length }) });
+  const payRegion = () => within(screen.getByRole("region", { name: "Contas a pagar" }));
+
+  beforeEach(() => localStorage.clear());
+
+  it("Pagas esconde as abertas nas duas colunas", async () => {
+    await openAs(MATHEUS, { extra: extra() });
+    await waitFor(() => expect(payRegion().getByText("Luz")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Pagas" }));
+    await waitFor(() => expect(listRegion().queryByRole("button", { name: (n) => n.startsWith("Luz") })).toBeNull());
+    expect(rowButton("Condomínio")).toBeTruthy();
+    expect(payRegion().queryByText("Luz")).toBeNull();
+    expect(payRegion().queryByText("Internet")).toBeNull();
+  });
+
+  it("categoria sem contas mostra aviso e Limpar filtros volta a tudo", async () => {
+    await openAs(MATHEUS, { extra: extra() });
+    // Internet (a única vencida) não tem categoria: Vencidas + Energia elétrica não deixa nada.
+    fireEvent.click(screen.getByRole("button", { name: "Vencidas" }));
+    fireEvent.change(screen.getByLabelText("Categoria"), { target: { value: "12" } });
+    expect(await screen.findByText("Nenhuma conta com esses filtros.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+    await waitFor(() => expect(rowButton("Luz")).toBeTruthy());
+    expect(payRegion().getByText("Luz")).toBeTruthy();
+    expect(screen.queryByText("Nenhuma conta com esses filtros.")).toBeNull();
+  });
+});

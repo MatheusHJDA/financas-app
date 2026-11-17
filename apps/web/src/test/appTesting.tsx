@@ -273,6 +273,13 @@ export function makeServer(me: Me, overrides: Record<string, Handler> = {}) {
       state.transactions = state.transactions.filter((t) => t.id !== found.id);
       return new Response(null, { status: 204 });
     },
+    "GET /bill-instances": (req) => {
+      const q = new URL(req.url).searchParams;
+      const items = [...state.overdue, ...state.upcoming].filter(
+        (b) => (!q.get("date_from") || b.due_date >= q.get("date_from")!) && (!q.get("date_to") || b.due_date <= q.get("date_to")!),
+      );
+      return json({ items, total: items.length });
+    },
     "POST /bill-instances/:id/pay": (_req, p) => {
       const id = Number(p.id);
       const found = [...state.upcoming, ...state.overdue].find((b) => b.id === id);

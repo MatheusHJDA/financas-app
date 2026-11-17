@@ -1,11 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CalendarRange, Plus, Repeat } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "../../api/client";
 import { Avatar, Button, Card, EmptyState, ErrorState, ListItem, Money, Sheet, Skeleton, SkeletonGroup, StatCard } from "../../ui";
 import { useAllAccounts, useAllCategories } from "../accounts/queries";
 import { OWNER_LABEL, assertOk } from "../accounts/shared";
-import { AFTER_FIXED_WRITE, useOverview, useRecurringBills } from "./api";
+import { AFTER_FIXED_WRITE, useMonthInstances, useOverview, useRecurringBills } from "./api";
+import { BillFilterBar } from "./BillFilterBar";
+import { NO_FILTER, filterBills, isFiltering, type BillFilterState, type BillStatusFilter } from "./billFilters";
+import { todayInSP } from "./dueStatus";
 import { FixedBillSheet, sheetTitle, type SaveInput, type SheetMode } from "./FixedBillSheet";
 import {
   activeTotalCents,
@@ -21,6 +24,28 @@ import { PayableBills } from "./PayableBills";
 import "../accounts/ui.css";
 import "./bills.css";
 
+const FILTER_KEY = "fixed-bills-filter";
+const STATUSES: BillStatusFilter[] = ["all", "open", "paid", "overdue"];
+
+function loadFilter(): BillFilterState {
+  try {
+    const raw = JSON.parse(localStorage.getItem(FILTER_KEY) ?? "null") as Partial<BillFilterState> | null;
+    const status = STATUSES.includes(raw?.status as BillStatusFilter) ? (raw?.status as BillStatusFilter) : "all";
+    const categoryId = typeof raw?.categoryId === "number" ? raw.categoryId : null;
+    return { status, categoryId };
+  } catch {
+    return NO_FILTER;
+  }
+}
+
+function saveFilter(filter: BillFilterState) {
+  try {
+    localStorage.setItem(FILTER_KEY, JSON.stringify(filter));
+  } catch {
+    // sem armazenamento: o filtro vale só nesta visita
+  }
+}
+
 /** Contas fixas (recorrentes): a pagar, listar, criar, editar, encerrar/reativar e excluir. Só grava depois do toque. */
 export default function FixedBillsPage() {
   const queryClient = useQueryClient();
@@ -30,6 +55,12 @@ export default function FixedBillsPage() {
   const categories = useAllCategories();
   const [mode, setMode] = useState<SheetMode | null>(null);
   const [notice, setNotice] = useState("");
+  const monthInstances = useMonthInstances();
+  const [filter, setFilterState] = useState<BillFilterState>(loadFilter);
+  const setFilter = (next: BillFilterState) => {
+    setFilterState(next);
+    saveFilter(next);
+  };
 
   const afterWrite = () => Promise.all(AFTER_FIXED_WRITE.map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
 
@@ -72,8 +103,20 @@ export default function FixedBillsPage() {
     setMode(next);
   };
 
-  const list = bills.data ? sortBills(bills.data) : [];
+  const list = useMemo(() => (bills.data ? sortBills(bills.data) : []), [bills.data]);
   const total = bills.data ? activeTotalCents(bills.data) : 0;
+  const filtering = isFiltering(filter);
+  const today = todayInSP();
+  const categoryOptions = useMemo(() => {
+    const used = new Set((bills.data ?? []).map((b) => b.category_id));
+    return (categories.data ?? []).filter((c) => c.kind === "expense" && used.has(c.id));
+  }, [bills.data, categories.data]);
+  const shown = useMemo(() => filterBills(list, monthInstances.data ?? [], filter, today), [list, monthInstances.data, filter, today]);
+  const payables = overview.data ? [...overview.data.overdue_bills, ...overview.data.upcoming_bills] : [];
+  const shownPay = filterBills(list, payables, filter, today).instances;
+  const shownOverdue = shownPay.filter((b) => overview.data?.overdue_bills.some((o) => o.id === b.id));
+  const shownUpcoming = shownPay.filter((b) => !shownOverdue.includes(b));
+  const nothing = filtering && bills.data && overview.data && monthInstances.data && shown.bills.length === 0 && shownPay.length === 0;
   const current = mode && mode.kind !== "new" ? (list.find((b) => b.id === mode.id) ?? null) : null;
   // A conta aberta no painel sumiu da lista (ex.: excluída em outro aparelho): fecha o painel.
   const sheetOpen = mode !== null && (mode.kind === "new" || current !== null);
@@ -90,13 +133,20 @@ export default function FixedBillsPage() {
         {notice}
       </p>
 
+      {bills.data && list.length > 0 ? (
+        <BillFilterBar value={filter} categories={categoryOptions} onChange={setFilter} onClear={() => setFilter(NO_FILTER)} />
+      ) : null}
+
+      {nothing ? (
+        <EmptyState title="Nenhuma conta com esses filtros." hint="Troque a situação ou a categoria, ou limpe os filtros." />
+      ) : (
       <div className="bill-cols">
         <div className="bill-col">
           {overview.isLoading ? <ListSkeleton label="Carregando contas a pagar" rows={2} /> : null}
           {overview.isError ? (
             <ErrorState message="Não foi possível carregar as contas a pagar." onRetry={() => void overview.refetch()} />
           ) : null}
-          {overview.data ? <PayableBills upcoming={overview.data.upcoming_bills} overdue={overview.data.overdue_bills} /> : null}
+          {overview.data ? <PayableBills upcoming={shownUpcoming} overdue={shownOverdue} /> : null}
         </div>
 
         <div className="bill-col">
@@ -107,7 +157,10 @@ export default function FixedBillsPage() {
           {bills.data && list.length === 0 ? (
             <EmptyState title="Nenhuma conta fixa" hint="Cadastre as contas que se repetem todo mês." />
           ) : null}
-          {bills.data && list.length > 0 ? (
+          {bills.data && list.length > 0 && filtering && shown.bills.length === 0 ? (
+            <EmptyState title="Nenhuma conta cadastrada com esses filtros." />
+          ) : null}
+          {bills.data && list.length > 0 && !(filtering && shown.bills.length === 0) ? (
             <>
               <StatCard
                 label="Total mensal"
@@ -118,7 +171,7 @@ export default function FixedBillsPage() {
               />
               <Card title="Cadastradas" icon={Repeat}>
                 <ul className="bill-list">
-                  {list.map((bill) => (
+                  {shown.bills.map((bill) => (
                     <li key={bill.id}>
                       <BillRow bill={bill} onOpen={() => go({ kind: "view", id: bill.id })} />
                     </li>
@@ -129,6 +182,7 @@ export default function FixedBillsPage() {
           ) : null}
         </div>
       </div>
+      )}
 
       <Sheet open={sheetOpen} title={mode ? sheetTitle(mode, current) : ""} onClose={() => go(null)}>
         {mode ? (
