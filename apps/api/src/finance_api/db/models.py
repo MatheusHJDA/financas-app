@@ -161,6 +161,8 @@ class LoginAttempt(Base):
     used_at: Mapped[datetime | None] = _tstz()
     created_at: Mapped[datetime] = _created_at()
 
+    __table_args__ = (Index("ix_login_attempts_source_expires_at", "source", "expires_at"),)
+
 
 class AccessCode(Base):
     """Código de liberação ou recuperação; só o hash é guardado."""

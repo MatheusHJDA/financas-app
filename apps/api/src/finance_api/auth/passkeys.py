@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import json
 import logging
+import math
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -65,6 +66,24 @@ def _webauthn_user_id(user: User | None, typed_name: str) -> bytes:
     return user.webauthn_user_id
 
 
+def _starts_retry_after(db: Session, source: str, now: datetime) -> int | None:
+    """Segundos até a origem poder iniciar de novo (20 inícios em 15 min), ou `None`.
+
+    O início de cada tentativa é `expires_at - ATTEMPT_TTL` (o relógio é o da autenticação).
+    """
+    window_start = now - limits.SOURCE_WINDOW + ATTEMPT_TTL  # em termos de expires_at
+    recent = db.scalars(
+        select(LoginAttempt.expires_at)
+        .where(LoginAttempt.source == source, LoginAttempt.expires_at > window_start)
+        .order_by(LoginAttempt.expires_at.desc())
+        .limit(limits.SOURCE_MAX_STARTS)
+    ).all()
+    if len(recent) < limits.SOURCE_MAX_STARTS:
+        return None
+    release_at = recent[-1] - ATTEMPT_TTL + limits.SOURCE_WINDOW
+    return max(1, math.ceil((release_at - now).total_seconds()))
+
+
 def start(
     db: Session,
     *,
@@ -77,7 +96,7 @@ def start(
 ) -> tuple[str, dict[str, Any]]:
     now = service.utcnow()
     limits.lock_source(db, source)
-    retry = limits.source_retry_after(db, source, now)
+    retry = limits.source_retry_after(db, source, now) or _starts_retry_after(db, source, now)
     if retry is not None:
         db.rollback()
         raise service.SourceBlocked(retry)
@@ -112,7 +131,8 @@ def start(
         )
 
     attempt_id = secrets.token_urlsafe(32)
-    db.execute(delete(LoginAttempt).where(LoginAttempt.expires_at < now - ATTEMPT_TTL))
+    # Guarda as tentativas pela janela da origem: elas contam no limite de inícios.
+    db.execute(delete(LoginAttempt).where(LoginAttempt.expires_at < now - limits.SOURCE_WINDOW))
     db.add(
         LoginAttempt(
             token_hash=service.hash_token(attempt_id),

@@ -1,6 +1,7 @@
 """Limites de tentativas de login: por origem (IP) e por conta (trava sem prazo).
 
 - Origem: 5 falhas em 15 min bloqueiam aquela origem até a mais antiga sair da janela.
+- Início da entrada em duas etapas: 20 por origem em 15 min, certos ou errados.
 - Conta: 20 falhas em 1 h travam a conta (`users.locked_at`) até a administração liberar.
 
 O relógio vem de quem chama (`now`), para os testes simularem o tempo. Nada aqui faz commit.
@@ -17,6 +18,9 @@ from finance_api.db.models import AuthFailure, User
 
 SOURCE_MAX_FAILURES = 5
 SOURCE_WINDOW = timedelta(minutes=15)
+# Inícios da entrada em duas etapas por origem na janela, contados com PIN certo ou errado
+# (o 429 não revela nada); evita que uma origem deixe o argon2 rodando sem parar.
+SOURCE_MAX_STARTS = 20
 ACCOUNT_MAX_FAILURES = 20
 ACCOUNT_WINDOW = timedelta(hours=1)
 

@@ -262,6 +262,35 @@ def test_inicio_com_pin_errado_nao_bloqueia_a_origem(
     assert _failures(db) == 0
 
 
+def _starts_until_blocked(client: TestClient, pin: str) -> tuple[int, Any]:
+    body = {"name": "Ruth", "pin": pin, "device_label": "iPhone"}
+    for count in range(1, 100):
+        response = client.post(START, json=body)
+        if response.status_code != 200:
+            return count, response
+    raise AssertionError("o início nunca foi limitado")
+
+
+def test_inicio_limitado_por_origem_sem_revelar_o_pin(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    """Muitos inícios da mesma origem dão 429 no mesmo ponto, com PIN certo ou errado."""
+    from finance_api.auth import limits
+
+    assert limits.SOURCE_MAX_STARTS == 20
+    wrong_at, wrong = _starts_until_blocked(flow.new_client("10.0.0.7"), "000000")
+    right_at, right = _starts_until_blocked(flow.new_client("10.0.0.8"), PIN_RUTH)
+    assert wrong_at == right_at == limits.SOURCE_MAX_STARTS + 1
+    for response in (wrong, right):
+        assert response.status_code == 429
+        assert int(response.headers["retry-after"]) == 15 * 60
+    assert _failures(db) == 0
+    # Outra origem segue livre; a origem limitada volta quando o início mais antigo sai da janela.
+    flow.start(flow.new_client("10.0.0.9"), "Ruth", PIN_RUTH)
+    flow.clock.advance(minutes=15, seconds=1)
+    flow.start(flow.new_client("10.0.0.7"), "Ruth", PIN_RUTH)
+
+
 def test_origem_bloqueada_recebe_429(db: Session, flow: Flow, auth_users: dict[str, User]) -> None:
     client = flow.new_client()
     for _ in range(5):
