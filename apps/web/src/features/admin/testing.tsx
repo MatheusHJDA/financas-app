@@ -62,6 +62,6 @@ export function renderAdmin(slug = "usuarios") {
 export const ME = { id: 1, name: "Matheus", role: "admin", owner: "MATHEUS" } as const;
 
 export const USERS = [
-  { id: 1, name: "Matheus", role: "admin", failed_attempts: 0, locked_until: null },
-  { id: 2, name: "Ruth", role: "member", failed_attempts: 3, locked_until: "2999-01-01T12:00:00Z" },
+  { id: 1, name: "Matheus", role: "admin", failed_attempts: 0, passkey_count: 0, locked_at: null },
+  { id: 2, name: "Ruth", role: "member", failed_attempts: 3, passkey_count: 1, locked_at: "2026-01-01T12:00:00Z" },
 ];

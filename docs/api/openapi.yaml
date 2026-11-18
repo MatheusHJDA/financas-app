@@ -176,6 +176,31 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Me"}
         "401": {$ref: "#/components/responses/Error"}
+  /auth/passkeys:
+    get:
+      tags: [auth]
+      operationId: listPasskeys
+      summary: Chaves de acesso do usuário
+      responses:
+        "200":
+          description: Chaves
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Passkey"}
+        "401": {$ref: "#/components/responses/Error"}
+  /auth/passkeys/{id}:
+    delete:
+      tags: [auth]
+      operationId: deletePasskey
+      summary: Remove uma chave de acesso (dona ou admin)
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "204": {description: Removida}
+        "401": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
   /auth/sessions:
     get:
       tags: [auth]
@@ -1010,6 +1035,32 @@ paths:
                   expires_at: {type: string, format: date-time}
         "403": {$ref: "#/components/responses/Error"}
         "404": {$ref: "#/components/responses/Error"}
+  /admin/users/{id}/unlock:
+    post:
+      tags: [admin]
+      operationId: adminUnlockUser
+      summary: Destrava a conta travada por tentativas erradas
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "204": {description: Conta destravada}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+  /admin/users/{id}/passkeys:
+    get:
+      tags: [admin]
+      operationId: adminListUserPasskeys
+      summary: Chaves de acesso de um usuário
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "200":
+          description: Chaves
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Passkey"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
   /admin/users/{id}/sessions:
     delete:
       tags: [admin]
@@ -1312,6 +1363,14 @@ components:
         name: {type: string}
         role: {$ref: "#/components/schemas/Role"}
         owner: {$ref: "#/components/schemas/Owner"}
+    Passkey:
+      type: object
+      required: [id, device_label, created_at]
+      properties:
+        id: {type: integer, format: int64}
+        device_label: {type: string}
+        created_at: {type: string, format: date-time}
+        last_used_at: {type: [string, "null"], format: date-time}
     Session:
       type: object
       required: [id, device_label, created_at, expires_at, current]
@@ -1963,13 +2022,14 @@ components:
 
     AdminUser:
       type: object
-      required: [id, name, role, failed_attempts]
+      required: [id, name, role, failed_attempts, passkey_count]
       properties:
         id: {type: integer, format: int64}
         name: {type: string}
         role: {$ref: "#/components/schemas/Role"}
         failed_attempts: {type: integer}
-        locked_until: {type: [string, "null"], format: date-time}
+        passkey_count: {type: integer}
+        locked_at: {type: [string, "null"], format: date-time}
     AppSettings:
       type: object
       description: Mapa chave -> valor JSON (horários, antecedência, modelo de IA, reserva mínima...)

@@ -36,6 +36,3 @@ export function formatBytes(bytes: number): string {
   return `${Math.trunc(tenths / 10)},${tenths % 10} MB`;
 }
 
-export function isLocked(lockedUntil: string | null | undefined, now: number = Date.now()): boolean {
-  return !!lockedUntil && new Date(lockedUntil).getTime() > now;
-}

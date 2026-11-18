@@ -6,10 +6,11 @@ from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import select
 
 from finance_api.auth import limits, passkeys, service
+from finance_api.core.audit import record_audit
 from finance_api.core.config import Settings, get_settings
 from finance_api.core.deps import DbSession, get_current_user
 from finance_api.core.permissions import CurrentUser, Owner
-from finance_api.db.models import UserSession
+from finance_api.db.models import Passkey, UserSession
 from finance_api.notifications.channels import NotificationChannel, get_channel
 
 router = APIRouter(tags=["auth"])
@@ -68,6 +69,22 @@ class SessionOut(BaseModel):
     created_at: datetime
     expires_at: datetime
     current: bool
+
+
+class PasskeyOut(BaseModel):
+    id: int
+    device_label: str
+    created_at: datetime
+    last_used_at: datetime | None = None
+
+
+def passkey_out(key: Passkey) -> PasskeyOut:
+    return PasskeyOut(
+        id=key.id,
+        device_label=key.device_label,
+        created_at=key.created_at,
+        last_used_at=key.last_used_at,
+    )
 
 
 def _set_cookie(response: Response, token: str, settings: Settings) -> None:
@@ -267,3 +284,37 @@ def revoke_session(id: int, request: Request, db: DbSession, user: CurrentUserDe
     if is_current:
         _clear_cookie(response)
     return response
+
+
+@router.get("/auth/passkeys", response_model=list[PasskeyOut], responses={401: _ERR})
+def list_passkeys(db: DbSession, user: CurrentUserDep) -> list[PasskeyOut]:
+    rows = db.scalars(select(Passkey).where(Passkey.user_id == user.id).order_by(Passkey.id))
+    return [passkey_out(k) for k in rows]
+
+
+@router.delete(
+    "/auth/passkeys/{id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={401: _ERR, 403: _ERR, 404: _ERR},
+)
+def delete_passkey(id: int, db: DbSession, user: CurrentUserDep) -> Response:
+    """Remove uma chave (dona ou admin). Remover a última é permitido: códigos recuperam."""
+    key = db.get(Passkey, id)
+    if key is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chave não encontrada.")
+    if key.user_id != user.id and user.role != "admin":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, detail="Você só pode remover as suas próprias chaves."
+        )
+    record_audit(
+        db,
+        user_id=user.id,
+        entity="passkeys",
+        entity_id=key.id,
+        action="delete",
+        before={"user_id": key.user_id, "device_label": key.device_label},
+        after=None,
+    )
+    db.delete(key)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

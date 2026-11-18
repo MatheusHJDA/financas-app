@@ -17,12 +17,13 @@ from sqlalchemy import func, select, text
 
 from finance_api.auth import codes, limits
 from finance_api.auth import service as auth_service
+from finance_api.auth.router import PasskeyOut, passkey_out
 from finance_api.core import app_settings
 from finance_api.core.audit import record_audit
 from finance_api.core.config import Settings, get_settings
 from finance_api.core.deps import DbSession, require_admin
 from finance_api.core.permissions import CurrentUser
-from finance_api.db.models import AiExtraction, AuditLog, Setting, User, UserSession
+from finance_api.db.models import AiExtraction, AuditLog, Passkey, Setting, User, UserSession
 from finance_api.notifications import lifecycle
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -45,7 +46,8 @@ class AdminUserOut(BaseModel):
     name: str
     role: str
     failed_attempts: int
-    locked_until: datetime | None = None
+    passkey_count: int
+    locked_at: datetime | None = None
 
 
 class ResetPinBody(BaseModel):
@@ -129,13 +131,20 @@ def _revoke_active_sessions(db: DbSession, user_id: int, *, keep_hash: str | Non
 @router.get("/users", response_model=list[AdminUserOut])
 def list_users(db: DbSession) -> list[AdminUserOut]:
     users = db.scalars(select(User).order_by(User.id)).all()
+    counts = {
+        uid: n
+        for uid, n in db.execute(
+            select(Passkey.user_id, func.count()).group_by(Passkey.user_id)
+        ).all()
+    }
     return [
         AdminUserOut(
             id=u.id,
             name=u.name,
             role=u.role,
             failed_attempts=u.failed_attempts,
-            locked_until=u.locked_until,
+            passkey_count=counts.get(u.id, 0),
+            locked_at=u.locked_at,
         )
         for u in users
     ]
@@ -183,6 +192,32 @@ def create_release_code(id: int, db: DbSession, admin: Admin) -> ReleaseCodeOut:
     )
     db.commit()
     return ReleaseCodeOut(code=code, expires_at=expires_at)
+
+
+@router.post("/users/{id}/unlock", status_code=status.HTTP_204_NO_CONTENT)
+def unlock_user(id: int, db: DbSession, admin: Admin) -> Response:
+    """Tira a trava da conta (sem prazo) e zera a contagem dela."""
+    user = _get_user(db, id)
+    was_locked = user.locked_at is not None
+    limits.release_account(db, user)
+    record_audit(
+        db,
+        user_id=admin.id,
+        entity="users",
+        entity_id=user.id,
+        action="update",
+        before={"locked": was_locked},
+        after={"locked": False, "unlocked": True},
+    )
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/users/{id}/passkeys", response_model=list[PasskeyOut])
+def list_user_passkeys(id: int, db: DbSession) -> list[PasskeyOut]:
+    user = _get_user(db, id)
+    rows = db.scalars(select(Passkey).where(Passkey.user_id == user.id).order_by(Passkey.id))
+    return [passkey_out(k) for k in rows]
 
 
 @router.delete("/users/{id}/sessions", status_code=status.HTTP_204_NO_CONTENT)

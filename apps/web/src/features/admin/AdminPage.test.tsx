@@ -29,7 +29,7 @@ it("usuários: lista papel e bloqueio", async () => {
   expect(within(matheus).getByText("Sem bloqueio")).toBeTruthy();
   expect(within(matheus).getByText(/Administrador/)).toBeTruthy();
   const ruth = screen.getByRole("article", { name: "Ruth" });
-  expect(within(ruth).getByText(/Bloqueado até/)).toBeTruthy();
+  expect(within(ruth).getByText(/Travada por tentativas erradas/)).toBeTruthy();
   expect(within(ruth).getByText(/3 tentativa/)).toBeTruthy();
   expect(within(ruth).getByText(/Membro/)).toBeTruthy();
 });
@@ -399,7 +399,7 @@ it("usuários no computador: tabela com ações e confirmação na linha", async
   expect(rows).toHaveLength(3); // cabeçalho + 2 pessoas
   expect(within(rows[1]).getByText("Matheus")).toBeTruthy();
   expect(within(rows[1]).getByText("Administrador")).toBeTruthy();
-  expect(within(rows[2]).getByText(/Bloqueado até/)).toBeTruthy();
+  expect(within(rows[2]).getByText(/Travada por tentativas erradas/)).toBeTruthy();
   expect(screen.queryByRole("article")).toBeNull(); // sem a versão de celular
 
   fireEvent.click(within(rows[2]).getByRole("button", { name: "Encerrar sessões de Ruth" }));

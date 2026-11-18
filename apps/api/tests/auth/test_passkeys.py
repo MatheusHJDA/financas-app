@@ -644,3 +644,113 @@ def test_auditoria_sem_segredos(db: Session, flow: Flow, auth_users: dict[str, U
     ]
     for secret in secrets_:
         assert secret not in blob
+
+
+# --- gerenciar chaves e desbloquear conta ----------------------------------------------------
+
+
+def test_lista_so_as_proprias_chaves(flow: Flow, auth_users: dict[str, User]) -> None:
+    matheus, ruth = auth_users["matheus"], auth_users["ruth"]
+    m_client, _ = flow.register(matheus, _device())
+    r_client, _ = flow.register(ruth, _device())
+    mine = m_client.get("/api/auth/passkeys")
+    assert mine.status_code == 200
+    assert len(mine.json()) == 1
+    assert mine.json()[0].keys() == {"id", "device_label", "created_at", "last_used_at"}
+    assert mine.json()[0]["id"] != r_client.get("/api/auth/passkeys").json()[0]["id"]
+    assert flow.new_client().get("/api/auth/passkeys").status_code == 401
+
+
+def test_membro_nao_remove_chave_de_outro_e_admin_remove(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    matheus, ruth = auth_users["matheus"], auth_users["ruth"]
+    m_client, _ = flow.register(matheus, _device())
+    r_client, _ = flow.register(ruth, _device())
+    m_id = m_client.get("/api/auth/passkeys").json()[0]["id"]
+    r_id = r_client.get("/api/auth/passkeys").json()[0]["id"]
+
+    assert r_client.delete(f"/api/auth/passkeys/{m_id}").status_code == 403
+    assert r_client.delete("/api/auth/passkeys/999999").status_code == 404
+    assert m_client.delete(f"/api/auth/passkeys/{r_id}").status_code == 204
+    db.expire_all()
+    assert db.get(Passkey, r_id) is None
+    assert db.get(Passkey, m_id) is not None
+    from finance_api.db.models import AuditLog
+
+    rows = db.scalars(
+        select(AuditLog).where(AuditLog.entity == "passkeys", AuditLog.action == "delete")
+    ).all()
+    assert [(r.action, r.entity_id, r.user_id) for r in rows] == [("delete", str(r_id), matheus.id)]
+    assert "public_key" not in json.dumps([r.before_json for r in rows])
+
+
+def test_removida_a_ultima_chave_codigo_de_emergencia_cadastra_outra(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    matheus = auth_users["matheus"]
+    client, response = flow.register(matheus, _device())
+    recovery = response.json()["recovery_codes"][0]
+    key_id = client.get("/api/auth/passkeys").json()[0]["id"]
+    assert client.delete(f"/api/auth/passkeys/{key_id}").status_code == 204
+    assert client.get("/api/auth/passkeys").json() == []
+
+    fresh = flow.new_client()
+    started = flow.start(fresh, "Matheus", PIN_MATHEUS, recovery)
+    assert started["mode"] == "register"
+    done = flow.finish(fresh, started["attempt_id"], _device().register(started["options"]))
+    assert done.status_code == 200, done.text
+    assert len(fresh.get("/api/auth/passkeys").json()) == 1
+
+
+def test_admin_lista_chaves_de_outro_usuario(flow: Flow, auth_users: dict[str, User]) -> None:
+    matheus, ruth = auth_users["matheus"], auth_users["ruth"]
+    m_client, _ = flow.register(matheus, _device())
+    r_client, _ = flow.register(ruth, _device())
+    flow.register(ruth, _device())
+    listed = m_client.get(f"/api/admin/users/{ruth.id}/passkeys")
+    assert listed.status_code == 200
+    assert len(listed.json()) == 2
+    assert m_client.get("/api/admin/users/99999/passkeys").status_code == 404
+    assert r_client.get(f"/api/admin/users/{matheus.id}/passkeys").status_code == 403
+    users = {u["name"]: u for u in m_client.get("/api/admin/users").json()}
+    assert users["Ruth"]["passkey_count"] == 2
+    assert users["Matheus"]["passkey_count"] == 1
+    assert users["Ruth"]["locked_at"] is None
+
+
+def test_unlock_devolve_o_acesso_e_audita(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    from finance_api.db.models import AuditLog
+
+    matheus, ruth = auth_users["matheus"], auth_users["ruth"]
+    m_client, _ = flow.register(matheus, _device())
+    r_device = _device()
+    flow.register(ruth, r_device)
+    ruth.locked_at = flow.clock.now
+    ruth.failed_attempts = 20
+    db.flush()
+    db.commit()
+    _, blocked = flow.login(ruth, r_device)
+    assert blocked.status_code == 401
+
+    assert flow.new_client().post(f"/api/admin/users/{ruth.id}/unlock").status_code == 401
+    assert m_client.post("/api/admin/users/99999/unlock").status_code == 404
+    assert m_client.post(f"/api/admin/users/{ruth.id}/unlock").status_code == 204
+    db.expire_all()
+    assert db.get(User, ruth.id).locked_at is None
+    assert db.get(User, ruth.id).failed_attempts == 0
+    _, ok = flow.login(ruth, r_device)
+    assert ok.status_code == 200, ok.text
+    row = db.scalars(
+        select(AuditLog).where(AuditLog.entity == "users", AuditLog.entity_id == str(ruth.id))
+    ).all()[-1]
+    assert row.before_json == {"locked": True}
+    assert row.after_json == {"locked": False, "unlocked": True}
+
+
+def test_membro_nao_destrava(flow: Flow, auth_users: dict[str, User]) -> None:
+    matheus, ruth = auth_users["matheus"], auth_users["ruth"]
+    r_client, _ = flow.register(ruth, _device())
+    assert r_client.post(f"/api/admin/users/{matheus.id}/unlock").status_code == 403

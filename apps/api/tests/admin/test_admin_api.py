@@ -41,6 +41,8 @@ ADMIN_ROUTES: list[tuple[str, str, dict[str, Any] | None]] = [
     ("POST", "/api/admin/users/1/reset-pin", {"new_pin": "123456"}),
     ("POST", "/api/admin/users/1/reset-pin", {"new_pin": "12"}),
     ("POST", "/api/admin/users/1/release-code", None),
+    ("POST", "/api/admin/users/1/unlock", None),
+    ("GET", "/api/admin/users/1/passkeys", None),
     ("DELETE", "/api/admin/users/1/sessions", None),
     ("GET", "/api/admin/settings", None),
     ("PUT", "/api/admin/settings", {"notify.daily_time": "20:00"}),
@@ -81,7 +83,7 @@ def test_list_users_never_exposes_pin_hash(
     assert response.status_code == 200
     body = response.json()
     assert [u["name"] for u in body] == ["Matheus", "Ruth"]
-    assert body[0].keys() == {"id", "name", "role", "failed_attempts", "locked_until"}
+    assert body[0].keys() == {"id", "name", "role", "failed_attempts", "passkey_count", "locked_at"}
     assert body[1]["role"] == "member"
     assert "pin" not in response.text
 

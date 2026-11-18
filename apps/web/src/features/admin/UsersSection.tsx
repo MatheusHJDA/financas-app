@@ -14,7 +14,6 @@ import {
   USERS_KEY,
   type AdminUser,
 } from "./adminApi";
-import { formatDateTime, isLocked } from "./format";
 import { Notice, type NoticeValue } from "./Notice";
 import { SectionSkeleton } from "./SectionSkeleton";
 
@@ -110,8 +109,8 @@ export function UsersSection() {
   }
 
   const lockText = (user: AdminUser) =>
-    isLocked(user.locked_until)
-      ? `Bloqueado até ${formatDateTime(user.locked_until)}`
+    user.locked_at != null
+      ? "Travada por tentativas erradas — só a administração libera"
       : "Sem bloqueio";
   const attemptsText = (user: AdminUser) =>
     user.failed_attempts > 0
@@ -239,7 +238,7 @@ export function UsersSection() {
           <tbody>
             {users.data.map((user) => {
               const active = activeFor(user);
-              const locked = isLocked(user.locked_until);
+              const locked = user.locked_at != null;
               return (
                 <Fragment key={user.id}>
                   <tr>
@@ -287,7 +286,7 @@ export function UsersSection() {
     body = (
       <ul className="admin-list">
         {users.data.map((user) => {
-          const locked = isLocked(user.locked_until);
+          const locked = user.locked_at != null;
           const active = activeFor(user);
           return (
             <li key={user.id}>
