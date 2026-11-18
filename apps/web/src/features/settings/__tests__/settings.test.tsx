@@ -18,6 +18,8 @@ const json = (body: unknown, status = 200) =>
 let calls: string[] = [];
 let meDelay = 0;
 
+let passkeys: unknown[] = [];
+
 function mockApi(me: unknown) {
   calls = [];
   vi.stubGlobal(
@@ -30,6 +32,11 @@ function mockApi(me: unknown) {
         return json(me);
       }
       if (path === "/auth/logout") return new Response(null, { status: 204 });
+      if (path === "/auth/passkeys") return json(passkeys);
+      if (req.method === "DELETE" && path.startsWith("/auth/passkeys/")) {
+        passkeys = [];
+        return new Response(null, { status: 204 });
+      }
       return json({ detail: "não mockado" }, 500);
     }),
   );
@@ -51,6 +58,7 @@ beforeEach(() => {
   document.documentElement.removeAttribute("data-theme");
   vi.stubGlobal("navigator", { ...navigator, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)" });
   meDelay = 0;
+  passkeys = [];
 });
 afterEach(() => {
   cleanup();
@@ -163,5 +171,42 @@ describe("PreferencesPage", () => {
     });
     fireEvent.click(screen.getByRole("radio", { name: "Escuro" }));
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+  });
+});
+
+describe("DevicesCard", () => {
+  const KEY = {
+    id: 7,
+    device_label: "iPhone da Ruth",
+    created_at: "2026-11-10T15:00:00Z",
+    last_used_at: "2026-11-17T12:30:00Z",
+  };
+
+  it("lista a chave com datas e remove só depois de confirmar", async () => {
+    passkeys = [KEY];
+    mockApi(RUTH);
+    renderPage(<PreferencesPage />);
+    const card = screen.getByRole("region", { name: "Aparelhos" });
+    expect(await within(card).findByText("iPhone da Ruth")).toBeTruthy();
+    expect(within(card).getByText(/cadastrado em 10\/11\/2026/)).toBeTruthy();
+    expect(within(card).getByText(/último uso 17\/11\/2026 09:30/)).toBeTruthy();
+    fireEvent.click(within(card).getByRole("button", { name: "Remover" }));
+    expect(calls.some((c) => c.startsWith("DELETE"))).toBe(false);
+    expect(within(card).getByText(/Remover a chave deste aparelho\? Ele vai precisar de um código de liberação/)).toBeTruthy();
+    fireEvent.click(within(card).getByRole("button", { name: "Remover chave" }));
+    await waitFor(() => expect(calls).toContain("DELETE /auth/passkeys/7"));
+    expect(await within(card).findByText("Nenhuma chave cadastrada.")).toBeTruthy();
+  });
+
+  it("diz 'nunca usado' e mostra o estado vazio", async () => {
+    passkeys = [{ ...KEY, last_used_at: null }];
+    mockApi(RUTH);
+    renderPage(<PreferencesPage />);
+    expect(await screen.findByText(/nunca usado/)).toBeTruthy();
+    cleanup();
+    passkeys = [];
+    mockApi(RUTH);
+    renderPage(<PreferencesPage />);
+    expect(await screen.findByText("Nenhuma chave cadastrada.")).toBeTruthy();
   });
 });

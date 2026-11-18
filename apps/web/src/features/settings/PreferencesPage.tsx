@@ -3,6 +3,7 @@ import { useState } from "react";
 import { detectPlatform } from "../../auth/deviceLabel";
 import { Card } from "../../ui";
 import { NotificationsCard } from "../notifications/NotificationsCard";
+import { DevicesCard } from "./DevicesCard";
 import "./settings.css";
 import { applyTheme, readTheme, saveTheme, type ThemeChoice } from "./theme";
 
@@ -54,6 +55,7 @@ export default function PreferencesPage() {
     <section className="screen">
       <h1>Preferências</h1>
       <NotificationsCard />
+      <DevicesCard />
       <ThemeCard />
       <Card title="Como instalar no celular" icon={Smartphone}>
         <div className={platform === "iphone" ? "install install--mine" : "install"}>

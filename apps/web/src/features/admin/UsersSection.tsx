@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, LogOut, Users } from "lucide-react";
+import { KeyRound, LockOpen, LogOut, ShieldCheck, Users } from "lucide-react";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../../auth/AuthProvider";
 import { Avatar, Button, Card, ListItem } from "../../ui";
@@ -11,9 +11,11 @@ import {
   PIN_LENGTH,
   resetPin,
   revokeSessions,
+  unlockUser,
   USERS_KEY,
   type AdminUser,
 } from "./adminApi";
+import { UserAccessPanel } from "./UserAccessPanel";
 import { Notice, type NoticeValue } from "./Notice";
 import { SectionSkeleton } from "./SectionSkeleton";
 
@@ -35,6 +37,7 @@ export function UsersSection() {
   const pinReady = PIN_PATTERN.test(pin) && pin === pin2;
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<NoticeValue | null>(null);
+  const [accessFor, setAccessFor] = useState<number | null>(null);
   const busyRef = useRef(false);
   const lastOpened = useRef<Pending | null>(null);
 
@@ -108,6 +111,18 @@ export function UsersSection() {
     );
   }
 
+  async function unlock(user: AdminUser) {
+    try {
+      await unlockUser(user.id);
+      setNotice({ kind: "ok", text: `${user.name} desbloqueada.` });
+      await queryClient.invalidateQueries({ queryKey: USERS_KEY });
+    } catch (error) {
+      setNotice({ kind: "error", text: errorText(error, "Não foi possível desbloquear. Tente de novo.") });
+    }
+  }
+
+  const keysText = (user: AdminUser) =>
+    user.passkey_count > 0 ? `${user.passkey_count} chave(s)` : "Sem chaves";
   const lockText = (user: AdminUser) =>
     user.locked_at != null
       ? "Travada por tentativas erradas — só a administração libera"
@@ -215,6 +230,19 @@ export function UsersSection() {
         >
           Encerrar sessões
         </Button>
+        <Button
+          icon={ShieldCheck}
+          aria-label={`Acesso de ${user.name}`}
+          aria-expanded={accessFor === user.id}
+          onClick={() => setAccessFor(accessFor === user.id ? null : user.id)}
+        >
+          Chaves e código
+        </Button>
+        {user.locked_at != null ? (
+          <Button icon={LockOpen} aria-label={`Desbloquear ${user.name}`} onClick={() => void unlock(user)}>
+            Desbloquear
+          </Button>
+        ) : null}
       </div>
     );
   }
@@ -258,6 +286,7 @@ export function UsersSection() {
                       >
                         {lockText(user)}
                       </span>
+                      <span className="muted"> · {keysText(user)}</span>
                       {attemptsText(user) ? (
                         <span className="muted"> · {attemptsText(user)}</span>
                       ) : null}
@@ -273,6 +302,13 @@ export function UsersSection() {
                   {active ? (
                     <tr className="admin-row-confirm">
                       <td colSpan={4}>{confirmForm(user, active)}</td>
+                    </tr>
+                  ) : null}
+                  {accessFor === user.id ? (
+                    <tr className="admin-row-confirm">
+                      <td colSpan={4}>
+                        <UserAccessPanel user={user} />
+                      </td>
                     </tr>
                   ) : null}
                 </Fragment>
@@ -307,6 +343,7 @@ export function UsersSection() {
                       >
                         {lockText(user)}
                       </span>
+                      <span> · {keysText(user)}</span>
                       {attemptsText(user) ? (
                         <span> · {attemptsText(user)}</span>
                       ) : null}
@@ -314,6 +351,7 @@ export function UsersSection() {
                   }
                 />
                 {active ? confirmForm(user, active) : actions(user)}
+                {accessFor === user.id ? <UserAccessPanel user={user} /> : null}
               </article>
             </li>
           );

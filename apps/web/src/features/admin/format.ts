@@ -8,6 +8,12 @@ const dateTime = new Intl.DateTimeFormat("pt-BR", {
   hour: "2-digit",
   minute: "2-digit",
 });
+const dateOnly = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
 const integer = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 
 /** "2026-11-13T12:30:00Z" -> "13/11/2026 09:30" (horário de Brasília). */
@@ -15,6 +21,13 @@ export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? iso : dateTime.format(date).replace(",", "");
+}
+
+/** "2026-11-13T12:30:00Z" -> "13/11/2026". */
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : dateOnly.format(date);
 }
 
 export function formatInt(value: number | null | undefined): string {

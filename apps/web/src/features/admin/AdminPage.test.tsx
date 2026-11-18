@@ -463,3 +463,68 @@ it("avisos: sem aparelhos, a dica aponta para Preferências", async () => {
   expect(await screen.findByText("Nenhum aparelho inscrito")).toBeTruthy();
   expect(screen.getByText(/Preferências/)).toBeTruthy();
 });
+
+const RUTH_KEY = {
+  id: 9,
+  device_label: "Celular da Ruth",
+  created_at: "2026-11-10T15:00:00Z",
+  last_used_at: null,
+};
+
+it("usuários: mostra a contagem de chaves", async () => {
+  setup();
+  const ruth = await screen.findByRole("article", { name: "Ruth" });
+  expect(within(ruth).getByText(/1 chave/)).toBeTruthy();
+  expect(within(screen.getByRole("article", { name: "Matheus" })).getByText(/Sem chaves/)).toBeTruthy();
+});
+
+it("usuários: gera o código de liberação e mostra com validade", async () => {
+  setup({
+    "GET /admin/users/2/passkeys": () => json([RUTH_KEY]),
+    "POST /admin/users/2/release-code": () =>
+      json({ code: "ABCDE-23456", expires_at: "2026-11-19T15:00:00Z" }, 201),
+  });
+  const ruth = await screen.findByRole("article", { name: "Ruth" });
+  fireEvent.click(within(ruth).getByRole("button", { name: "Acesso de Ruth" }));
+  fireEvent.click(await within(ruth).findByRole("button", { name: "Gerar código de liberação" }));
+  expect(await within(ruth).findByText("ABCDE-23456")).toBeTruthy();
+  expect(within(ruth).getByText(/vale até 19\/11\/2026 12:00/)).toBeTruthy();
+  expect(within(ruth).getByRole("button", { name: "Copiar" })).toBeTruthy();
+});
+
+it("usuários: copiar sem clipboard não quebra e pede cópia manual", async () => {
+  vi.stubGlobal("navigator", { ...navigator, clipboard: undefined });
+  setup({
+    "GET /admin/users/2/passkeys": () => json([]),
+    "POST /admin/users/2/release-code": () =>
+      json({ code: "ABCDE-23456", expires_at: "2026-11-19T15:00:00Z" }, 201),
+  });
+  const ruth = await screen.findByRole("article", { name: "Ruth" });
+  fireEvent.click(within(ruth).getByRole("button", { name: "Acesso de Ruth" }));
+  fireEvent.click(await within(ruth).findByRole("button", { name: "Gerar código de liberação" }));
+  fireEvent.click(await within(ruth).findByRole("button", { name: "Copiar" }));
+  expect(await within(ruth).findByText("Copie manualmente")).toBeTruthy();
+});
+
+it("usuários: remove a chave da Ruth depois de confirmar", async () => {
+  setup({
+    "GET /admin/users/2/passkeys": () => json([RUTH_KEY]),
+    "DELETE /auth/passkeys/9": () => new Response(null, { status: 204 }),
+  });
+  const ruth = await screen.findByRole("article", { name: "Ruth" });
+  fireEvent.click(within(ruth).getByRole("button", { name: "Acesso de Ruth" }));
+  expect(await within(ruth).findByText("Celular da Ruth")).toBeTruthy();
+  fireEvent.click(within(ruth).getByRole("button", { name: "Remover" }));
+  expect(writes()).toEqual([]);
+  fireEvent.click(within(ruth).getByRole("button", { name: "Remover chave" }));
+  await waitFor(() => expect(writes()).toEqual(["DELETE /auth/passkeys/9"]));
+});
+
+it("usuários: Desbloquear só aparece para quem está travado e chama a rota", async () => {
+  setup({ "POST /admin/users/2/unlock": () => new Response(null, { status: 204 }) });
+  const matheus = await screen.findByRole("article", { name: "Matheus" });
+  expect(within(matheus).queryByRole("button", { name: /Desbloquear/ })).toBeNull();
+  const ruth = screen.getByRole("article", { name: "Ruth" });
+  fireEvent.click(within(ruth).getByRole("button", { name: "Desbloquear Ruth" }));
+  await waitFor(() => expect(writes()).toEqual(["POST /admin/users/2/unlock"]));
+});

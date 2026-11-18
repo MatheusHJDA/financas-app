@@ -7,6 +7,7 @@ export type AiCallPage = components["schemas"]["AiCallPage"];
 export type AuditEvent = components["schemas"]["AuditEvent"];
 export type AuditPage = components["schemas"]["AuditPage"];
 export type SystemStatus = components["schemas"]["SystemStatus"];
+export type PasskeyOut = components["schemas"]["Passkey"];
 export type PushSubscription = components["schemas"]["PushSubscription"];
 
 export const PAGE_SIZE = 20;
@@ -19,6 +20,8 @@ export const KEY_BILL_DAYS = "notify.bill_days_before";
 
 // Prefixo próprio "admin" para todas as consultas desta tela.
 export const USERS_KEY = ["admin", "users"] as const;
+export const MY_PASSKEYS_KEY = ["auth", "passkeys"] as const;
+export const userPasskeysKey = (userId: number) => ["admin", "passkeys", userId] as const;
 export const SETTINGS_KEY = ["admin", "settings"] as const;
 export const SUBSCRIPTIONS_KEY = ["admin", "push-subscriptions"] as const;
 export const SYSTEM_KEY = ["admin", "system"] as const;
@@ -74,6 +77,31 @@ export async function resetPin(userId: number, newPin: string): Promise<void> {
 
 export async function revokeSessions(userId: number): Promise<void> {
   const { response } = await api.DELETE("/admin/users/{id}/sessions", { params: { path: { id: userId } } });
+  if (!response.ok) throw new AdminError(response.status);
+}
+
+export async function fetchMyPasskeys(): Promise<PasskeyOut[]> {
+  const { data, response } = await api.GET("/auth/passkeys");
+  return need(data, response);
+}
+
+export async function fetchUserPasskeys(userId: number): Promise<PasskeyOut[]> {
+  const { data, response } = await api.GET("/admin/users/{id}/passkeys", { params: { path: { id: userId } } });
+  return need(data, response);
+}
+
+export async function deletePasskey(id: number): Promise<void> {
+  const { response } = await api.DELETE("/auth/passkeys/{id}", { params: { path: { id } } });
+  if (!response.ok) throw new AdminError(response.status);
+}
+
+export async function createReleaseCode(userId: number): Promise<{ code: string; expires_at: string }> {
+  const { data, response } = await api.POST("/admin/users/{id}/release-code", { params: { path: { id: userId } } });
+  return need(data, response);
+}
+
+export async function unlockUser(userId: number): Promise<void> {
+  const { response } = await api.POST("/admin/users/{id}/unlock", { params: { path: { id: userId } } });
   if (!response.ok) throw new AdminError(response.status);
 }
 

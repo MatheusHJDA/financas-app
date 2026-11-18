@@ -107,3 +107,21 @@
   margin: var(--space-2) 0 0;
   font-size: var(--text-sm);
 }
+
+/* Preferências: aparelhos (chaves de acesso) */
+.pk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.pk-item {
+  display: grid;
+  gap: var(--space-2);
+}
+.pk-item__text {
+  display: grid;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
