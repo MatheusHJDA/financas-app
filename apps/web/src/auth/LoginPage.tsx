@@ -23,6 +23,8 @@ import { RecoveryCodes } from "./RecoveryCodes";
 
 const NAME_FIRST = "Digite seu nome antes do PIN.";
 const CANCELLED_TEXT = "Confirmação cancelada. Toque para tentar de novo.";
+// Sem chave neste aparelho, o sistema só oferece cancelar: mostra a saída.
+const NEW_DEVICE_HINT = "Aparelho novo? Volte e use “Tenho um código de liberação”.";
 
 // Mesma mensagem para nome errado, PIN errado ou conta travada: não revela o que falhou.
 function messageFor(error: unknown): string {
@@ -179,14 +181,23 @@ export function LoginPage() {
           <p role="alert" className="login-error">
             {cancelled ? CANCELLED_TEXT : ""}
           </p>
-          <Button
-            block
-            variant="primary"
-            disabled={busy}
-            onClick={confirmHere}
-          >
-            Usar Face ID / digital / Windows Hello
-          </Button>
+          {cancelled ? <p className="login-hint">{NEW_DEVICE_HINT}</p> : null}
+          <div className="login-actions">
+            <Button block variant="primary" disabled={busy} onClick={confirmHere}>
+              Usar Face ID / digital / Windows Hello
+            </Button>
+            <Button
+              block
+              variant="ghost"
+              disabled={busy}
+              onClick={() => {
+                setCancelled(false);
+                backToStart(null);
+              }}
+            >
+              Voltar
+            </Button>
+          </div>
         </section>
       ) : (
         <section aria-labelledby="login-title">

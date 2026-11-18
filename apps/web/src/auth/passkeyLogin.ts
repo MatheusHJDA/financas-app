@@ -21,7 +21,7 @@ export async function fetchAuthConfig(): Promise<{ passkey_required: boolean }> 
   return data;
 }
 
-/** Se a chave de acesso é exigida; enquanto não carrega (ou se falhar) vale o modo só com PIN. */
+/** Se a chave de acesso é exigida. Enquanto carrega, a tela espera; se falhar, mostra erro com nova tentativa (nunca cai no modo só com PIN). */
 export function useAuthConfig() {
   return useQuery({ queryKey: ["auth-config"], queryFn: fetchAuthConfig, staleTime: Infinity, retry: 1, retryDelay: 300 });
 }

@@ -165,6 +165,31 @@ describe("entrada com chave de acesso", () => {
     expect(webauthn.startAuthentication.mock.calls[1]).toEqual(webauthn.startAuthentication.mock.calls[0]);
   });
 
+  it("cancelado sugere o código de liberação e Voltar leva ao passo 1 sem PIN", async () => {
+    webauthn.startAuthentication.mockRejectedValueOnce(Object.assign(new Error("x"), { name: "NotAllowedError" }));
+    renderAt("/login");
+    await fill();
+    enter();
+    await confirm();
+    expect(await screen.findByText("Aparelho novo? Volte e use “Tenho um código de liberação”.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
+    expect(await screen.findByRole("img", { name: "0 de 6 dígitos" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Confirme neste aparelho" })).toBeNull();
+    expect(screen.queryByText(GENERIC)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Tenho um código de liberação" }));
+    expect(screen.getByLabelText("Código de liberação")).toBeTruthy();
+  });
+
+  it("Voltar no passo 2 funciona mesmo sem cancelar", async () => {
+    renderAt("/login");
+    await fill();
+    enter();
+    await screen.findByRole("heading", { name: "Confirme neste aparelho" });
+    fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
+    expect(await screen.findByLabelText("Seu nome")).toBeTruthy();
+    expect(webauthn.startAuthentication).not.toHaveBeenCalled();
+  });
+
   it("tentativa velha (> 100 s) refaz o start e pede outro toque antes do WebAuthn", async () => {
     renderAt("/login");
     await fill();
