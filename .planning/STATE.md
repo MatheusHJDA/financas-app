@@ -25,8 +25,16 @@ fast-forward (f943956, check verde: api 535, web 469); branches `emprestimo` e `
 nem remoto git: o branch principal é `master`. Docs: `instalar-no-celular.md` com os caminhos novos (Mais →
 Preferências / Administração) e `deploy-vps.md` com `ALLOWED_HOSTS`, `ENABLE_DOCS` e `chmod 600` no dump.
 
-**Próximo:** VPS — falta escolher provedor e domínio, e criar um remoto git (ou copiar o repositório) para o
-`git clone` do passo 2 de `docs/deploy-vps.md`.
+**17/11/2026 (fim do dia) — login em duas etapas aprovado** antes da VPS (lá sem Tailscale, por escolha do Matheus).
+Desenho aprovado: `docs/superpowers/specs/2026-11-17-login-dois-fatores-design.md` (e705d95). Resumo: nome digitado
+(sem lista; maiúsc./minúsc. aceitas, letras exatas) + PIN + chave de acesso do aparelho (Face ID/digital; Windows
+Hello no PC); servidor só dá o veredito no fim; código de liberação de uso único (24 h) para cadastrar aparelho, o
+primeiro do Matheus por comando no servidor; 8 códigos de emergência; 5 min fora / 30 min parado / 12 h máx.;
+limite 5 erros/15 min por origem e 20/1 h por conta; `REQUIRE_PASSKEY` só ligado na VPS.
+
+**Próximo (18/11):** escrever o plano de execução a partir desse desenho (superpowers:writing-plans), em branch
+novo saído do `master`; executar; depois a VPS — escolher provedor e domínio e criar um remoto git (ou copiar o
+repositório) para o `git clone` do passo 2 de `docs/deploy-vps.md`.
 
 ## RETOMAR AQUI (16/11/2026 → 17/11) — itens 1 e 3 feitos em 17/11
 **Onde estamos:** redesenho completo e no ar no PC. Branch `redesenho`, commits `b36e9b4` (R3) e `7ca0860` (revisão
