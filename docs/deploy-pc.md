@@ -133,8 +133,9 @@ Para o PC não dormir e derrubar o app: *Configurações → Sistema → Energia
 
   O comando faz um backup de segurança do banco atual (no volume), para a api, restaura numa única transação (se
   falhar, o banco fica como estava) e sobe a api de novo. `-SemSeguranca` pula o backup de segurança (só use se o
-  banco atual estiver quebrado). Se o dump for de uma versão mais antiga do app, o banco é atualizado sozinho
-  quando a api sobe.
+  banco atual estiver quebrado). Restaure só dumps da **mesma versão** do app (mesma migração do alembic) que o
+  banco atual: um dump de versão mais antiga num banco já atualizado falha na restauração (o banco fica como
+  estava). Nesse caso, atualize primeiro o app que gerou o dump e gere um dump novo.
 - **Onde ficam os arquivos:** os dumps ficam no volume Docker `financas_backups` (dentro do Docker Desktop, não
   numa pasta comum do Windows) e as cópias de `./tasks.ps1 backup` em `.\backups`. As fotos/PDFs enviados ficam
   no volume `financas_uploads` e **não** entram no dump do banco.

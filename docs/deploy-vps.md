@@ -10,8 +10,10 @@ seu. Esta página parte do app já funcionando no PC ([deploy-pc.md](deploy-pc.m
 >
 > 1. **Reinstale o app (PWA)** a partir do endereço novo (apague o ícone antigo; veja
 >    [instalar-no-celular.md](instalar-no-celular.md)).
-> 2. **Entre de novo com o PIN** e **reative as notificações** (**Mais → Preferências → Notificações**). As inscrições de push
->    do endereço antigo não valem para o novo.
+> 2. **Entre de novo**: nome, PIN e a **chave de acesso do aparelho** (Face ID, digital ou Windows Hello). No primeiro
+>    acesso pelo endereço novo ninguém tem chave ainda: cada aparelho entra com um **código de liberação** (passo a
+>    passo na seção 4, "Primeiro acesso"). Depois **reative as notificações** (**Mais → Preferências → Notificações**).
+>    As inscrições de push do endereço antigo não valem para o novo.
 >
 > Os **dados não se perdem**: ficam no servidor (no banco restaurado na VPS). Só o app instalado e a permissão de
 > notificação são do endereço. Deixe o PC rodando até todos os celulares estarem no endereço novo.
@@ -23,7 +25,9 @@ seu. Esta página parte do app já funcionando no PC ([deploy-pc.md](deploy-pc.m
   `sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`
   (e uma linha `/swapfile none swap sw 0 0` no `/etc/fstab` para sobreviver ao reinício).
 - Um domínio (ou subdomínio) com registro **A** apontando para o IP da VPS (por exemplo `financas.seudominio.com.br`).
-  Em IPv6, aponte também o **AAAA**.
+  **Não publique registro AAAA** (IPv6): o Caddy roda numa rede Docker só IPv4 e, por IPv6, todos os visitantes
+  chegariam à api com o mesmo IP (o do Docker), o que estraga os limites de tentativas de login por origem. Operadora
+  só IPv6 continua alcançando o app (por NAT64). Confira o IP real depois de subir (seção 4, "Confira").
 - Portas **80** e **443** liberadas no firewall da VPS (o Caddy usa as duas para emitir o certificado e servir o app).
 - Docker Engine + plugin Compose na VPS ([docs.docker.com/engine/install](https://docs.docker.com/engine/install/)).
 - Git.
@@ -71,7 +75,8 @@ ENABLE_DOCS=false
   cabeçalho `X-Forwarded-For`, e o servidor só confia nele se o par que conecta estiver nessa lista. No compose da
   VPS a api **não publica porta**: o Caddy é o único que alcança a api pela rede interna, então `*` é seguro ali.
   Se um dia a api voltar a ter porta publicada, troque por o IP do Caddy, senão qualquer um poderia forjar o IP e
-  escapar do limite.
+  escapar do limite. O `infra/Caddyfile` fixa `header_up X-Forwarded-For {remote_host}` no `reverse_proxy`: o Caddy
+  troca qualquer `X-Forwarded-For` mandado pelo visitante pelo IP de quem conectou de fato.
 - `chmod 600 .env`.
 
 ## 3. Subir (Docker + Caddy)
@@ -91,7 +96,14 @@ Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados d
 
 ## 4. Migrar os dados do PC para a VPS
 
-1. **No PC**, gere um backup novo e confira o arquivo:
+1. **No PC, atualize para esta versão antes do backup de corte**: junte o código no `master` e rode `./tasks.ps1 up`
+   (a api aplica as migrações até a **0004** do alembic; confira com
+   `docker compose -f infra/docker-compose.yml exec api alembic current`, deve mostrar `0004_login_attempts_source_idx`). Na VPS a api já sobe nessa
+   versão e cria as tabelas novas do login em duas etapas; um dump de versão mais antiga (por exemplo, migração
+   0002) **não restaura** num banco já atualizado: o `pg_restore --clean` tenta apagar tabelas das quais as novas
+   dependem e a restauração inteira é desfeita. O alembic não conserta isso depois.
+
+2. **No PC**, gere um backup novo e confira o arquivo:
 
    ```powershell
    ./tasks.ps1 backup .\backups
@@ -99,10 +111,10 @@ Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados d
 
    O arquivo é o `financas-AAAAMMDD-HHMMSS.dump` mais novo de `.\backups`.
 
-2. **Combine a data de corte**: a partir daqui, ninguém lança nada no app do PC (qualquer lançamento depois do
+3. **Combine a data de corte**: a partir daqui, ninguém lança nada no app do PC (qualquer lançamento depois do
    backup ficaria de fora). O mais simples é avisar a Ruth, fazer o backup e só então virar para a VPS.
 
-3. **Copie o dump para a VPS** (do PC, PowerShell):
+4. **Copie o dump para a VPS** (do PC, PowerShell):
 
    ```powershell
    scp .\backups\financas-AAAAMMDD-HHMMSS.dump usuario@IP-DA-VPS:~/financas/
@@ -111,7 +123,7 @@ Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados d
    O dump tem todos os dados financeiros: na VPS, `chmod 600 ~/financas/financas-*.dump`, e apague-o depois de
    conferir a restauração (o serviço `backup` passa a gerar os seus).
 
-4. **Na VPS**, restaure (o script faz backup de segurança, para a api, restaura e sobe a api):
+5. **Na VPS**, restaure (o script faz backup de segurança, para a api, restaura e sobe a api):
 
    ```bash
    cd ~/financas
@@ -120,14 +132,44 @@ Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados d
 
    Se preferir fazer à mão, o núcleo é o `pg_restore --clean --if-exists --no-owner` do `infra/scripts/db-restore.sh`.
 
-5. **Confira**: entre em `https://financas.seudominio.com.br` com o PIN de sempre e compare saldos e quantidade de
-   lançamentos com o app do PC.
+6. **Primeiro acesso (login em duas etapas).** Com `REQUIRE_PASSKEY=true`, o PIN sozinho não entra mais: é preciso
+   também a chave de acesso (Face ID, digital ou Windows Hello) cadastrada no aparelho. Ninguém tem chave logo após
+   restaurar o banco, então cada aparelho entra uma vez com um **código de liberação** (24 h, **uso único**: um
+   código por aparelho):
 
-6. **Mesmas chaves VAPID.** Embora as notificações precisem ser reativadas nos celulares (aviso no topo), use as
+   1. Matheus gera o próprio código **no servidor**:
+
+      ```bash
+      docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml exec api python -m finance_api.auth.release Matheus
+      ```
+
+      No celular: nome, PIN, "Tenho um código de liberação", código, confirmar no aparelho. **Guarde os 8 códigos de
+      emergência** que aparecem uma única vez (gerenciador de senhas ou papel guardado).
+   2. Para o **PC** (ou outro aparelho do Matheus) é preciso **outro código**, porque o primeiro já foi usado: rode o
+      comando acima de novo, ou gere pelo celular já conectado em **Mais → Administração → Usuários → Matheus →
+      Chaves e código**. Entre no PC do mesmo jeito.
+   3. Matheus gera o código da Ruth em **Mais → Administração → Usuários → Chaves e código**; a Ruth entra e cadastra
+      o iPhone (e outro código para cada aparelho a mais).
+   4. Confira **Mais → Preferências → Aparelhos** em cada celular.
+
+7. **Confira**: com a chave cadastrada, compare saldos e quantidade de lançamentos com o app do PC. Confira também
+   que a api vê o **IP real** de quem conecta (os limites de tentativas dependem disso): no celular, **nos dados
+   móveis** (Wi-Fi desligado), comece uma entrada com o PIN **errado** de propósito e confirme no aparelho (conta uma
+   falha; não chega perto de travar nada). Depois, na VPS:
+
+   ```bash
+   docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml exec db psql -U financas -d financas -c "select source, at from auth_failures order by at desc limit 3"
+   ```
+
+   O `source` mais recente tem de ser o IP público do celular (o mesmo que um site "qual é meu IP" mostra nos dados
+   móveis), **não** um `172.x.x.x`/`10.x.x.x` (rede do Docker) nem o mesmo IP para todo mundo. Se aparecer o IP do
+   Docker, revise `FORWARDED_ALLOW_IPS`, o `header_up` do Caddyfile e se existe registro AAAA no DNS.
+
+8. **Mesmas chaves VAPID.** Embora as notificações precisem ser reativadas nos celulares (aviso no topo), use as
    **mesmas** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` do PC: trocar as chaves invalida todas as inscrições de
    push existentes. Elas estão no `.env` do PC (e no seu gerenciador de senhas).
 
-7. **Anexos (fotos/PDFs enviados)** ficam no volume `uploads`, fora do dump. Se quiser levá-los, copie o volume
+9. **Anexos (fotos/PDFs enviados)** ficam no volume `uploads`, fora do dump. Se quiser levá-los, copie o volume
    (no PC: `docker run --rm -v financas_uploads:/d -v "${PWD}:/out" alpine tar czf /out/uploads.tgz -C /d .`; na
    VPS: o equivalente com `tar xzf` no volume `financas_uploads`). O app funciona sem eles, mas os comprovantes
    antigos ficam sem imagem.
@@ -139,23 +181,10 @@ Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados d
 2. Depois que os dois celulares estiverem usando a VPS, pare o app do PC (`./tasks.ps1 down`) e desligue o
    `tailscale serve reset`, para ninguém lançar por engano no banco antigo. Guarde o último dump do PC.
 
-### Login em duas etapas na virada
+### Conta do Matheus travada
 
-Com `REQUIRE_PASSKEY=true`, o PIN sozinho não entra mais: é preciso também a chave de acesso (Face ID, digital ou
-Windows Hello) cadastrada no aparelho. Ninguém tem chave logo após restaurar o banco, então:
-
-1. Suba a VPS com `REQUIRE_PASSKEY=true` e restaure o banco (seção 4).
-2. Matheus gera o próprio código de liberação **no servidor**:
-
-   ```bash
-   docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml exec api python -m finance_api.auth.release Matheus
-   ```
-
-   Ele entra no celular e no PC (nome, PIN, "Tenho um código de liberação", código, confirmar no aparelho) e
-   **guarda os 8 códigos de emergência** que aparecem uma única vez (gerenciador de senhas ou papel guardado).
-3. Matheus gera o código da Ruth em **Mais → Administração → Usuários → Chaves e código**; a Ruth entra e cadastra
-   o iPhone.
-4. Confira **Mais → Preferências → Aparelhos** em cada celular e, só então, desligue o app do PC.
+O primeiro acesso de cada aparelho (código de liberação) está na seção 4, "Primeiro acesso". Só desligue o app do
+PC depois de conferir **Mais → Preferências → Aparelhos** em cada celular.
 
 Se a conta do Matheus travar (20 falhas em 1 h; a conta fica travada sem prazo), nenhum outro admin consegue
 destravá-la pelo app. No servidor:

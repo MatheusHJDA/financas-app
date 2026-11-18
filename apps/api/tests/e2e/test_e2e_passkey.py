@@ -19,6 +19,7 @@ GENERIC_ERROR = "Não foi possível entrar. Confira o nome e o PIN."
 CONFIRM = "Usar Face ID / digital / Windows Hello"
 
 
+# Sobrepõe o `device` do conftest (usado por `context`/`page`): neste módulo só um celular e o PC.
 @pytest.fixture(params=["iphone-11", "desktop"])
 def device(request: pytest.FixtureRequest) -> str:
     return str(request.param)
@@ -160,5 +161,9 @@ def test_aviso_abre_destino_apos_login(page: Page, e2e_env: Env, passkey_mode: N
     page.get_by_role("button", name="Tenho um código de liberação").tap()
     page.get_by_label("Código de liberação").fill(code)
     page.get_by_role("button", name="Entrar", exact=True).tap()
+    # O Chat tira o `?meta=` da URL logo que lê o parâmetro: guarda as URLs por onde passou.
+    seen: list[str] = []
+    page.on("framenavigated", lambda frame: seen.append(frame.url))
     page.get_by_role("button", name=CONFIRM).tap()
-    expect(page).to_have_url(re.compile(r"/lancar\?meta=4$"))
+    expect(page).to_have_url(re.compile(r"/lancar(\?meta=4)?$"))
+    assert any(url.endswith("/lancar?meta=4") for url in seen), seen

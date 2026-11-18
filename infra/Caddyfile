@@ -13,5 +13,9 @@
 		Content-Security-Policy "frame-ancestors 'none'"
 	}
 
-	reverse_proxy api:8000
+	# IP real de quem conecta (os limites de login são por origem): fixado aqui em vez de depender
+	# do padrão do Caddy. Substitui qualquer X-Forwarded-For que o visitante tenha mandado.
+	reverse_proxy api:8000 {
+		header_up X-Forwarded-For {remote_host}
+	}
 }

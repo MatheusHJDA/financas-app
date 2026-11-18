@@ -9,8 +9,12 @@ com chave de acesso; docs da virada`). Feito: nome digitado + PIN + chave de ace
 (desligado no PC, ligado na VPS); códigos de liberação (24 h) e de emergência (8, admin); limites por origem e por
 conta (travamento sem prazo, `python -m finance_api.auth.release Matheus [--desbloquear]`); sessão 30 min/12 h na VPS;
 Preferências → Aparelhos e Administração → Usuários → Chaves e código. Migrações 0003 e 0004: aplicadas no próximo
-`./tasks.ps1 up` (não rodado). Testes: `check` verde (api 603, web 487); e2e 99 passaram, 2 ignorados (autenticador virtual do Chromium,
-8 novos). VPS escolhida: Ubuntu 26.04 LTS, 2 vCPU, 4 GB, 40 GB SSD, IPv4, França (swap de 2 GB antes do build).
+`./tasks.ps1 up` (não rodado). Onda de correções da revisão final (`037ff92`..HEAD): só o segundo fator provado
+conta falha para a conta (ninguém trava a conta alheia só com o nome); remover chave desconecta os aparelhos da dona;
+aviso de aparelho novo em tarefa de fundo; "Voltar" no passo 2 do login; Caddy fixa `X-Forwarded-For`; deploy-vps sem
+AAAA, PC atualizado (alembic 0004) antes do backup de corte e um código de liberação por aparelho. Testes: `check`
+verde (api 610, web 489); e2e 99 passaram, 2 ignorados (os 2 já existiam antes: menu lateral só no computador, em
+`test_e2e_redesign`). Os 8 testes novos de chave de acesso (autenticador virtual do Chromium) passaram. VPS escolhida: Ubuntu 26.04 LTS, 2 vCPU, 4 GB, 40 GB SSD, IPv4, França (swap de 2 GB antes do build).
 **Próximo:** testes nos aparelhos (iPhone com Face ID real), merge no master, domínio + remoto git, virada para a VPS
 (`docs/deploy-vps.md`).
 
