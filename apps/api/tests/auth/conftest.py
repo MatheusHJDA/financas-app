@@ -45,10 +45,11 @@ def auth_users(db: Session) -> dict[str, User]:
 
 
 @pytest.fixture
-def new_client(app: FastAPI) -> Callable[[], TestClient]:
+def new_client(app: FastAPI) -> Callable[..., TestClient]:
     """Cada chamada devolve um cliente com cookie jar próprio (um "aparelho").
 
     https: o cookie é Secure e não seria reenviado por um cliente http.
+    `new_client("10.0.0.2")` simula outra origem (IP de quem conecta).
     """
     app.dependency_overrides.pop(get_current_user, None)
 
@@ -56,7 +57,10 @@ def new_client(app: FastAPI) -> Callable[[], TestClient]:
     def _admin_only(user: CurrentUser = Depends(require_admin)) -> dict[str, str]:  # noqa: B008
         return {"name": user.name}
 
-    return lambda: TestClient(app, base_url="https://testserver")
+    def _make(host: str = "testclient") -> TestClient:
+        return TestClient(app, base_url="https://testserver", client=(host, 50000))
+
+    return _make
 
 
 @pytest.fixture
@@ -70,7 +74,7 @@ def login(
         client = new_client()
         response = client.post(
             "/api/auth/login",
-            json={"user_id": auth_users[who].id, "pin": pins[who], "device_label": device},
+            json={"name": auth_users[who].name, "pin": pins[who], "device_label": device},
         )
         assert response.status_code == 200, response.text
         return client

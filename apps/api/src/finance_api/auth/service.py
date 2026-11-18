@@ -1,4 +1,4 @@
-"""Regras de PIN, bloqueio e sessões por aparelho (sem rotas FastAPI)."""
+"""Regras de PIN, limites de tentativa e sessões por aparelho (sem rotas FastAPI)."""
 
 import hashlib
 import logging
@@ -8,9 +8,10 @@ from datetime import UTC, datetime, timedelta
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from finance_api.auth import limits
 from finance_api.auth.identity import INITIAL_USERS, OWNER_BY_USER_NAME, PIN_LENGTH
 from finance_api.core.audit import record_audit
 from finance_api.core.config import Settings
@@ -20,8 +21,6 @@ from finance_api.db.models import User, UserSession
 logger = logging.getLogger(__name__)
 
 SESSION_COOKIE = "session"
-MAX_FAILED_ATTEMPTS = 5
-LOCK_MINUTES = 15
 
 _hasher = PasswordHasher()
 _dummy_hash: str | None = None
@@ -67,12 +66,12 @@ def _aware(value: datetime) -> datetime:
 
 
 class InvalidCredentials(Exception):
-    pass
+    """Falha genérica: nome errado, PIN errado ou conta travada (a resposta é a mesma)."""
 
 
-class AccountLocked(Exception):
+class SourceBlocked(Exception):
     def __init__(self, retry_after_seconds: int) -> None:
-        super().__init__("locked")
+        super().__init__("source blocked")
         self.retry_after_seconds = retry_after_seconds
 
 
@@ -83,39 +82,43 @@ class LoginResult:
     session: UserSession
 
 
-def _retry_after(user: User, now: datetime) -> int:
-    assert user.locked_until is not None
-    return max(1, int((_aware(user.locked_until) - now).total_seconds()))
+def find_user_by_name(db: Session, name: str, *, for_update: bool = False) -> User | None:
+    """Usuário pelo nome digitado: sem espaços nas pontas, sem diferenciar maiúsculas."""
+    typed = name.strip().lower()
+    if not typed:
+        return None
+    query = select(User).where(func.lower(User.name) == typed)
+    if for_update:
+        query = query.with_for_update()
+    user = db.execute(query).scalar_one_or_none()
+    if user is None or user.name not in OWNER_BY_USER_NAME:
+        return None
+    return user
 
 
 def login(
-    db: Session, *, user_id: int, pin: str, device_label: str, settings: Settings
+    db: Session, *, name: str, pin: str, device_label: str, source: str, settings: Settings
 ) -> LoginResult:
     now = utcnow()
-    # FOR UPDATE: tentativas paralelas não driblam o contador.
-    user = db.execute(select(User).where(User.id == user_id).with_for_update()).scalar_one_or_none()
-    if user is None or user.name not in OWNER_BY_USER_NAME:
+    # Origem bloqueada: recusa antes de qualquer argon2.
+    retry = limits.source_retry_after(db, source, now)
+    if retry is not None:
+        raise SourceBlocked(retry)
+
+    # FOR UPDATE: tentativas paralelas na mesma conta não driblam a contagem.
+    user = find_user_by_name(db, name, for_update=True)
+    if user is None:
         _burn_time(pin)
-        raise InvalidCredentials
-
-    if user.locked_until is not None and _aware(user.locked_until) > now:
-        retry = _retry_after(user, now)
-        db.rollback()
-        raise AccountLocked(retry)
-
-    if not (is_valid_pin(pin) and _verify_pin(user.pin_hash, pin)):
-        user.failed_attempts += 1
-        locked = user.failed_attempts >= MAX_FAILED_ATTEMPTS
-        if locked:
-            user.locked_until = now + timedelta(minutes=LOCK_MINUTES)
-            user.failed_attempts = 0  # passado o bloqueio, começa nova rodada de 5 tentativas
+        limits.record_failure(db, source=source, user=None, now=now)
         db.commit()
-        if locked:
-            raise AccountLocked(LOCK_MINUTES * 60)
         raise InvalidCredentials
 
-    user.failed_attempts = 0
-    user.locked_until = None
+    pin_ok = is_valid_pin(pin) and _verify_pin(user.pin_hash, pin)
+    if limits.is_locked(user) or not pin_ok:
+        limits.record_failure(db, source=source, user=user, now=now)
+        db.commit()
+        raise InvalidCredentials
+
     token = secrets.token_urlsafe(32)
     session = UserSession(
         token_hash=hash_token(token),
@@ -186,12 +189,11 @@ def revoke_session(db: Session, session: UserSession, *, actor_id: int, audit: b
 
 
 def change_pin(db: Session, user: User, new_pin: str, *, actor_id: int | None) -> None:
-    """Troca/reseta o PIN, zera o bloqueio e audita (sem gravar PIN nem hash)."""
+    """Troca/reseta o PIN, destrava a conta e audita (sem gravar PIN nem hash)."""
     if not is_valid_pin(new_pin):
         raise ValueError(f"O PIN deve ter {PIN_LENGTH} dígitos.")
     user.pin_hash = hash_pin(new_pin)
-    user.failed_attempts = 0
-    user.locked_until = None
+    limits.release_account(db, user)
     record_audit(
         db,
         user_id=actor_id,

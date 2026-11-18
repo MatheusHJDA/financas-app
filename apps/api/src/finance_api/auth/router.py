@@ -5,12 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import select
 
-from finance_api.auth import service
-from finance_api.auth.identity import OWNER_BY_USER_NAME
+from finance_api.auth import limits, service
 from finance_api.core.config import Settings, get_settings
 from finance_api.core.deps import DbSession, get_current_user
 from finance_api.core.permissions import CurrentUser, Owner
-from finance_api.db.models import User, UserSession
+from finance_api.db.models import UserSession
 
 router = APIRouter(tags=["auth"])
 
@@ -19,14 +18,16 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 _ERR = {"description": "Erro padrão"}
 
+LOGIN_FAILED = "Não foi possível entrar. Confira o nome e o PIN."
+TOO_MANY_ATTEMPTS = "Muitas tentativas. Aguarde alguns minutos e tente de novo."
 
-class LoginUser(BaseModel):
-    id: int
-    name: str
+
+class AuthConfig(BaseModel):
+    passkey_required: bool
 
 
 class LoginRequest(BaseModel):
-    user_id: int
+    name: str = Field(min_length=1, max_length=80)
     pin: str = Field(max_length=32)
     device_label: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)
@@ -74,30 +75,30 @@ def _current_hash(request: Request) -> str:
     return service.hash_token(request.cookies.get(service.SESSION_COOKIE) or "")
 
 
-@router.get("/auth/users", response_model=list[LoginUser])
-def list_login_users(db: DbSession) -> list[LoginUser]:
-    rows = db.execute(select(User).order_by(User.id)).scalars()
-    return [LoginUser(id=u.id, name=u.name) for u in rows if u.name in OWNER_BY_USER_NAME]
+@router.get("/auth/config", response_model=AuthConfig)
+def auth_config(settings: SettingsDep) -> AuthConfig:
+    return AuthConfig(passkey_required=settings.require_passkey)
 
 
-@router.post("/auth/login", response_model=Me, responses={401: _ERR, 423: _ERR})
-def login(body: LoginRequest, response: Response, db: DbSession, settings: SettingsDep) -> Me:
+@router.post("/auth/login", response_model=Me, responses={401: _ERR, 429: _ERR})
+def login(
+    body: LoginRequest, request: Request, response: Response, db: DbSession, settings: SettingsDep
+) -> Me:
     try:
         result = service.login(
             db,
-            user_id=body.user_id,
+            name=body.name,
             pin=body.pin,
             device_label=body.device_label,
+            source=limits.request_source(request),
             settings=settings,
         )
     except service.InvalidCredentials:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=LOGIN_FAILED) from None
+    except service.SourceBlocked as exc:
         raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED, detail="Usuário ou PIN incorreto."
-        ) from None
-    except service.AccountLocked as exc:
-        raise HTTPException(
-            status.HTTP_423_LOCKED,
-            detail="Acesso bloqueado temporariamente. Tente novamente mais tarde.",
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=TOO_MANY_ATTEMPTS,
             headers={"Retry-After": str(exc.retry_after_seconds)},
         ) from None
     current = service.to_current_user(result.user)

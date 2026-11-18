@@ -54,14 +54,12 @@ def test_login_pin_errado_mostra_erro_e_pin_certo_entra_no_chat(
 ) -> None:
     page.goto("/")
     expect(page).to_have_url(re.compile(r"/login$"))
-    expect(page.get_by_role("heading", name="Quem está entrando?")).to_be_visible()
+    expect(page.get_by_label("Seu nome")).to_be_visible()
     assert_layout(page, tabbar=False)
 
-    page.get_by_role("button", name=user, exact=True).tap()
-    expect(page.get_by_role("heading", name=f"Olá, {user}. Digite seu PIN")).to_be_visible()
-
+    page.get_by_label("Seu nome").fill(user)
     tap_pin(page, WRONG_PIN)
-    expect(page.get_by_text("PIN incorreto")).to_be_visible()
+    expect(page.get_by_text("Não foi possível entrar. Confira o nome e o PIN.")).to_be_visible()
     expect(page).to_have_url(re.compile(r"/login$"))
 
     tap_pin(page, PINS[user])

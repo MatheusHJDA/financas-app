@@ -19,8 +19,13 @@ from .conftest import PIN_MATHEUS, PIN_RUTH, Clock
 LOGIN = "/api/auth/login"
 
 
-def _login_body(user: User, pin: str, device: str = "Celular") -> dict[str, object]:
-    return {"user_id": user.id, "pin": pin, "device_label": device}
+GENERIC_401 = {"detail": "Não foi possível entrar. Confira o nome e o PIN."}
+TOO_MANY = "Muitas tentativas. Aguarde alguns minutos e tente de novo."
+
+
+def _login_body(user: User | str, pin: str, device: str = "Celular") -> dict[str, object]:
+    name = user if isinstance(user, str) else user.name
+    return {"name": name, "pin": pin, "device_label": device}
 
 
 def _audit(db: Session, entity: str) -> list[AuditLog]:
@@ -35,19 +40,47 @@ def test_owner_mapping_constant() -> None:
     assert OWNER_BY_USER_NAME == {"Matheus": Owner.MATHEUS, "Ruth": Owner.RUTH}
 
 
-def test_list_login_users_is_public(
-    auth_users: dict[str, User], new_client: Callable[[], TestClient]
+def test_users_list_removida(
+    auth_users: dict[str, User], new_client: Callable[..., TestClient]
 ) -> None:
-    response = new_client().get("/api/auth/users")
+    assert new_client().get("/api/auth/users").status_code == 404
+
+
+def test_auth_config_publico(new_client: Callable[..., TestClient]) -> None:
+    response = new_client().get("/api/auth/config")
     assert response.status_code == 200
-    assert response.json() == [
-        {"id": auth_users["matheus"].id, "name": "Matheus"},
-        {"id": auth_users["ruth"].id, "name": "Ruth"},
-    ]
+    assert response.json() == {"passkey_required": False}
+
+
+def test_login_aceita_nome_com_espacos_e_maiusculas(
+    auth_users: dict[str, User], new_client: Callable[..., TestClient]
+) -> None:
+    response = new_client().post(LOGIN, json=_login_body(" MATHEUS ", PIN_MATHEUS))
+    assert response.status_code == 200, response.text
+    assert response.json()["name"] == "Matheus"
+
+
+def test_login_nome_parecido_falha_generico(
+    auth_users: dict[str, User], new_client: Callable[..., TestClient]
+) -> None:
+    client = new_client()
+    similar = client.post(LOGIN, json=_login_body("Mateus", PIN_MATHEUS))
+    wrong_pin = client.post(LOGIN, json=_login_body("Matheus", "000000"))
+    assert similar.status_code == wrong_pin.status_code == 401
+    assert similar.json() == wrong_pin.json() == GENERIC_401
+    assert similar.content == wrong_pin.content
+
+
+def test_login_rejects_empty_or_long_name(
+    auth_users: dict[str, User], new_client: Callable[..., TestClient]
+) -> None:
+    client = new_client()
+    assert client.post(LOGIN, json=_login_body("", PIN_RUTH)).status_code == 422
+    assert client.post(LOGIN, json=_login_body("R" * 81, PIN_RUTH)).status_code == 422
 
 
 def test_login_ok_returns_me_and_cookie(
-    auth_users: dict[str, User], new_client: Callable[[], TestClient]
+    auth_users: dict[str, User], new_client: Callable[..., TestClient]
 ) -> None:
     client = new_client()
     response = client.post(LOGIN, json=_login_body(auth_users["ruth"], PIN_RUTH, "iPhone da Ruth"))
@@ -61,7 +94,7 @@ def test_login_ok_returns_me_and_cookie(
     assert "session" in client.cookies
 
 
-def test_cookie_flags(auth_users: dict[str, User], new_client: Callable[[], TestClient]) -> None:
+def test_cookie_flags(auth_users: dict[str, User], new_client: Callable[..., TestClient]) -> None:
     response = new_client().post(LOGIN, json=_login_body(auth_users["matheus"], PIN_MATHEUS))
     header = response.headers["set-cookie"]
     parts = [p.strip().lower() for p in header.split(";")]
@@ -74,11 +107,11 @@ def test_cookie_flags(auth_users: dict[str, User], new_client: Callable[[], Test
 
 
 def test_login_wrong_pin_unknown_user_and_bad_format_are_indistinguishable(
-    auth_users: dict[str, User], new_client: Callable[[], TestClient]
+    auth_users: dict[str, User], new_client: Callable[..., TestClient]
 ) -> None:
     client = new_client()
     wrong = client.post(LOGIN, json=_login_body(auth_users["ruth"], "000000"))
-    unknown = client.post(LOGIN, json={"user_id": 999999, "pin": PIN_RUTH, "device_label": "x"})
+    unknown = client.post(LOGIN, json=_login_body("Fulano", PIN_RUTH))
     malformed = client.post(LOGIN, json=_login_body(auth_users["ruth"], "12ab"))
     assert wrong.status_code == unknown.status_code == malformed.status_code == 401
     assert wrong.json() == unknown.json() == malformed.json()
@@ -86,14 +119,14 @@ def test_login_wrong_pin_unknown_user_and_bad_format_are_indistinguishable(
 
 
 def test_login_requires_device_label(
-    auth_users: dict[str, User], new_client: Callable[[], TestClient]
+    auth_users: dict[str, User], new_client: Callable[..., TestClient]
 ) -> None:
     response = new_client().post(LOGIN, json=_login_body(auth_users["ruth"], PIN_RUTH, "   "))
     assert response.status_code == 422
 
 
 def test_token_never_stored_in_plain_text(
-    db: Session, auth_users: dict[str, User], new_client: Callable[[], TestClient]
+    db: Session, auth_users: dict[str, User], new_client: Callable[..., TestClient]
 ) -> None:
     client = new_client()
     client.post(LOGIN, json=_login_body(auth_users["ruth"], PIN_RUTH))
@@ -114,71 +147,113 @@ def test_pin_is_stored_as_argon2(db: Session, auth_users: dict[str, User]) -> No
         assert PIN_MATHEUS not in user.pin_hash
 
 
-# --- bloqueio ------------------------------------------------------------------------------
+# --- limites: por origem e por conta ------------------------------------------------------
 
 
-def test_lock_after_five_wrong_attempts_and_release_after_15_minutes(
-    db: Session,
+def test_origem_bloqueada_apos_5_falhas(
+    clock: Clock, auth_users: dict[str, User], new_client: Callable[..., TestClient]
+) -> None:
+    client = new_client()
+    for name in ("Ruth", "Matheus", "Fulano", "ruth", "Beltrano"):
+        assert client.post(LOGIN, json=_login_body(name, "000000")).status_code == 401
+
+    blocked = client.post(LOGIN, json=_login_body("Ruth", PIN_RUTH))
+    assert blocked.status_code == 429
+    assert blocked.json() == {"detail": TOO_MANY}
+    assert int(blocked.headers["retry-after"]) == 15 * 60
+    assert "session" not in client.cookies
+
+    clock.advance(minutes=14, seconds=59)
+    assert client.post(LOGIN, json=_login_body("Ruth", PIN_RUTH)).status_code == 429
+    clock.advance(seconds=2)
+    assert client.post(LOGIN, json=_login_body("Ruth", PIN_RUTH)).status_code == 200
+
+
+def test_origem_bloqueada_nao_gasta_argon2(
     clock: Clock,
     auth_users: dict[str, User],
-    new_client: Callable[[], TestClient],
-) -> None:
-    client = new_client()
-    ruth = auth_users["ruth"]
-    for _ in range(4):
-        assert client.post(LOGIN, json=_login_body(ruth, "000000")).status_code == 401
-    locked = client.post(LOGIN, json=_login_body(ruth, "000000"))
-    assert locked.status_code == 423
-    assert int(locked.headers["retry-after"]) == 15 * 60
-
-    # Durante o bloqueio, nem o PIN certo entra.
-    assert client.post(LOGIN, json=_login_body(ruth, PIN_RUTH)).status_code == 423
-    clock.advance(minutes=14, seconds=59)
-    assert client.post(LOGIN, json=_login_body(ruth, PIN_RUTH)).status_code == 423
-
-    clock.advance(seconds=2)
-    assert client.post(LOGIN, json=_login_body(ruth, PIN_RUTH)).status_code == 200
-    db.refresh(ruth)
-    assert ruth.failed_attempts == 0
-    assert ruth.locked_until is None
-
-
-def test_lock_is_per_user(
-    clock: Clock, auth_users: dict[str, User], new_client: Callable[[], TestClient]
+    new_client: Callable[..., TestClient],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client = new_client()
     for _ in range(5):
-        client.post(LOGIN, json=_login_body(auth_users["ruth"], "000000"))
-    assert (
-        client.post(LOGIN, json=_login_body(auth_users["matheus"], PIN_MATHEUS)).status_code == 200
+        client.post(LOGIN, json=_login_body("Ruth", "000000"))
+
+    def _fail(*_args: object) -> bool:
+        raise AssertionError("argon2 chamado com a origem bloqueada")
+
+    monkeypatch.setattr(service, "_verify_pin", _fail)
+    assert client.post(LOGIN, json=_login_body("Ruth", PIN_RUTH)).status_code == 429
+
+
+def test_estranho_nao_trava_conta_com_5_erros(
+    db: Session, clock: Clock, auth_users: dict[str, User], new_client: Callable[..., TestClient]
+) -> None:
+    stranger = new_client("10.0.0.1")
+    for _ in range(5):
+        stranger.post(LOGIN, json=_login_body("Ruth", "000000"))
+    assert stranger.post(LOGIN, json=_login_body("Ruth", PIN_RUTH)).status_code == 429
+
+    # X-Forwarded-For não vale: a origem é o IP de quem conecta
+    spoofed = stranger.post(
+        LOGIN, json=_login_body("Ruth", PIN_RUTH), headers={"X-Forwarded-For": "10.9.9.9"}
     )
+    assert spoofed.status_code == 429
+
+    other = new_client("10.0.0.2")
+    assert other.post(LOGIN, json=_login_body("Ruth", PIN_RUTH)).status_code == 200
+    db.refresh(auth_users["ruth"])
+    assert auth_users["ruth"].locked_at is None
 
 
-def test_after_lock_expires_user_gets_a_fresh_round_of_attempts(
-    clock: Clock, auth_users: dict[str, User], new_client: Callable[[], TestClient]
+def test_conta_trava_com_20_erros_em_1h(
+    db: Session, clock: Clock, auth_users: dict[str, User], new_client: Callable[..., TestClient]
 ) -> None:
-    client = new_client()
     ruth = auth_users["ruth"]
-    for _ in range(5):
-        client.post(LOGIN, json=_login_body(ruth, "000000"))
-    clock.advance(minutes=16)
-    assert client.post(LOGIN, json=_login_body(ruth, "000000")).status_code == 401  # não 423
+    for origin in ("10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"):
+        client = new_client(origin)
+        for _ in range(5):
+            assert client.post(LOGIN, json=_login_body(ruth, "000000")).status_code == 401
+        clock.advance(minutes=5)
+
+    right = new_client("10.0.0.5").post(LOGIN, json=_login_body(ruth, PIN_RUTH))
+    assert right.status_code == 401
+    assert right.json() == GENERIC_401
+    db.refresh(ruth)
+    assert ruth.locked_at is not None
+
+    clock.advance(days=30)  # sem prazo: só a administração libera
+    later = new_client("10.0.0.6").post(LOGIN, json=_login_body(ruth, PIN_RUTH))
+    assert later.status_code == 401
+
+    locks = [e for e in _audit(db, "users") if e.after_json == {"locked": True}]
+    assert [(e.action, e.entity_id) for e in locks] == [("update", str(ruth.id))]
+
+    admin = new_client("10.0.0.7")
+    assert admin.post(LOGIN, json=_login_body("Matheus", PIN_MATHEUS)).status_code == 200
+    reset = admin.post(f"/api/admin/users/{ruth.id}/reset-pin", json={"new_pin": "246810"})
+    assert reset.status_code == 204
+    db.refresh(ruth)
+    assert ruth.locked_at is None
+
+    again = new_client("10.0.0.8")
+    assert again.post(LOGIN, json=_login_body(ruth, "000000")).status_code == 401  # não retrava
+    assert again.post(LOGIN, json=_login_body(ruth, "246810")).status_code == 200
 
 
-def test_success_resets_failed_attempts(
-    db: Session, auth_users: dict[str, User], new_client: Callable[[], TestClient]
+def test_failed_attempts_shows_the_window_count(
+    db: Session, clock: Clock, auth_users: dict[str, User], new_client: Callable[..., TestClient]
 ) -> None:
-    client = new_client()
     ruth = auth_users["ruth"]
+    client = new_client()
     for _ in range(3):
         client.post(LOGIN, json=_login_body(ruth, "000000"))
     db.refresh(ruth)
     assert ruth.failed_attempts == 3
-    assert client.post(LOGIN, json=_login_body(ruth, PIN_RUTH)).status_code == 200
+    clock.advance(hours=1, seconds=1)
+    client.post(LOGIN, json=_login_body(ruth, "000000"))
     db.refresh(ruth)
-    assert ruth.failed_attempts == 0
-    for _ in range(4):  # sem o reset isso travaria (3 + 4 >= 5)
-        assert client.post(LOGIN, json=_login_body(ruth, "000000")).status_code == 401
+    assert ruth.failed_attempts == 1
 
 
 # --- /auth/me, sessão, expiração, renovação ---------------------------------------------
@@ -202,12 +277,12 @@ def test_me_and_owner_mapping(login: Callable[..., TestClient]) -> None:
     ],
 )
 def test_protected_routes_without_cookie_are_401(
-    new_client: Callable[[], TestClient], method: str, path: str
+    new_client: Callable[..., TestClient], method: str, path: str
 ) -> None:
     assert getattr(new_client(), method)(path).status_code == 401
 
 
-def test_invalid_cookie_is_401(new_client: Callable[[], TestClient]) -> None:
+def test_invalid_cookie_is_401(new_client: Callable[..., TestClient]) -> None:
     client = new_client()
     client.cookies.set("session", "token-que-nao-existe")
     assert client.get("/api/auth/me").status_code == 401
@@ -338,15 +413,17 @@ def test_require_admin(login: Callable[..., TestClient]) -> None:
 
 
 def test_change_pin_resets_lock_and_is_audited_without_secrets(
-    db: Session, auth_users: dict[str, User], new_client: Callable[[], TestClient]
+    db: Session, auth_users: dict[str, User], new_client: Callable[..., TestClient]
 ) -> None:
     ruth, matheus = auth_users["ruth"], auth_users["matheus"]
     ruth.failed_attempts = 3
+    ruth.locked_at = service.utcnow()
     old_hash = ruth.pin_hash
     service.change_pin(db, ruth, "246810", actor_id=matheus.id)
 
     assert ruth.pin_hash != old_hash
     assert ruth.failed_attempts == 0
+    assert ruth.locked_at is None
     client = new_client()
     assert client.post(LOGIN, json=_login_body(ruth, PIN_RUTH)).status_code == 401
     assert client.post(LOGIN, json=_login_body(ruth, "246810")).status_code == 200

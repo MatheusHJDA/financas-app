@@ -30,7 +30,7 @@ def _audit(db: Session, entity: str) -> list[AuditLog]:
 def _login_status(client: TestClient, user: User, pin: str) -> int:
     return client.post(
         "/api/auth/login",
-        json={"user_id": user.id, "pin": pin, "device_label": "Outro aparelho"},
+        json={"name": user.name, "pin": pin, "device_label": "Outro aparelho"},
     ).status_code
 
 
@@ -92,7 +92,7 @@ def test_reset_pin_new_works_old_does_not_and_audit_is_clean(
     ruth_device = login("ruth")
     ruth = real_users["ruth"]
     ruth.failed_attempts = 3
-    ruth.locked_until = datetime.now(UTC) + timedelta(minutes=10)
+    ruth.locked_at = datetime.now(UTC) - timedelta(days=3)
     old_hash = ruth.pin_hash
     db.flush()
 
@@ -101,7 +101,7 @@ def test_reset_pin_new_works_old_does_not_and_audit_is_clean(
 
     db.expire_all()
     assert ruth.failed_attempts == 0
-    assert ruth.locked_until is None
+    assert ruth.locked_at is None
     assert ruth.pin_hash != old_hash
     # a sessão antiga da Ruth foi revogada
     assert ruth_device.get("/api/auth/me").status_code == 401

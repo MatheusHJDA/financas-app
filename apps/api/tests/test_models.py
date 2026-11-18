@@ -156,14 +156,14 @@ def test_bill_status_accepts_prepaid(db) -> None:
 
 def test_passkey_tables_roundtrip(db) -> None:
     now = datetime.now(UTC)
-    user = User(name="Teste2FA", role="member", pin_hash="!x", webauthn_user_id=b"" * 16)
+    user = User(name="Teste2FA", role="member", pin_hash="!x", webauthn_user_id=b"\x02" * 16)
     db.add(user)
     db.flush()
     db.add_all(
         [
             Passkey(
                 user_id=user.id,
-                credential_id=b"" * 16,
+                credential_id=b"\x01" * 16,
                 public_key=b"pk",
                 device_label="Celular",
             ),
@@ -194,9 +194,9 @@ def test_passkey_tables_roundtrip(db) -> None:
 
     got = db.get(User, user.id)
     assert got.locked_at is None
-    assert got.webauthn_user_id == b"" * 16
+    assert got.webauthn_user_id == b"\x02" * 16
     pk = db.query(Passkey).one()
-    assert pk.credential_id == b"" * 16
+    assert pk.credential_id == b"\x01" * 16
     assert pk.public_key == b"pk"
     assert pk.sign_count == 0
     assert pk.device_label == "Celular"
@@ -225,7 +225,7 @@ def test_passkey_tables_roundtrip(db) -> None:
         db.add(
             Passkey(
                 user_id=user.id,
-                credential_id=b"" * 16,
+                credential_id=b"\x01" * 16,
                 public_key=b"outra",
                 device_label="Duplicada",
             )

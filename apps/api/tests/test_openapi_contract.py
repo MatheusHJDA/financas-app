@@ -8,7 +8,7 @@ SPEC_PATH = Path(__file__).resolve().parents[3] / "docs" / "api" / "openapi.yaml
 # (caminho, métodos) conforme .planning/U0-fundacao.md, Passo 4.
 EXPECTED: dict[str, set[str]] = {
     "/health": {"get"},
-    "/auth/users": {"get"},
+    "/auth/config": {"get"},
     "/auth/login": {"post"},
     "/auth/logout": {"post"},
     "/auth/me": {"get"},
@@ -57,7 +57,7 @@ EXPECTED: dict[str, set[str]] = {
     "/reports/month": {"get"},
 }
 
-PUBLIC = {("/health", "get"), ("/auth/users", "get"), ("/auth/login", "post")}
+PUBLIC = {("/health", "get"), ("/auth/config", "get"), ("/auth/login", "post")}
 
 
 def _spec() -> dict:
@@ -68,6 +68,12 @@ def test_spec_is_valid_openapi_31() -> None:
     spec = _spec()
     assert spec["openapi"].startswith("3.1")
     validate(spec)
+
+
+def test_login_list_is_gone() -> None:
+    spec = _spec()
+    assert "/auth/users" not in spec["paths"]
+    assert "LoginUser" not in spec["components"]["schemas"]
 
 
 def test_all_paths_and_methods_exist() -> None:

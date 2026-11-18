@@ -2,6 +2,9 @@
 services:
   api:
     ports: !reset []
+    environment:
+      # A API não publica porta na VPS: só o Caddy a alcança, então o IP real vem do X-Forwarded-For dele.
+      FORWARDED_ALLOW_IPS: "*"
 
   caddy:
     image: caddy:2-alpine

@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select, text
 
+from finance_api.auth import limits
 from finance_api.auth import service as auth_service
 from finance_api.core import app_settings
 from finance_api.core.audit import record_audit
@@ -139,7 +140,7 @@ def list_users(db: DbSession) -> list[AdminUserOut]:
 def reset_pin(
     id: int, body: ResetPinBody, request: Request, db: DbSession, admin: Admin
 ) -> Response:
-    """Redefine o PIN (exatamente 6 dígitos), zera o bloqueio e revoga as sessões do usuário.
+    """Redefine o PIN (exatamente 6 dígitos), destrava a conta e revoga as sessões do usuário.
 
     Se o admin redefine o próprio PIN, a sessão atual (cookie desta requisição) é mantida;
     as demais sessões dele são revogadas. A auditoria não guarda PIN nem hash.
@@ -151,8 +152,7 @@ def reset_pin(
     if user.id == admin.id:
         keep = auth_service.hash_token(request.cookies.get(auth_service.SESSION_COOKIE) or "")
     user.pin_hash = auth_service.hash_pin(body.new_pin)
-    user.failed_attempts = 0
-    user.locked_until = None
+    limits.release_account(db, user)
     revoked = _revoke_active_sessions(db, user.id, keep_hash=keep)
     record_audit(
         db,

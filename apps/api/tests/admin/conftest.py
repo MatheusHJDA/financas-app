@@ -46,7 +46,7 @@ def login(
         response = client.post(
             "/api/auth/login",
             json={
-                "user_id": real_users[who].id,
+                "name": real_users[who].name,
                 "pin": pin or pins[who],
                 "device_label": "Aparelho de teste",
             },

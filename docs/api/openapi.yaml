@@ -39,25 +39,27 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Health"}
 
-  /auth/users:
+  /auth/config:
     get:
       tags: [auth]
-      operationId: listLoginUsers
-      summary: Usuários exibidos na tela de PIN
+      operationId: getAuthConfig
+      summary: Como a tela de entrada deve funcionar (se a chave de acesso é exigida)
       security: []
       responses:
         "200":
-          description: Lista de usuários
+          description: Configuração do login
           content:
             application/json:
-              schema:
-                type: array
-                items: {$ref: "#/components/schemas/LoginUser"}
+              schema: {$ref: "#/components/schemas/AuthConfig"}
   /auth/login:
     post:
       tags: [auth]
       operationId: login
-      summary: Login com PIN; define o cookie `session`
+      summary: Login com nome digitado e PIN; define o cookie `session`
+      description: |
+        Nome sem espaços nas pontas e sem diferenciar maiúsculas. Qualquer falha (nome, PIN, conta
+        travada) responde 401 com a mesma mensagem. Origem com 5 falhas em 15 min recebe 429 com
+        `Retry-After`; conta com 20 falhas em 1 h fica travada até a administração liberar.
       security: []
       requestBody:
         required: true
@@ -75,7 +77,15 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Me"}
         "401": {$ref: "#/components/responses/Error"}
-        "423": {$ref: "#/components/responses/Error"}
+        "429":
+          description: Muitas tentativas desta origem
+          headers:
+            Retry-After:
+              description: Segundos até poder tentar de novo
+              schema: {type: integer}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
   /auth/logout:
     post:
       tags: [auth]
@@ -1158,17 +1168,16 @@ components:
       type: string
       enum: [open, paid, prepaid]
       description: prepaid = parcela de empréstimo adiantada (paga antes do mês do vencimento)
-    LoginUser:
+    AuthConfig:
       type: object
-      required: [id, name]
+      required: [passkey_required]
       properties:
-        id: {type: integer, format: int64}
-        name: {type: string}
+        passkey_required: {type: boolean}
     LoginRequest:
       type: object
-      required: [user_id, pin, device_label]
+      required: [name, pin, device_label]
       properties:
-        user_id: {type: integer, format: int64}
+        name: {type: string, minLength: 1, maxLength: 80}
         pin: {type: string}
         device_label: {type: string}
     Me:

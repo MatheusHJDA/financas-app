@@ -22,4 +22,4 @@ COPY infra/seed/seed.yaml ./seed/seed.yaml
 ENV SEED_FILE=/app/seed/seed.yaml
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
-CMD ["sh", "-c", "alembic upgrade head && uvicorn finance_api.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn finance_api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips \"${FORWARDED_ALLOW_IPS:-127.0.0.1}\""]

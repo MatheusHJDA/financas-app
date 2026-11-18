@@ -181,22 +181,24 @@ def _create_database() -> str:
 def _seed(api: TestClient, ids: dict[str, int]) -> None:
     """Dados de apoio pela própria API (como o app grava), um login por dono."""
 
-    def login(name: str, user_id: int) -> None:
+    users: dict[str, int] = {}
+
+    def login(name: str) -> None:
         resp = api.post(
             "/api/auth/login",
-            json={"user_id": user_id, "pin": PINS[name], "device_label": "e2e-seed"},
+            json={"name": name, "pin": PINS[name], "device_label": "e2e-seed"},
         )
         assert resp.status_code == 200, resp.text
+        users[name] = resp.json()["id"]
 
     def ok(resp: Any) -> dict:
         assert resp.status_code in (200, 201), resp.text
         return resp.json()
 
-    users = {u["name"]: u["id"] for u in ok(api.get("/api/auth/users"))}
     today = today_sp()  # America/Sao_Paulo, como o app
     opening = (today - dt.timedelta(days=30)).isoformat()
 
-    login("Matheus", users["Matheus"])
+    login("Matheus")
     categories = {}
     for name, kind in (("Mercado", "expense"), ("Moradia", "expense"), ("Salário", "income")):
         categories[name] = ok(api.post("/api/categories", json={"name": name, "kind": kind}))["id"]
@@ -265,7 +267,7 @@ def _seed(api: TestClient, ids: dict[str, int]) -> None:
     )
     api.cookies.clear()
 
-    login("Ruth", users["Ruth"])
+    login("Ruth")
     tx("RUTH", "ruth", "Apoio Ruth: Padaria", 3000, "Mercado")  # saldo 1.970,00
     ok(
         api.post(
@@ -406,7 +408,7 @@ def login_as(context: BrowserContext, e2e_env: Env) -> Callable[[str], None]:
         resp = context.request.post(
             "/api/auth/login",
             data={
-                "user_id": e2e_env.ids[f"user_{name.lower()}"],
+                "name": name,
                 "pin": PINS[name],
                 "device_label": "e2e",
             },
