@@ -921,6 +921,25 @@ paths:
         "204": {description: PIN redefinido}
         "403": {$ref: "#/components/responses/Error"}
         "404": {$ref: "#/components/responses/Error"}
+  /admin/users/{id}/release-code:
+    post:
+      tags: [admin]
+      operationId: adminCreateReleaseCode
+      summary: Gera um código de liberação (24 h, uso único)
+      parameters: [{$ref: "#/components/parameters/Id"}]
+      responses:
+        "201":
+          description: Código gerado (aparece só aqui)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, expires_at]
+                properties:
+                  code: {type: string}
+                  expires_at: {type: string, format: date-time}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
   /admin/users/{id}/sessions:
     delete:
       tags: [admin]

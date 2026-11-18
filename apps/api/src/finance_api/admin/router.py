@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select, text
 
-from finance_api.auth import limits
+from finance_api.auth import codes, limits
 from finance_api.auth import service as auth_service
 from finance_api.core import app_settings
 from finance_api.core.audit import record_audit
@@ -50,6 +50,11 @@ class AdminUserOut(BaseModel):
 
 class ResetPinBody(BaseModel):
     new_pin: str
+
+
+class ReleaseCodeOut(BaseModel):
+    code: str
+    expires_at: datetime
 
 
 class AiCallOut(BaseModel):
@@ -165,6 +170,19 @@ def reset_pin(
     )
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/users/{id}/release-code", response_model=ReleaseCodeOut, status_code=status.HTTP_201_CREATED
+)
+def create_release_code(id: int, db: DbSession, admin: Admin) -> ReleaseCodeOut:
+    """Gera um código de liberação (24 h, uso único). Aparece só nesta resposta."""
+    user = _get_user(db, id)
+    code, expires_at = codes.issue_release_code(
+        db, user, actor_id=admin.id, now=auth_service.utcnow()
+    )
+    db.commit()
+    return ReleaseCodeOut(code=code, expires_at=expires_at)
 
 
 @router.delete("/users/{id}/sessions", status_code=status.HTTP_204_NO_CONTENT)

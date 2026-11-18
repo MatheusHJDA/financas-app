@@ -40,6 +40,7 @@ ADMIN_ROUTES: list[tuple[str, str, dict[str, Any] | None]] = [
     ("GET", "/api/admin/users", None),
     ("POST", "/api/admin/users/1/reset-pin", {"new_pin": "123456"}),
     ("POST", "/api/admin/users/1/reset-pin", {"new_pin": "12"}),
+    ("POST", "/api/admin/users/1/release-code", None),
     ("DELETE", "/api/admin/users/1/sessions", None),
     ("GET", "/api/admin/settings", None),
     ("PUT", "/api/admin/settings", {"notify.daily_time": "20:00"}),
@@ -497,3 +498,22 @@ def test_backup_ignores_symlinks(
     client = client_as(users["matheus"])
     assert client.get("/api/admin/backups/latest").status_code == 404
     assert client.get("/api/admin/system").json()["last_backup_at"] is None
+
+
+def test_admin_generates_release_code_without_leaking_it(
+    login: Login, real_users: dict[str, User], db: Session
+) -> None:
+    response = login("matheus").post(f"/api/admin/users/{real_users['ruth'].id}/release-code")
+    assert response.status_code == 201
+    body = response.json()
+    assert len(body["code"]) == 11
+    rows = _audit(db, "access_codes")
+    assert len(rows) == 1
+    dump = json.dumps([r.after_json for r in rows])
+    assert body["code"] not in dump
+    assert body["code"].replace("-", "") not in dump
+    assert rows[0].user_id == real_users["matheus"].id
+
+
+def test_release_code_unknown_user_404(login: Login) -> None:
+    assert login("matheus").post("/api/admin/users/99999/release-code").status_code == 404

@@ -46,6 +46,7 @@ EXPECTED: dict[str, set[str]] = {
     "/plan/projection": {"get"},
     "/admin/users": {"get"},
     "/admin/users/{id}/reset-pin": {"post"},
+    "/admin/users/{id}/release-code": {"post"},
     "/admin/users/{id}/sessions": {"delete"},
     "/admin/settings": {"get", "put"},
     "/admin/notifications/test": {"post"},
