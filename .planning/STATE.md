@@ -4,7 +4,7 @@
 
 ## ▶ 18/11/2026 — login em duas etapas (branch `login-dois-fatores`)
 Spec `docs/superpowers/specs/2026-11-17-login-dois-fatores-design.md`, plano
-`docs/superpowers/plans/2026-11-17-login-dois-fatores.md`. Commits `4a17bea`..HEAD do branch (último: `test(e2e): login
+`docs/superpowers/plans/2026-11-18-login-dois-fatores.md`. Commits `4a17bea`..HEAD do branch (último: `test(e2e): login
 com chave de acesso; docs da virada`). Feito: nome digitado + PIN + chave de acesso (WebAuthn) com `REQUIRE_PASSKEY`
 (desligado no PC, ligado na VPS); códigos de liberação (24 h) e de emergência (8, admin); limites por origem e por
 conta (travamento sem prazo, `python -m finance_api.auth.release Matheus [--desbloquear]`); sessão 30 min/12 h na VPS;
@@ -15,6 +15,11 @@ aviso de aparelho novo em tarefa de fundo; "Voltar" no passo 2 do login; Caddy f
 AAAA, PC atualizado (alembic 0004) antes do backup de corte e um código de liberação por aparelho. Testes: `check`
 verde (api 610, web 489); e2e 99 passaram, 2 ignorados (os 2 já existiam antes: menu lateral só no computador, em
 `test_e2e_redesign`). Os 8 testes novos de chave de acesso (autenticador virtual do Chromium) passaram. VPS escolhida: Ubuntu 26.04 LTS, 2 vCPU, 4 GB, 40 GB SSD, IPv4, França (swap de 2 GB antes do build).
+Pendências pequenas aceitas (não bloqueiam): comentário errado em `infra/scripts/restore.sh:9` (diz que o alembic
+migra dump antigo — não vale do 0002 para o 0004; o deploy-vps já manda atualizar o PC antes); chave do HMAC do
+`user.id` falso muda a cada reinício; `proven` não exige tentativa ainda válida (replay só com o corpo TLS capturado);
+`Retry-After` arredonda para baixo; botões "Remover" sem o nome do aparelho no aria-label; "Desbloquear" sem trava
+de duplo clique; `auth_failures` nunca é limpo.
 **Próximo:** testes nos aparelhos (iPhone com Face ID real), merge no master, domínio + remoto git, virada para a VPS
 (`docs/deploy-vps.md`).
 
