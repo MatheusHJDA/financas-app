@@ -18,7 +18,10 @@ seu. Esta página parte do app já funcionando no PC ([deploy-pc.md](deploy-pc.m
 
 ## 1. O que você precisa
 
-- Uma VPS Linux (Ubuntu/Debian, 1 GB de RAM já serve) com acesso SSH.
+- Uma VPS Linux com acesso SSH. A escolhida: Ubuntu 26.04 LTS, 2 vCPU, 4 GB de RAM, 40 GB de SSD, IPv4, França.
+  Em VPS pequena (2 GB de RAM ou menos), crie 2 GB de swap **antes** de construir as imagens:
+  `sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`
+  (e uma linha `/swapfile none swap sw 0 0` no `/etc/fstab` para sobreviver ao reinício).
 - Um domínio (ou subdomínio) com registro **A** apontando para o IP da VPS (por exemplo `financas.seudominio.com.br`).
   Em IPv6, aponte também o **AAAA**.
 - Portas **80** e **443** liberadas no firewall da VPS (o Caddy usa as duas para emitir o certificado e servir o app).
@@ -49,6 +52,12 @@ INITIAL_PIN_MATHEUS=
 INITIAL_PIN_RUTH=
 # O domínio novo PRECISA estar aqui, senão toda requisição volta 400 "Invalid host header"
 ALLOWED_HOSTS=financas.seudominio.com.br,localhost,127.0.0.1
+# Login em duas etapas (PIN + chave de acesso do aparelho). Ligado desde o primeiro dia na VPS
+REQUIRE_PASSKEY=true
+PASSKEY_RP_ID=financas.seudominio.com.br
+PASSKEY_ORIGIN=https://financas.seudominio.com.br
+# Quem pode dizer o IP real do visitante (cabeçalho X-Forwarded-For): só o Caddy
+FORWARDED_ALLOW_IPS=*
 # Deixe desligado em produção (Swagger em /api/docs só para depurar)
 ENABLE_DOCS=false
 ```
@@ -56,6 +65,13 @@ ENABLE_DOCS=false
 - Use uma senha de banco **nova e forte** (a da VPS não precisa ser igual à do PC; o dump não leva a senha).
 - Os PINs iniciais podem ficar vazios: os usuários e seus PINs vêm junto com o banco restaurado.
 - `ALLOWED_HOSTS` com o mesmo valor de `DOMAIN` (pode tirar o `*.ts.net` quando o Tailscale sair de cena).
+- `PASSKEY_RP_ID` é o domínio (`$DOMAIN`, sem `https://`) e `PASSKEY_ORIGIN` é `https://$DOMAIN`. Se mudar o domínio,
+  as chaves cadastradas deixam de valer (cada uma pertence ao domínio em que foi criada).
+- `FORWARDED_ALLOW_IPS`: os limites de tentativas de login são por origem (IP). Atrás do Caddy, o IP real vem do
+  cabeçalho `X-Forwarded-For`, e o servidor só confia nele se o par que conecta estiver nessa lista. No compose da
+  VPS a api **não publica porta**: o Caddy é o único que alcança a api pela rede interna, então `*` é seguro ali.
+  Se um dia a api voltar a ter porta publicada, troque por o IP do Caddy, senão qualquer um poderia forjar o IP e
+  escapar do limite.
 - `chmod 600 .env`.
 
 ## 3. Subir (Docker + Caddy)
@@ -122,6 +138,33 @@ Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados d
    [instalar-no-celular.md](instalar-no-celular.md)). O Tailscale deixa de ser necessário para o app.
 2. Depois que os dois celulares estiverem usando a VPS, pare o app do PC (`./tasks.ps1 down`) e desligue o
    `tailscale serve reset`, para ninguém lançar por engano no banco antigo. Guarde o último dump do PC.
+
+### Login em duas etapas na virada
+
+Com `REQUIRE_PASSKEY=true`, o PIN sozinho não entra mais: é preciso também a chave de acesso (Face ID, digital ou
+Windows Hello) cadastrada no aparelho. Ninguém tem chave logo após restaurar o banco, então:
+
+1. Suba a VPS com `REQUIRE_PASSKEY=true` e restaure o banco (seção 4).
+2. Matheus gera o próprio código de liberação **no servidor**:
+
+   ```bash
+   docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml exec api python -m finance_api.auth.release Matheus
+   ```
+
+   Ele entra no celular e no PC (nome, PIN, "Tenho um código de liberação", código, confirmar no aparelho) e
+   **guarda os 8 códigos de emergência** que aparecem uma única vez (gerenciador de senhas ou papel guardado).
+3. Matheus gera o código da Ruth em **Mais → Administração → Usuários → Chaves e código**; a Ruth entra e cadastra
+   o iPhone.
+4. Confira **Mais → Preferências → Aparelhos** em cada celular e, só então, desligue o app do PC.
+
+Se a conta do Matheus travar (20 falhas em 1 h; a conta fica travada sem prazo), nenhum outro admin consegue
+destravá-la pelo app. No servidor:
+
+```bash
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml exec api python -m finance_api.auth.release Matheus --desbloquear
+```
+
+Depois gere um código novo (comando sem `--desbloquear`) e entre de novo.
 
 ## 6. Backup na VPS
 

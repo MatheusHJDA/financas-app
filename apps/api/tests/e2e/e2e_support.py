@@ -1,6 +1,7 @@
 """Constantes e ajudantes do e2e (módulo à parte: os testes não importam de `conftest`)."""
 
 from dataclasses import dataclass
+from typing import Any
 
 from playwright.sync_api import Locator, Page, expect
 
@@ -17,6 +18,7 @@ class Env:
     base_url: str
     ids: dict[str, int]
     db_url: str = ""  # banco descartável do e2e (para preparar dados que a API não cria)
+    settings: Any = None  # o `Settings` compartilhado com o servidor (para ligar a chave por teste)
 
 
 def is_desktop(page: Page) -> bool:

@@ -343,7 +343,7 @@ def e2e_env(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Env]:
             pytest.fail("O servidor do e2e não subiu.", pytrace=False)
         time.sleep(0.05)
     try:
-        yield Env(base_url=f"http://localhost:{port}", ids=ids, db_url=db_url)
+        yield Env(base_url=f"http://localhost:{port}", ids=ids, db_url=db_url, settings=settings)
     finally:
         server.should_exit = True
         thread.join(timeout=10)
@@ -395,6 +395,18 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> Itera
     outcome = yield
     report = outcome.get_result()
     setattr(item, f"rep_{report.when}", report)
+
+
+@pytest.fixture(autouse=True)
+def _limpar_limites_de_login(e2e_env: Env) -> None:
+    """Todo o navegador chega de 127.0.0.1: zera os limites por origem entre os testes."""
+    engine = create_engine(e2e_env.db_url)
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM auth_failures"))
+            conn.execute(text("DELETE FROM login_attempts"))
+    finally:
+        engine.dispose()
 
 
 # --- Ajudantes dos testes ----------------------------------------------------------------------

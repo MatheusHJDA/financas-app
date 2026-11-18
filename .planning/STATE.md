@@ -2,6 +2,18 @@
 
 > Mantido pelo lead. Workers leem; não editam (exceto quando o brief mandar).
 
+## ▶ 18/11/2026 — login em duas etapas (branch `login-dois-fatores`)
+Spec `docs/superpowers/specs/2026-11-17-login-dois-fatores-design.md`, plano
+`docs/superpowers/plans/2026-11-17-login-dois-fatores.md`. Commits `4a17bea`..HEAD do branch (último: `test(e2e): login
+com chave de acesso; docs da virada`). Feito: nome digitado + PIN + chave de acesso (WebAuthn) com `REQUIRE_PASSKEY`
+(desligado no PC, ligado na VPS); códigos de liberação (24 h) e de emergência (8, admin); limites por origem e por
+conta (travamento sem prazo, `python -m finance_api.auth.release Matheus [--desbloquear]`); sessão 30 min/12 h na VPS;
+Preferências → Aparelhos e Administração → Usuários → Chaves e código. Migrações 0003 e 0004: aplicadas no próximo
+`./tasks.ps1 up` (não rodado). Testes: `check` verde (api 603, web 487); e2e 99 passaram, 2 ignorados (autenticador virtual do Chromium,
+8 novos). VPS escolhida: Ubuntu 26.04 LTS, 2 vCPU, 4 GB, 40 GB SSD, IPv4, França (swap de 2 GB antes do build).
+**Próximo:** testes nos aparelhos (iPhone com Face ID real), merge no master, domínio + remoto git, virada para a VPS
+(`docs/deploy-vps.md`).
+
 ## ▶ 17/11/2026 — empréstimo com parcelas (branch `emprestimo`, de `redesenho`)
 Spec `docs/superpowers/specs/2026-11-17-emprestimo-parcelas-design.md`, plano `docs/superpowers/plans/2026-11-17-emprestimo-parcelas.md`.
 Feito por subagentes (7 tarefas + revisão final, commits até `5475a7f`): `check` verde, e2e 85/85. Backup antes

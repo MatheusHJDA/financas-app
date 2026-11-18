@@ -31,10 +31,46 @@ Se não abrir, confira o Tailscale (passo 1) e se o PC do Matheus está ligado.
 
 Se já havia uma versão instalada antes, apague o ícone antigo e instale de novo.
 
-## 4. Entrar com o PIN
+## 4. Entrar
 
-Escolha o seu usuário e digite o PIN de 6 dígitos. Você fica conectado neste aparelho por cerca de 30 dias.
-Para trocar um PIN, o Matheus redefine em **Mais → Administração → Usuários**.
+**Enquanto o app roda no PC** (sem chave de acesso): digite o seu nome e o PIN de 6 dígitos. Você fica conectado
+neste aparelho por cerca de 30 dias. Para trocar um PIN, o Matheus redefine em **Mais → Administração → Usuários**.
+
+**Na VPS** o app pede duas coisas: o PIN e a chave de acesso do aparelho (Face ID, digital ou Windows Hello).
+
+### Primeiro acesso neste aparelho
+
+1. Peça um **código de liberação** ao Matheus (Administração → Usuários → Chaves e código; ele mesmo gera o dele no
+   servidor). O código tem 10 caracteres (`XXXXX-XXXXX`), vale por 24 horas e só pode ser usado uma vez.
+2. Na tela de entrada, digite o **nome**, o **PIN** e toque em **Tenho um código de liberação**; digite o código e
+   toque em **Entrar**.
+3. Toque em **Usar Face ID / digital / Windows Hello** e confirme com o rosto, a digital ou o Hello do Windows.
+   O aparelho fica cadastrado.
+4. (Só admin, na primeira chave) aparecem **8 códigos de emergência**: guarde-os num lugar seguro e toque em
+   **Já guardei**. Eles não aparecem de novo.
+
+### Nos próximos acessos
+
+Nome, PIN, **Entrar** e confirme com o rosto/digital. Se o app ficar mais de 5 minutos fora da tela, ele pede o
+login de novo; a sessão também acaba após 30 minutos sem uso (12 horas no máximo).
+
+### Ver ou remover aparelhos
+
+**Mais → Preferências → Aparelhos** lista os aparelhos cadastrados e permite remover um (por exemplo, o antigo).
+
+### Troquei de celular
+
+1. No celular novo, instale o app (passos acima) e peça um **código de liberação** ao Matheus (o Matheus usa o
+   comando do servidor ou os códigos de emergência).
+2. Entre com o código e cadastre o aparelho novo.
+3. No celular novo, em **Mais → Preferências → Aparelhos**, remova o aparelho antigo.
+
+### Perdi todos os aparelhos
+
+- **Ruth:** o Matheus gera um código de liberação novo para ela.
+- **Matheus:** use um dos **códigos de emergência** guardados no lugar do código de liberação (mesma tela). Se não
+  tiver nenhum, é no servidor: `python -m finance_api.auth.release Matheus` (veja [deploy-vps.md](deploy-vps.md)).
+  Depois de entrar, cadastre o aparelho novo.
 
 ## 5. Ativar as notificações
 
