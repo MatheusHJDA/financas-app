@@ -2,6 +2,19 @@
 
 > Mantido pelo lead. Workers leem; não editam (exceto quando o brief mandar).
 
+## RETOMAR AQUI (18/11/2026, fim do dia)
+Branch atual `login-dois-fatores` (não juntado no `master`, de propósito). Nada foi feito ainda na VPS, no DNS nem no
+GitHub. Retomar por estes passos manuais do Matheus, na ordem de `docs/preparar-vps.md`:
+1. Painel OVH: anotar o IPv4; (re)instalar Ubuntu 26.04 colando a chave `~/.ssh/id_ed25519.pub` do PC; backup
+   automático (opcional); Network Firewall da OVH só se liberar `<PORTA_SSH>`, 80 e 443.
+2. DNS: registro A `app` → IPv4 da VPS (sem AAAA). Endereço definitivo `app.<domínio>`.
+3. Escolher `<PORTA_SSH>` entre 49152 e 65535.
+4. GitHub: criar repositório privado vazio e passar o endereço ao lead → lead adiciona o remoto e envia `master` e
+   `login-dois-fatores` (o push pede login do GitHub no PC; `gh` não está instalado).
+5. Na VPS: seções 3–12 do `preparar-vps.md`; devolver a saída da conferência (seção 12).
+Depois: merge no `master` + backup + `./tasks.ps1 up` no PC (migrações 0003/0004) → `docs/deploy-vps.md` → testes
+nos aparelhos.
+
 ## ▶ 18/11/2026 — login em duas etapas (branch `login-dois-fatores`)
 Spec `docs/superpowers/specs/2026-11-17-login-dois-fatores-design.md`, plano
 `docs/superpowers/plans/2026-11-18-login-dois-fatores.md`. Commits `4a17bea`..HEAD do branch (último: `test(e2e): login
