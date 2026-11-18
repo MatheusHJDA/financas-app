@@ -40,6 +40,7 @@ from finance_api.auth import codes, limits, service
 from finance_api.core.audit import record_audit
 from finance_api.core.config import Settings
 from finance_api.db.models import AccessCode, LoginAttempt, Passkey, User
+from finance_api.db.session import SessionFactory
 from finance_api.notifications.channels import NotificationChannel
 from finance_api.notifications.service import deliver
 
@@ -59,6 +60,7 @@ class FinishResult:
     token: str  # texto puro: só vai para o cookie
     user: User
     recovery_codes: list[str] | None
+    new_device_label: str | None = None  # cadastrou chave: quem chama agenda o aviso
 
 
 def _webauthn_user_id(user: User | None, typed_name: str) -> bytes:
@@ -250,19 +252,30 @@ def _fail(
     raise service.InvalidCredentials
 
 
-def _notify_new_device(
-    db: Session, channel: NotificationChannel, user_id: int, device_label: str
+def notify_new_device(
+    session_factory: SessionFactory,
+    channel: NotificationChannel,
+    user_id: int,
+    device_label: str,
 ) -> None:
-    """Avisa os aparelhos já inscritos. Falha de envio nunca derruba a entrada."""
+    """Avisa os aparelhos já inscritos, depois da resposta (tarefa de fundo, sessão própria).
+
+    O envio pode levar segundos por inscrição; a resposta com o cookie e os códigos de emergência
+    não espera por ele. Falha de envio nunca derruba nada: só vai para o log.
+    """
     payload = {
         "title": "Aparelho novo liberado",
         "body": f"Um aparelho novo foi liberado na sua conta: {device_label}",
         "url": "/preferencias",
     }
     try:
-        deliver(db, channel, user_id, NEW_DEVICE_TYPE, payload, service.utcnow())
+        with session_factory() as db:
+            try:
+                deliver(db, channel, user_id, NEW_DEVICE_TYPE, payload, service.utcnow())
+            except Exception:
+                db.rollback()
+                raise
     except Exception as exc:
-        db.rollback()
         logger.warning("Aviso de aparelho novo falhou: %s", type(exc).__name__)
 
 
@@ -273,7 +286,6 @@ def finish(
     credential: dict[str, Any],
     source: str,
     settings: Settings,
-    channel: NotificationChannel | None = None,
 ) -> FinishResult:
     now = service.utcnow()
     limits.lock_source(db, source)
@@ -356,7 +368,9 @@ def finish(
         after={"user_id": user.id, "two_factor": True},
     )
     db.commit()
-
-    if new_key is not None and channel is not None:
-        _notify_new_device(db, channel, user.id, new_key.device_label)
-    return FinishResult(token=token, user=user, recovery_codes=recovery)
+    return FinishResult(
+        token=token,
+        user=user,
+        recovery_codes=recovery,
+        new_device_label=new_key.device_label if new_key is not None else None,
+    )

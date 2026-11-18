@@ -1,6 +1,7 @@
 """Entrada em duas etapas (nome + PIN, depois chave de acesso) e sessão curta."""
 
 import base64
+import contextlib
 import json
 from collections.abc import Callable
 from datetime import timedelta
@@ -27,6 +28,7 @@ from webauthn.helpers.structs import (
 from finance_api.auth import codes, passkeys, service
 from finance_api.core.config import Settings
 from finance_api.db.models import AuthFailure, Passkey, PushSubscription, User, UserSession
+from finance_api.db.session import get_session_factory
 from finance_api.notifications.channels import SendResult, get_channel
 
 from .conftest import PIN_MATHEUS, PIN_RUTH, Clock
@@ -569,11 +571,25 @@ def _subscribe(db: Session, user: User) -> None:
     db.flush()
 
 
+def _own_sessions(app: FastAPI, db: Session) -> list[str]:
+    """Troca a fábrica de sessões do aviso por uma que usa a sessão do teste e conta os usos."""
+    opened: list[str] = []
+
+    def _factory() -> contextlib.AbstractContextManager[Session]:
+        opened.append("aberta")
+        return contextlib.nullcontext(db)
+
+    app.dependency_overrides[get_session_factory] = lambda: _factory
+    return opened
+
+
 def test_aviso_de_aparelho_novo(
     app: FastAPI, db: Session, flow: Flow, auth_users: dict[str, User]
 ) -> None:
+    """O aviso roda depois da resposta (tarefa de fundo), com sessão de banco própria."""
     channel = _FakeChannel()
     app.dependency_overrides[get_channel] = lambda: channel
+    opened = _own_sessions(app, db)
     matheus = auth_users["matheus"]
     flow.register(matheus, _device())
     _subscribe(db, matheus)
@@ -589,6 +605,7 @@ def test_aviso_de_aparelho_novo(
             },
         )
     ]
+    assert opened == ["aberta", "aberta"]  # uma sessão própria por cadastro
 
 
 def test_falha_no_aviso_nao_derruba_o_cadastro(
@@ -604,6 +621,7 @@ def test_falha_no_aviso_nao_derruba_o_cadastro(
         raise RuntimeError("banco fora")
 
     monkeypatch.setattr(passkeys, "deliver", _explode)
+    _own_sessions(app, db)
     ruth = auth_users["ruth"]
     _subscribe(db, ruth)
     client, response = flow.register(ruth, _device())

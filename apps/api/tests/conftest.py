@@ -11,6 +11,7 @@ Fixtures próprias de uma unidade ficam em `tests/<unidade>/conftest.py`.
 import hashlib
 import os
 from collections.abc import Callable, Iterator
+from contextlib import nullcontext
 from pathlib import Path
 
 import pytest
@@ -27,7 +28,7 @@ from finance_api.core.config import get_settings
 from finance_api.core.deps import get_current_user
 from finance_api.core.permissions import CurrentUser, Owner
 from finance_api.db.models import User
-from finance_api.db.session import get_db
+from finance_api.db.session import get_db, get_session_factory
 from finance_api.main import create_app
 
 # O TestClient usa o host "testserver"; o padrão da API só aceita localhost/127.0.0.1/*.ts.net.
@@ -106,6 +107,8 @@ def app(db: Session) -> FastAPI:
         yield db
 
     application.dependency_overrides[get_db] = _db
+    # Tarefas de fundo abrem "a própria sessão": nos testes, a mesma transação desfeita no fim.
+    application.dependency_overrides[get_session_factory] = lambda: lambda: nullcontext(db)
     return application
 
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import select
 
@@ -11,6 +11,7 @@ from finance_api.core.config import Settings, get_settings
 from finance_api.core.deps import DbSession, get_current_user
 from finance_api.core.permissions import CurrentUser, Owner
 from finance_api.db.models import Passkey, UserSession
+from finance_api.db.session import SessionFactory, get_session_factory
 from finance_api.notifications.channels import NotificationChannel, get_channel
 
 router = APIRouter(tags=["auth"])
@@ -196,6 +197,8 @@ def login_finish(
     db: DbSession,
     settings: SettingsDep,
     channel: Annotated[NotificationChannel, Depends(get_channel)],
+    session_factory: Annotated[SessionFactory, Depends(get_session_factory)],
+    background: BackgroundTasks,
 ) -> LoginFinishOut:
     """Etapa 2: o único veredito. Qualquer falha responde 401 com a mesma mensagem."""
     _require_passkey_on(settings)
@@ -206,7 +209,6 @@ def login_finish(
             credential=body.credential,
             source=limits.request_source(request),
             settings=settings,
-            channel=channel,
         )
     except service.InvalidCredentials:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=LOGIN_FAILED) from None
@@ -215,6 +217,14 @@ def login_finish(
     current = service.to_current_user(result.user)
     assert current is not None
     _set_cookie(response, result.token, settings)
+    if result.new_device_label is not None:  # depois da resposta: o envio pode demorar
+        background.add_task(
+            passkeys.notify_new_device,
+            session_factory,
+            channel,
+            result.user.id,
+            result.new_device_label,
+        )
     return LoginFinishOut(me=_me(current), recovery_codes=result.recovery_codes)
 
 

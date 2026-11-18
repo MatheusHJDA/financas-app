@@ -1,4 +1,5 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager
 from functools import lru_cache
 
 from sqlalchemy import Engine, create_engine
@@ -16,6 +17,15 @@ def get_engine() -> Engine:
 @lru_cache
 def get_sessionmaker() -> sessionmaker[Session]:
     return sessionmaker(bind=get_engine(), expire_on_commit=False)
+
+
+# Abre uma sessão de banco própria (`with factory() as db:`), para trabalho fora do pedido.
+SessionFactory = Callable[[], AbstractContextManager[Session]]
+
+
+def get_session_factory() -> SessionFactory:
+    """Dependência: tarefas de fundo abrem a própria sessão (a do pedido já fechou)."""
+    return get_sessionmaker()
 
 
 def get_db() -> Iterator[Session]:
