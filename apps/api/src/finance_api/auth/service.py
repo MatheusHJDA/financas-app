@@ -100,9 +100,12 @@ def login(
     db: Session, *, name: str, pin: str, device_label: str, source: str, settings: Settings
 ) -> LoginResult:
     now = utcnow()
-    # Origem bloqueada: recusa antes de qualquer argon2.
+    # Uma tentativa por vez da mesma origem (pedidos paralelos não driblam o limite);
+    # a trava vale até o commit/rollback abaixo. Origem bloqueada: recusa antes de qualquer argon2.
+    limits.lock_source(db, source)
     retry = limits.source_retry_after(db, source, now)
     if retry is not None:
+        db.rollback()
         raise SourceBlocked(retry)
 
     # FOR UPDATE: tentativas paralelas na mesma conta não driblam a contagem.
@@ -113,7 +116,9 @@ def login(
         db.commit()
         raise InvalidCredentials
 
-    pin_ok = is_valid_pin(pin) and _verify_pin(user.pin_hash, pin)
+    # argon2 sempre roda (mesmo com PIN malformado): o tempo não revela se o nome existe.
+    verified = _verify_pin(user.pin_hash, pin)
+    pin_ok = verified and is_valid_pin(pin)
     if limits.is_locked(user) or not pin_ok:
         limits.record_failure(db, source=source, user=user, now=now)
         db.commit()

@@ -9,7 +9,7 @@ O relógio vem de quem chama (`now`), para os testes simularem o tempo. Nada aqu
 from datetime import datetime, timedelta
 
 from fastapi import Request
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.orm import Session
 
 from finance_api.core.audit import record_audit
@@ -21,6 +21,8 @@ ACCOUNT_MAX_FAILURES = 20
 ACCOUNT_WINDOW = timedelta(hours=1)
 
 _SOURCE_MAX_LENGTH = 64
+# Primeira chave das travas consultivas por origem (separa de outros usos de pg_advisory_lock).
+SOURCE_LOCK_NAMESPACE = 0x4C47  # "LG"
 
 
 def request_source(request: Request) -> str:
@@ -28,6 +30,17 @@ def request_source(request: Request) -> str:
     if request.client is None or not request.client.host:
         return "desconhecida"
     return request.client.host[:_SOURCE_MAX_LENGTH]
+
+
+def lock_source(db: Session, source: str) -> None:
+    """Serializa as tentativas da mesma origem até o fim da transação (commit ou rollback).
+
+    Sem isso, pedidos paralelos leem "menos de 5 falhas" juntos e todos testam um PIN.
+    """
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(:ns, hashtext(:source))"),
+        {"ns": SOURCE_LOCK_NAMESPACE, "source": source[:_SOURCE_MAX_LENGTH]},
+    )
 
 
 def source_retry_after(db: Session, source: str, now: datetime) -> int | None:

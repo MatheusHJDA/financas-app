@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import Engine, select, text
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 
@@ -95,3 +95,16 @@ def test_release_account_clears_lock_and_account_count_but_keeps_source_count(
     assert ruth.failed_attempts == 1  # as falhas antigas não somam de novo para a conta
     assert not limits.is_locked(ruth)
     assert limits.source_retry_after(db, "o", T0 + timedelta(minutes=1)) is not None
+
+
+def test_lock_source_serializes_the_same_source_only(db: Session, db_engine: Engine) -> None:
+    limits.lock_source(db, "9.9.9.9")
+    with db_engine.connect() as other:
+        try_lock = text("SELECT pg_try_advisory_xact_lock(:ns, hashtext(:source))")
+        same = other.scalar(try_lock, {"ns": limits.SOURCE_LOCK_NAMESPACE, "source": "9.9.9.9"})
+        different = other.scalar(
+            try_lock, {"ns": limits.SOURCE_LOCK_NAMESPACE, "source": "8.8.8.8"}
+        )
+        other.rollback()
+    assert same is False  # preso até o commit/rollback de quem chamou
+    assert different is True

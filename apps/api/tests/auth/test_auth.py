@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from finance_api.auth import OWNER_BY_USER_NAME, service
+from finance_api.auth import OWNER_BY_USER_NAME, limits, service
 from finance_api.core.config import Settings
 from finance_api.core.permissions import Owner
 from finance_api.db.models import AuditLog, User, UserSession
@@ -184,6 +184,54 @@ def test_origem_bloqueada_nao_gasta_argon2(
 
     monkeypatch.setattr(service, "_verify_pin", _fail)
     assert client.post(LOGIN, json=_login_body("Ruth", PIN_RUTH)).status_code == 429
+
+
+@pytest.mark.parametrize(
+    ("name", "pin"),
+    [("Ruth", "x"), ("Ruth", "1234567"), ("Ruth", "000000"), ("Fulano", "x"), ("Fulano", "000000")],
+)
+def test_login_failure_always_runs_argon2_once(
+    auth_users: dict[str, User],
+    new_client: Callable[..., TestClient],
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    pin: str,
+) -> None:
+    """Nome existente com PIN malformado gasta o mesmo argon2 que nome inexistente."""
+    calls: list[str] = []
+    real_verify = service._verify_pin
+
+    def _counting(pin_hash: str, typed: str) -> bool:
+        calls.append(typed)
+        return real_verify(pin_hash, typed)
+
+    monkeypatch.setattr(service, "_verify_pin", _counting)
+    response = new_client().post(LOGIN, json=_login_body(name, pin))
+    assert response.status_code == 401
+    assert response.json() == GENERIC_401
+    assert len(calls) == 1
+
+
+def test_login_takes_the_source_lock_before_checking(
+    auth_users: dict[str, User],
+    new_client: Callable[..., TestClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    order: list[str] = []
+    real_lock, real_check = limits.lock_source, limits.source_retry_after
+
+    def _lock(db: Session, source: str) -> None:
+        order.append(f"lock:{source}")
+        real_lock(db, source)
+
+    def _check(db: Session, source: str, now: object) -> int | None:
+        order.append("check")
+        return real_check(db, source, now)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(limits, "lock_source", _lock)
+    monkeypatch.setattr(limits, "source_retry_after", _check)
+    assert new_client("10.0.0.9").post(LOGIN, json=_login_body("Ruth", PIN_RUTH)).status_code == 200
+    assert order == ["lock:10.0.0.9", "check"]
 
 
 def test_estranho_nao_trava_conta_com_5_erros(
