@@ -223,6 +223,23 @@ def revoke_session(db: Session, session: UserSession, *, actor_id: int, audit: b
         )
 
 
+def revoke_user_sessions(
+    db: Session, user_id: int, *, actor_id: int, keep_hash: str | None = None
+) -> int:
+    """Revoga as sessões ainda não revogadas do usuário, menos `keep_hash` (sem commit e sem
+    auditar uma a uma: quem chama audita o total). Devolve quantas."""
+    rows = db.scalars(
+        select(UserSession).where(UserSession.user_id == user_id, UserSession.revoked_at.is_(None))
+    ).all()
+    count = 0
+    for session in rows:
+        if keep_hash is not None and session.token_hash == keep_hash:
+            continue
+        revoke_session(db, session, actor_id=actor_id, audit=False)
+        count += 1
+    return count
+
+
 # --- usuários e PIN ------------------------------------------------------------------------
 
 

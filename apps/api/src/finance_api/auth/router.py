@@ -241,16 +241,19 @@ def me(request: Request, response: Response, user: CurrentUserDep, settings: Set
 
 
 @router.get("/auth/sessions", response_model=list[SessionOut], responses={401: _ERR})
-def list_sessions(request: Request, db: DbSession, user: CurrentUserDep) -> list[SessionOut]:
+def list_sessions(
+    request: Request, db: DbSession, user: CurrentUserDep, settings: SettingsDep
+) -> list[SessionOut]:
     current_hash = _current_hash(request)
+    query = select(UserSession).where(
+        UserSession.user_id == user.id,
+        UserSession.revoked_at.is_(None),
+        UserSession.expires_at > service.utcnow(),
+    )
+    if settings.require_passkey:  # sessões só com PIN não valem mais: não são "ativas"
+        query = query.where(UserSession.two_factor.is_(True))
     rows = db.execute(
-        select(UserSession)
-        .where(
-            UserSession.user_id == user.id,
-            UserSession.revoked_at.is_(None),
-            UserSession.expires_at > service.utcnow(),
-        )
-        .order_by(UserSession.created_at.desc(), UserSession.id.desc())
+        query.order_by(UserSession.created_at.desc(), UserSession.id.desc())
     ).scalars()
     return [
         SessionOut(
@@ -297,8 +300,12 @@ def list_passkeys(db: DbSession, user: CurrentUserDep) -> list[PasskeyOut]:
     status_code=status.HTTP_204_NO_CONTENT,
     responses={401: _ERR, 403: _ERR, 404: _ERR},
 )
-def delete_passkey(id: int, db: DbSession, user: CurrentUserDep) -> Response:
-    """Remove uma chave (dona ou admin). Remover a última é permitido: códigos recuperam."""
+def delete_passkey(id: int, request: Request, db: DbSession, user: CurrentUserDep) -> Response:
+    """Remove uma chave (dona ou admin). Remover a última é permitido: códigos recuperam.
+
+    O aparelho da chave não pode continuar conectado: as sessões da dona caem, menos a de quem
+    remove (quando é a própria dona). Sessões não guardam a chave usada, então caem todas as outras.
+    """
     key = db.get(Passkey, id)
     if key is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chave não encontrada.")
@@ -306,6 +313,8 @@ def delete_passkey(id: int, db: DbSession, user: CurrentUserDep) -> Response:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, detail="Você só pode remover as suas próprias chaves."
         )
+    keep = _current_hash(request) if key.user_id == user.id else None
+    revoked = service.revoke_user_sessions(db, key.user_id, actor_id=user.id, keep_hash=keep)
     record_audit(
         db,
         user_id=user.id,
@@ -313,7 +322,7 @@ def delete_passkey(id: int, db: DbSession, user: CurrentUserDep) -> Response:
         entity_id=key.id,
         action="delete",
         before={"user_id": key.user_id, "device_label": key.device_label},
-        after=None,
+        after={"sessions_revoked": revoked},
     )
     db.delete(key)
     db.commit()

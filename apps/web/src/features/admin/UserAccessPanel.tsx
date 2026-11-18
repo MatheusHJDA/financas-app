@@ -34,7 +34,7 @@ export function UserAccessPanel({ user }: { user: AdminUser }) {
       ) : keys.data ? (
         <PasskeyList
           keys={keys.data}
-          confirmMessage={`Remover a chave de ${user.name}? A pessoa vai precisar de um código de liberação para entrar de novo.`}
+          confirmMessage={`Remover a chave de ${user.name}? Todos os aparelhos da pessoa saem da conta, e o desta chave vai precisar de um código de liberação para entrar de novo.`}
           onRemoved={() =>
             Promise.all([
               queryClient.invalidateQueries({ queryKey: userPasskeysKey(user.id) }),

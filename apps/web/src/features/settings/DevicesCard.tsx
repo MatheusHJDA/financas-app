@@ -16,7 +16,7 @@ export function DevicesCard() {
       ) : keys.data ? (
         <PasskeyList
           keys={keys.data}
-          confirmMessage="Remover a chave deste aparelho? Ele vai precisar de um código de liberação para entrar de novo."
+          confirmMessage="Remover a chave deste aparelho? Ele vai precisar de um código de liberação para entrar de novo. Seus outros aparelhos também saem e entram de novo com a chave deles."
           onRemoved={() => queryClient.invalidateQueries({ queryKey: MY_PASSKEYS_KEY })}
         />
       ) : (

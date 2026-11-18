@@ -841,3 +841,48 @@ def test_membro_nao_destrava(flow: Flow, auth_users: dict[str, User]) -> None:
     matheus, ruth = auth_users["matheus"], auth_users["ruth"]
     r_client, _ = flow.register(ruth, _device())
     assert r_client.post(f"/api/admin/users/{matheus.id}/unlock").status_code == 403
+
+
+def test_remover_a_propria_chave_desconecta_os_outros_aparelhos(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    from finance_api.db.models import AuditLog
+
+    ruth = auth_users["ruth"]
+    phone, pc = _device(), _device()
+    phone_client, _ = flow.register(ruth, phone)
+    pc_client, _ = flow.register(ruth, pc)
+    keys = phone_client.get("/api/auth/passkeys").json()
+    pc_key = keys[-1]["id"]
+    assert phone_client.delete(f"/api/auth/passkeys/{pc_key}").status_code == 204
+    assert pc_client.get("/api/auth/me").status_code == 401
+    assert phone_client.get("/api/auth/me").status_code == 200
+    row = db.scalars(
+        select(AuditLog).where(AuditLog.entity == "passkeys", AuditLog.action == "delete")
+    ).one()
+    assert row.after_json == {"sessions_revoked": 1}
+
+
+def test_admin_remove_chave_de_outro_e_desconecta_todos_os_aparelhos_dele(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    matheus, ruth = auth_users["matheus"], auth_users["ruth"]
+    m_client, _ = flow.register(matheus, _device())
+    r_phone, _ = flow.register(ruth, _device())
+    r_pc, _ = flow.register(ruth, _device())
+    r_key = r_phone.get("/api/auth/passkeys").json()[0]["id"]
+    assert m_client.delete(f"/api/auth/passkeys/{r_key}").status_code == 204
+    assert r_phone.get("/api/auth/me").status_code == 401
+    assert r_pc.get("/api/auth/me").status_code == 401
+    assert m_client.get("/api/auth/me").status_code == 200
+
+
+def test_sessoes_so_pin_nao_aparecem_com_chave_exigida(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    ruth = auth_users["ruth"]
+    _session_client(db, flow, ruth, two_factor=False)
+    client = _session_client(db, flow, ruth, two_factor=True)
+    listed = client.get("/api/auth/sessions").json()
+    assert len(listed) == 1
+    assert listed[0]["current"] is True

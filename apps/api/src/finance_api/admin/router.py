@@ -23,7 +23,7 @@ from finance_api.core.audit import record_audit
 from finance_api.core.config import Settings, get_settings
 from finance_api.core.deps import DbSession, require_admin
 from finance_api.core.permissions import CurrentUser
-from finance_api.db.models import AiExtraction, AuditLog, Passkey, Setting, User, UserSession
+from finance_api.db.models import AiExtraction, AuditLog, Passkey, Setting, User
 from finance_api.notifications import lifecycle
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -114,20 +114,6 @@ def _get_user(db: DbSession, user_id: int) -> User:
     return user
 
 
-def _revoke_active_sessions(db: DbSession, user_id: int, *, keep_hash: str | None = None) -> int:
-    """Revoga as sessões ainda não revogadas do usuário (sem commit). Devolve quantas."""
-    rows = db.scalars(
-        select(UserSession).where(UserSession.user_id == user_id, UserSession.revoked_at.is_(None))
-    ).all()
-    count = 0
-    for session in rows:
-        if keep_hash is not None and session.token_hash == keep_hash:
-            continue
-        auth_service.revoke_session(db, session, actor_id=user_id, audit=False)
-        count += 1
-    return count
-
-
 @router.get("/users", response_model=list[AdminUserOut])
 def list_users(db: DbSession) -> list[AdminUserOut]:
     users = db.scalars(select(User).order_by(User.id)).all()
@@ -167,7 +153,7 @@ def reset_pin(
         keep = auth_service.hash_token(request.cookies.get(auth_service.SESSION_COOKIE) or "")
     user.pin_hash = auth_service.hash_pin(body.new_pin)
     limits.release_account(db, user)
-    revoked = _revoke_active_sessions(db, user.id, keep_hash=keep)
+    revoked = auth_service.revoke_user_sessions(db, user.id, actor_id=admin.id, keep_hash=keep)
     record_audit(
         db,
         user_id=admin.id,
@@ -223,7 +209,7 @@ def list_user_passkeys(id: int, db: DbSession) -> list[PasskeyOut]:
 @router.delete("/users/{id}/sessions", status_code=status.HTTP_204_NO_CONTENT)
 def revoke_user_sessions(id: int, db: DbSession, admin: Admin) -> Response:
     user = _get_user(db, id)
-    revoked = _revoke_active_sessions(db, user.id)
+    revoked = auth_service.revoke_user_sessions(db, user.id, actor_id=admin.id)
     record_audit(
         db,
         user_id=admin.id,
