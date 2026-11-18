@@ -60,6 +60,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/login/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Etapa 1 da entrada em duas etapas (nome + PIN); devolve o desafio da chave de acesso
+         * @description Nunca diz se nome/PIN estão certos: a resposta tem sempre o mesmo formato. Sem
+         *     `release_code` → `mode: login` (autenticação, `allowCredentials` vazio, verificação do usuário
+         *     exigida); com código → `mode: register` (cadastro da chave deste aparelho). `options` vai direto
+         *     para `startAuthentication`/`startRegistration` do `@simplewebauthn/browser`. A tentativa vale
+         *     2 min e uma vez. 404 quando a chave de acesso está desligada (`REQUIRE_PASSKEY=false`).
+         */
+        post: operations["loginStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Etapa 2 (chave de acesso); único veredito; define o cookie `session`
+         * @description Só abre a sessão se o PIN da etapa 1 estava certo, a conta não está travada e a chave é da mesma
+         *     pessoa (ou, no cadastro, o código de liberação vale). Qualquer falha responde 401 com a mesma
+         *     mensagem e conta uma falha. `recovery_codes` traz os 8 códigos de emergência só ao cadastrar a
+         *     primeira chave de um administrador (mostrados uma vez); senão `null`.
+         */
+        post: operations["loginFinish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/logout": {
         parameters: {
             query?: never;
@@ -925,6 +972,32 @@ export interface components {
             name: string;
             pin: string;
             device_label: string;
+        };
+        LoginStartRequest: {
+            name: string;
+            pin: string;
+            device_label: string;
+            release_code?: string | null;
+        };
+        LoginStart: {
+            attempt_id: string;
+            /** @enum {string} */
+            mode: "login" | "register";
+            /** @description PublicKeyCredentialRequestOptionsJSON ou CreationOptionsJSON */
+            options: {
+                [key: string]: unknown;
+            };
+        };
+        LoginFinishRequest: {
+            attempt_id: string;
+            /** @description Resposta do navegador (AuthenticationResponseJSON ou RegistrationResponseJSON) */
+            credential: {
+                [key: string]: unknown;
+            };
+        };
+        LoginFinish: {
+            me: components["schemas"]["Me"];
+            recovery_codes: string[] | null;
         };
         Me: {
             /** Format: int64 */
@@ -1878,6 +1951,81 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error"];
+            /** @description Muitas tentativas desta origem */
+            429: {
+                headers: {
+                    /** @description Segundos até poder tentar de novo */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    loginStart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Desafio da chave de acesso */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginStart"];
+                };
+            };
+            404: components["responses"]["Error"];
+            /** @description Muitas tentativas desta origem */
+            429: {
+                headers: {
+                    /** @description Segundos até poder tentar de novo */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    loginFinish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginFinishRequest"];
+            };
+        };
+        responses: {
+            /** @description Autenticado */
+            200: {
+                headers: {
+                    /** @description Cookie `session` (HttpOnly, Secure, SameSite=Strict, Max-Age 12 h) */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginFinish"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
             /** @description Muitas tentativas desta origem */
             429: {
                 headers: {

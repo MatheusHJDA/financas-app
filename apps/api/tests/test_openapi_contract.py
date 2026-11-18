@@ -10,6 +10,8 @@ EXPECTED: dict[str, set[str]] = {
     "/health": {"get"},
     "/auth/config": {"get"},
     "/auth/login": {"post"},
+    "/auth/login/start": {"post"},
+    "/auth/login/finish": {"post"},
     "/auth/logout": {"post"},
     "/auth/me": {"get"},
     "/auth/sessions": {"get"},
@@ -58,7 +60,13 @@ EXPECTED: dict[str, set[str]] = {
     "/reports/month": {"get"},
 }
 
-PUBLIC = {("/health", "get"), ("/auth/config", "get"), ("/auth/login", "post")}
+PUBLIC = {
+    ("/health", "get"),
+    ("/auth/config", "get"),
+    ("/auth/login", "post"),
+    ("/auth/login/start", "post"),
+    ("/auth/login/finish", "post"),
+}
 
 
 def _spec() -> dict:

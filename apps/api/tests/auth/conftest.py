@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from finance_api.auth import service
+from finance_api.core import config as config_module
+from finance_api.core.config import Settings, get_settings
 from finance_api.core.deps import get_current_user, require_admin
 from finance_api.core.permissions import CurrentUser
 from finance_api.db.models import User
@@ -80,3 +82,19 @@ def login(
         return client
 
     return _login
+
+
+@pytest.fixture
+def passkey_settings(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> Settings:
+    """Chave de acesso exigida (RP "testserver", origem https://testserver)."""
+    settings = get_settings().model_copy(
+        update={
+            "require_passkey": True,
+            "passkey_rp_id": "testserver",
+            "passkey_origin": "https://testserver",
+        }
+    )
+    app.dependency_overrides[get_settings] = lambda: settings
+    # `get_current_user` chama `get_settings()` direto (fora do Depends): troca no módulo.
+    monkeypatch.setattr(config_module, "get_settings", lambda: settings)
+    return settings

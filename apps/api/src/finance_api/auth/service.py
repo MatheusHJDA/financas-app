@@ -124,16 +124,42 @@ def login(
         db.commit()
         raise InvalidCredentials
 
+    token, session = open_session(
+        db, user, device_label=device_label, two_factor=False, settings=settings
+    )
+    db.commit()
+    return LoginResult(token=token, user=user, session=session)
+
+
+# --- sessões -------------------------------------------------------------------------------
+
+
+def open_session(
+    db: Session, user: User, *, device_label: str, two_factor: bool, settings: Settings
+) -> tuple[str, UserSession]:
+    """Cria a sessão do aparelho (não faz commit). Devolve o token puro, só para o cookie.
+
+    Chave exigida: 30 min sem uso, 12 h no máximo. Sem ela: `session_days` renováveis.
+    """
+    now = utcnow()
     token = secrets.token_urlsafe(32)
+    if settings.require_passkey:
+        expires_at = now + timedelta(minutes=settings.session_idle_minutes)
+        max_expires_at: datetime | None = now + timedelta(hours=settings.session_max_hours)
+    else:
+        expires_at = now + timedelta(days=settings.session_days)
+        max_expires_at = None
     session = UserSession(
         token_hash=hash_token(token),
         user_id=user.id,
         device_label=device_label,
-        expires_at=now + timedelta(days=settings.session_days),
+        expires_at=expires_at,
+        two_factor=two_factor,
+        max_expires_at=max_expires_at,
     )
     db.add(session)
-    db.commit()
-    return LoginResult(token=token, user=user, session=session)
+    db.flush()
+    return token, session
 
 
 # --- sessões -------------------------------------------------------------------------------
@@ -167,7 +193,14 @@ def authenticate_token(db: Session, token: str | None, settings: Settings) -> Cu
     current = to_current_user(user) if user is not None else None
     if current is None:
         return None
-    session.expires_at = now + timedelta(days=settings.session_days)
+    if settings.require_passkey:
+        # Só valem sessões abertas com as duas etapas (as só-PIN do banco antigo não).
+        if not session.two_factor or session.max_expires_at is None:
+            return None
+        idle = now + timedelta(minutes=settings.session_idle_minutes)
+        session.expires_at = min(idle, _aware(session.max_expires_at))
+    else:
+        session.expires_at = now + timedelta(days=settings.session_days)
     db.commit()
     return current
 

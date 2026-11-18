@@ -86,6 +86,76 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+  /auth/login/start:
+    post:
+      tags: [auth]
+      operationId: loginStart
+      summary: Etapa 1 da entrada em duas etapas (nome + PIN); devolve o desafio da chave de acesso
+      description: |
+        Nunca diz se nome/PIN estão certos: a resposta tem sempre o mesmo formato. Sem
+        `release_code` → `mode: login` (autenticação, `allowCredentials` vazio, verificação do usuário
+        exigida); com código → `mode: register` (cadastro da chave deste aparelho). `options` vai direto
+        para `startAuthentication`/`startRegistration` do `@simplewebauthn/browser`. A tentativa vale
+        2 min e uma vez. 404 quando a chave de acesso está desligada (`REQUIRE_PASSKEY=false`).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginStartRequest"}
+      responses:
+        "200":
+          description: Desafio da chave de acesso
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/LoginStart"}
+        "404": {$ref: "#/components/responses/Error"}
+        "429":
+          description: Muitas tentativas desta origem
+          headers:
+            Retry-After:
+              description: Segundos até poder tentar de novo
+              schema: {type: integer}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /auth/login/finish:
+    post:
+      tags: [auth]
+      operationId: loginFinish
+      summary: Etapa 2 (chave de acesso); único veredito; define o cookie `session`
+      description: |
+        Só abre a sessão se o PIN da etapa 1 estava certo, a conta não está travada e a chave é da mesma
+        pessoa (ou, no cadastro, o código de liberação vale). Qualquer falha responde 401 com a mesma
+        mensagem e conta uma falha. `recovery_codes` traz os 8 códigos de emergência só ao cadastrar a
+        primeira chave de um administrador (mostrados uma vez); senão `null`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginFinishRequest"}
+      responses:
+        "200":
+          description: Autenticado
+          headers:
+            Set-Cookie:
+              description: Cookie `session` (HttpOnly, Secure, SameSite=Strict, Max-Age 12 h)
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/LoginFinish"}
+        "401": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "429":
+          description: Muitas tentativas desta origem
+          headers:
+            Retry-After:
+              description: Segundos até poder tentar de novo
+              schema: {type: integer}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
   /auth/logout:
     post:
       tags: [auth]
@@ -1199,6 +1269,41 @@ components:
         name: {type: string, minLength: 1, maxLength: 80}
         pin: {type: string}
         device_label: {type: string}
+    LoginStartRequest:
+      type: object
+      required: [name, pin, device_label]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 80}
+        pin: {type: string}
+        device_label: {type: string}
+        release_code: {type: [string, "null"], maxLength: 32}
+    LoginStart:
+      type: object
+      required: [attempt_id, mode, options]
+      properties:
+        attempt_id: {type: string}
+        mode: {type: string, enum: [login, register]}
+        options:
+          type: object
+          additionalProperties: true
+          description: PublicKeyCredentialRequestOptionsJSON ou CreationOptionsJSON
+    LoginFinishRequest:
+      type: object
+      required: [attempt_id, credential]
+      properties:
+        attempt_id: {type: string}
+        credential:
+          type: object
+          additionalProperties: true
+          description: Resposta do navegador (AuthenticationResponseJSON ou RegistrationResponseJSON)
+    LoginFinish:
+      type: object
+      required: [me, recovery_codes]
+      properties:
+        me: {$ref: "#/components/schemas/Me"}
+        recovery_codes:
+          type: [array, "null"]
+          items: {type: string}
     Me:
       type: object
       required: [id, name, role, owner]

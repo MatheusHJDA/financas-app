@@ -1,15 +1,16 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import select
 
-from finance_api.auth import limits, service
+from finance_api.auth import limits, passkeys, service
 from finance_api.core.config import Settings, get_settings
 from finance_api.core.deps import DbSession, get_current_user
 from finance_api.core.permissions import CurrentUser, Owner
 from finance_api.db.models import UserSession
+from finance_api.notifications.channels import NotificationChannel, get_channel
 
 router = APIRouter(tags=["auth"])
 
@@ -34,11 +35,31 @@ class LoginRequest(BaseModel):
     ]
 
 
+class LoginStartRequest(LoginRequest):
+    release_code: str | None = Field(default=None, max_length=32)
+
+
+class LoginStartOut(BaseModel):
+    attempt_id: str
+    mode: Literal["login", "register"]
+    options: dict[str, Any]
+
+
+class LoginFinishRequest(BaseModel):
+    attempt_id: str = Field(min_length=1, max_length=128)
+    credential: dict[str, Any]
+
+
 class Me(BaseModel):
     id: int
     name: str
     role: str
     owner: Owner
+
+
+class LoginFinishOut(BaseModel):
+    me: Me
+    recovery_codes: list[str] | None
 
 
 class SessionOut(BaseModel):
@@ -53,7 +74,11 @@ def _set_cookie(response: Response, token: str, settings: Settings) -> None:
     response.set_cookie(
         service.SESSION_COOKIE,
         token,
-        max_age=settings.session_days * 86400,
+        max_age=(
+            settings.session_max_hours * 3600
+            if settings.require_passkey
+            else settings.session_days * 86400
+        ),
         httponly=True,
         secure=True,
         samesite="strict",
@@ -84,6 +109,8 @@ def auth_config(settings: SettingsDep) -> AuthConfig:
 def login(
     body: LoginRequest, request: Request, response: Response, db: DbSession, settings: SettingsDep
 ) -> Me:
+    if settings.require_passkey:  # só PIN não abre sessão quando a chave é exigida
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=LOGIN_FAILED)
     try:
         result = service.login(
             db,
@@ -96,15 +123,82 @@ def login(
     except service.InvalidCredentials:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=LOGIN_FAILED) from None
     except service.SourceBlocked as exc:
-        raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=TOO_MANY_ATTEMPTS,
-            headers={"Retry-After": str(exc.retry_after_seconds)},
-        ) from None
+        raise _source_blocked(exc) from None
     current = service.to_current_user(result.user)
     assert current is not None
     _set_cookie(response, result.token, settings)
     return _me(current)
+
+
+def _source_blocked(exc: service.SourceBlocked) -> HTTPException:
+    return HTTPException(
+        status.HTTP_429_TOO_MANY_REQUESTS,
+        detail=TOO_MANY_ATTEMPTS,
+        headers={"Retry-After": str(exc.retry_after_seconds)},
+    )
+
+
+def _require_passkey_on(settings: Settings) -> None:
+    if not settings.require_passkey:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chave de acesso desligada.")
+
+
+@router.post("/auth/login/start", response_model=LoginStartOut, responses={404: _ERR, 429: _ERR})
+def login_start(
+    body: LoginStartRequest, request: Request, db: DbSession, settings: SettingsDep
+) -> LoginStartOut:
+    """Etapa 1: nunca diz se nome/PIN estão certos; sempre devolve um desafio."""
+    _require_passkey_on(settings)
+    release_code = (body.release_code or "").strip() or None
+    try:
+        attempt_id, options = passkeys.start(
+            db,
+            name=body.name,
+            pin=body.pin,
+            release_code=release_code,
+            device_label=body.device_label,
+            source=limits.request_source(request),
+            settings=settings,
+        )
+    except service.SourceBlocked as exc:
+        raise _source_blocked(exc) from None
+    return LoginStartOut(
+        attempt_id=attempt_id, mode="register" if release_code else "login", options=options
+    )
+
+
+@router.post(
+    "/auth/login/finish",
+    response_model=LoginFinishOut,
+    responses={401: _ERR, 404: _ERR, 429: _ERR},
+)
+def login_finish(
+    body: LoginFinishRequest,
+    request: Request,
+    response: Response,
+    db: DbSession,
+    settings: SettingsDep,
+    channel: Annotated[NotificationChannel, Depends(get_channel)],
+) -> LoginFinishOut:
+    """Etapa 2: o único veredito. Qualquer falha responde 401 com a mesma mensagem."""
+    _require_passkey_on(settings)
+    try:
+        result = passkeys.finish(
+            db,
+            attempt_id=body.attempt_id,
+            credential=body.credential,
+            source=limits.request_source(request),
+            settings=settings,
+            channel=channel,
+        )
+    except service.InvalidCredentials:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=LOGIN_FAILED) from None
+    except service.SourceBlocked as exc:
+        raise _source_blocked(exc) from None
+    current = service.to_current_user(result.user)
+    assert current is not None
+    _set_cookie(response, result.token, settings)
+    return LoginFinishOut(me=_me(current), recovery_codes=result.recovery_codes)
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT, responses={401: _ERR})
