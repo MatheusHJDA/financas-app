@@ -20,8 +20,11 @@ migra dump antigo — não vale do 0002 para o 0004; o deploy-vps já manda atua
 `user.id` falso muda a cada reinício; `proven` não exige tentativa ainda válida (replay só com o corpo TLS capturado);
 `Retry-After` arredonda para baixo; botões "Remover" sem o nome do aparelho no aria-label; "Desbloquear" sem trava
 de duplo clique; `auth_failures` nunca é limpo.
-**Próximo:** testes nos aparelhos (iPhone com Face ID real), merge no master, domínio + remoto git, virada para a VPS
-(`docs/deploy-vps.md`).
+**18/11/2026 — decisão do Matheus: branch mantido, sem merge.** `login-dois-fatores` fica separado do `master`
+(verificação final verde: api 610, web 489, build ok) até a VPS estar preparada. Antes do merge: preparar o ambiente
+da VPS (usuário, SSH por chave, firewall, atualizações automáticas, Docker, domínio, remoto git).
+**Próximo:** preparar a VPS → merge no master + backup + `./tasks.ps1 up` no PC (migrações 0003/0004) → virada
+(`docs/deploy-vps.md`) → testes nos aparelhos (Face ID real só no endereço definitivo).
 
 ## ▶ 17/11/2026 — empréstimo com parcelas (branch `emprestimo`, de `redesenho`)
 Spec `docs/superpowers/specs/2026-11-17-emprestimo-parcelas-design.md`, plano `docs/superpowers/plans/2026-11-17-emprestimo-parcelas.md`.
