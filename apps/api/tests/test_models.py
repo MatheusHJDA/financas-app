@@ -1,10 +1,23 @@
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
+import pytest
 from sqlalchemy import BigInteger, Integer
+from sqlalchemy.exc import IntegrityError
 
 from finance_api.db import models  # noqa: F401
 from finance_api.db.base import Base
-from finance_api.db.models import BillInstance, Debt, DebtInstallment, RecurringBill
+from finance_api.db.models import (
+    AccessCode,
+    AuthFailure,
+    BillInstance,
+    Debt,
+    DebtInstallment,
+    LoginAttempt,
+    Passkey,
+    RecurringBill,
+    User,
+    UserSession,
+)
 
 EXPECTED_TABLES = {
     "users",
@@ -25,11 +38,15 @@ EXPECTED_TABLES = {
     "notification_log",
     "settings",
     "audit_log",
+    "passkeys",
+    "login_attempts",
+    "access_codes",
+    "auth_failures",
 }
 
 
-def test_all_18_tables_exist() -> None:
-    assert len(EXPECTED_TABLES) == 18
+def test_all_22_tables_exist() -> None:
+    assert len(EXPECTED_TABLES) == 22
     assert set(Base.metadata.tables) == EXPECTED_TABLES
 
 
@@ -135,3 +152,82 @@ def test_bill_status_accepts_prepaid(db) -> None:
     _, inst = _make_debt_bill_instance(db, status="prepaid")
     db.expire_all()
     assert db.get(BillInstance, inst.id).status == "prepaid"
+
+
+def test_passkey_tables_roundtrip(db) -> None:
+    now = datetime.now(UTC)
+    user = User(name="Teste2FA", role="member", pin_hash="!x", webauthn_user_id=b"" * 16)
+    db.add(user)
+    db.flush()
+    db.add_all(
+        [
+            Passkey(
+                user_id=user.id,
+                credential_id=b"" * 16,
+                public_key=b"pk",
+                device_label="Celular",
+            ),
+            AccessCode(user_id=user.id, kind="release", code_hash="a" * 64, created_by=user.id),
+            LoginAttempt(
+                token_hash="b" * 64,
+                purpose="login",
+                user_id=user.id,
+                pin_ok=False,
+                challenge=b"ch",
+                device_label="PC",
+                source="1.2.3.4",
+                expires_at=now + timedelta(minutes=5),
+            ),
+            AuthFailure(source="1.2.3.4"),
+            UserSession(
+                token_hash="c" * 64,
+                user_id=user.id,
+                device_label="PC",
+                expires_at=now + timedelta(days=1),
+                two_factor=True,
+                max_expires_at=now + timedelta(hours=12),
+            ),
+        ]
+    )
+    db.flush()
+    db.expire_all()
+
+    got = db.get(User, user.id)
+    assert got.locked_at is None
+    assert got.webauthn_user_id == b"" * 16
+    pk = db.query(Passkey).one()
+    assert pk.credential_id == b"" * 16
+    assert pk.public_key == b"pk"
+    assert pk.sign_count == 0
+    assert pk.device_label == "Celular"
+    assert pk.last_used_at is None
+    assert pk.created_at is not None
+    code = db.query(AccessCode).one()
+    assert code.kind == "release"
+    assert code.expires_at is None
+    assert code.used_at is None
+    assert code.created_by == user.id
+    attempt = db.query(LoginAttempt).one()
+    assert attempt.purpose == "login"
+    assert attempt.pin_ok is False
+    assert attempt.code_hash is None
+    assert attempt.used_at is None
+    assert attempt.challenge == b"ch"
+    fail = db.query(AuthFailure).one()
+    assert fail.source == "1.2.3.4"
+    assert fail.user_id is None
+    assert fail.at is not None
+    sess = db.query(UserSession).one()
+    assert sess.two_factor is True
+    assert sess.max_expires_at is not None
+
+    with pytest.raises(IntegrityError), db.begin_nested():
+        db.add(
+            Passkey(
+                user_id=user.id,
+                credential_id=b"" * 16,
+                public_key=b"outra",
+                device_label="Duplicada",
+            )
+        )
+        db.flush()

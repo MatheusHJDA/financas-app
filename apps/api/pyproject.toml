@@ -20,6 +20,7 @@ dependencies = [
     "pillow-heif",
     "python-multipart",
     "tzdata>=2026.6",
+    "webauthn>=3.0.1",
 ]
 
 [dependency-groups]

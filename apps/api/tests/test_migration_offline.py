@@ -49,6 +49,8 @@ def test_enums_created_once(offline_sql: str) -> None:
         "draft_status",
         "bill_status",
         "installment_status",
+        "login_purpose",
+        "access_code_kind",
     ):
         assert offline_sql.count(f"CREATE TYPE {enum} AS ENUM") == 1, enum
 

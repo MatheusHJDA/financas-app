@@ -30,6 +30,13 @@ class Settings(BaseSettings):
 
     tz: str = "America/Sao_Paulo"
     session_days: int = 30
+    session_idle_minutes: int = 30
+    session_max_hours: int = 12
+
+    # Login em duas etapas (chave de acesso). Ligue só na VPS: RP_ID = domínio, ORIGIN = https://domínio.
+    require_passkey: bool = False
+    passkey_rp_id: str = ""
+    passkey_origin: str = ""
 
     # Swagger/OpenAPI em /api/docs e /api/openapi.json: desligado, só para depurar.
     enable_docs: bool = False

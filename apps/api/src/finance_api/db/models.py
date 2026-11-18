@@ -19,6 +19,7 @@ from sqlalchemy import (
     Identity,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     SmallInteger,
     String,
@@ -45,6 +46,8 @@ TX_SOURCE = Enum("chat", "manual", "import", name="tx_source")
 DRAFT_STATUS = Enum("pending", "confirmed", "discarded", name="draft_status")
 BILL_STATUS = Enum("open", "paid", "prepaid", name="bill_status")
 INSTALLMENT_STATUS = Enum("open", "paid", "prepaid", name="installment_status")
+LOGIN_PURPOSE = Enum("login", "register", name="login_purpose")
+ACCESS_CODE_KIND = Enum("release", "recovery", name="access_code_kind")
 
 ENUMS = (
     USER_ROLE,
@@ -57,6 +60,8 @@ ENUMS = (
     DRAFT_STATUS,
     BILL_STATUS,
     INSTALLMENT_STATUS,
+    LOGIN_PURPOSE,
+    ACCESS_CODE_KIND,
 )
 
 # --- Tipos auxiliares -------------------------------------------------------------------------
@@ -96,6 +101,9 @@ class User(Base):
     pin_hash: Mapped[str] = mapped_column(Text)
     failed_attempts: Mapped[int] = mapped_column(Integer, server_default="0")
     locked_until: Mapped[datetime | None] = _tstz()
+    # Trava sem prazo: só a administração libera.
+    locked_at: Mapped[datetime | None] = _tstz()
+    webauthn_user_id: Mapped[bytes | None] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _updated_at()
 
@@ -111,9 +119,80 @@ class UserSession(Base):
     device_label: Mapped[str] = mapped_column(String(120))
     expires_at: Mapped[datetime] = _tstz(nullable=False)
     revoked_at: Mapped[datetime | None] = _tstz()
+    two_factor: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    max_expires_at: Mapped[datetime | None] = _tstz()
     created_at: Mapped[datetime] = _created_at()
 
     __table_args__ = (Index("ix_sessions_user_id", "user_id"),)
+
+
+class Passkey(Base):
+    """Chave de acesso (WebAuthn) de um aparelho do usuário."""
+
+    __tablename__ = "passkeys"
+
+    id: Mapped[int] = _pk()
+    user_id: Mapped[int] = _fk("users.id", ondelete="CASCADE")
+    credential_id: Mapped[bytes] = mapped_column(LargeBinary, unique=True)
+    public_key: Mapped[bytes] = mapped_column(LargeBinary)
+    sign_count: Mapped[int] = mapped_column(Integer, server_default="0")
+    device_label: Mapped[str] = mapped_column(String(120))
+    created_at: Mapped[datetime] = _created_at()
+    last_used_at: Mapped[datetime | None] = _tstz()
+
+    __table_args__ = (Index("ix_passkeys_user_id", "user_id"),)
+
+
+class LoginAttempt(Base):
+    """Tentativa de login em andamento; só o hash do token é guardado."""
+
+    __tablename__ = "login_attempts"
+
+    id: Mapped[int] = _pk()
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    purpose: Mapped[str] = mapped_column(LOGIN_PURPOSE)
+    user_id: Mapped[int | None] = _fk("users.id", ondelete="CASCADE", nullable=True)
+    pin_ok: Mapped[bool] = mapped_column(Boolean)
+    challenge: Mapped[bytes] = mapped_column(LargeBinary)
+    code_hash: Mapped[str | None] = mapped_column(String(64))
+    device_label: Mapped[str] = mapped_column(String(120))
+    source: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = _tstz(nullable=False)
+    used_at: Mapped[datetime | None] = _tstz()
+    created_at: Mapped[datetime] = _created_at()
+
+
+class AccessCode(Base):
+    """Código de liberação ou recuperação; só o hash é guardado."""
+
+    __tablename__ = "access_codes"
+
+    id: Mapped[int] = _pk()
+    user_id: Mapped[int] = _fk("users.id", ondelete="CASCADE")
+    kind: Mapped[str] = mapped_column(ACCESS_CODE_KIND)
+    code_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime | None] = _tstz()
+    used_at: Mapped[datetime | None] = _tstz()
+    created_by: Mapped[int | None] = _fk("users.id", ondelete="SET NULL", nullable=True)
+    created_at: Mapped[datetime] = _created_at()
+
+    __table_args__ = (Index("ix_access_codes_user_id_code_hash", "user_id", "code_hash"),)
+
+
+class AuthFailure(Base):
+    """Falha de autenticação, por origem e por usuário, para limitar tentativas."""
+
+    __tablename__ = "auth_failures"
+
+    id: Mapped[int] = _pk()
+    source: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[int | None] = _fk("users.id", ondelete="CASCADE", nullable=True)
+    at: Mapped[datetime] = _created_at()
+
+    __table_args__ = (
+        Index("ix_auth_failures_source_at", "source", "at"),
+        Index("ix_auth_failures_user_id_at", "user_id", "at"),
+    )
 
 
 class Account(Base):
