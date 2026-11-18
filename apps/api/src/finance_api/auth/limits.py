@@ -66,6 +66,16 @@ def is_locked(user: User) -> bool:
     return user.locked_at is not None
 
 
+def account_failures(db: Session, user_id: int, now: datetime) -> int:
+    """Falhas da conta na janela de 1 h."""
+    count = db.scalar(
+        select(func.count())
+        .select_from(AuthFailure)
+        .where(AuthFailure.user_id == user_id, AuthFailure.at > now - ACCOUNT_WINDOW)
+    )
+    return count or 0
+
+
 def record_failure(db: Session, *, source: str, user: User | None, now: datetime) -> None:
     """Grava a falha; atualiza a contagem da conta e a trava ao chegar a 20 na janela."""
     db.add(
@@ -74,12 +84,7 @@ def record_failure(db: Session, *, source: str, user: User | None, now: datetime
     db.flush()
     if user is None:
         return
-    count = db.scalar(
-        select(func.count())
-        .select_from(AuthFailure)
-        .where(AuthFailure.user_id == user.id, AuthFailure.at > now - ACCOUNT_WINDOW)
-    )
-    user.failed_attempts = count or 0
+    user.failed_attempts = account_failures(db, user.id, now)
     if user.failed_attempts >= ACCOUNT_MAX_FAILURES and not is_locked(user):
         user.locked_at = now
         record_audit(

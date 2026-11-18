@@ -328,7 +328,94 @@ def test_chave_de_outra_pessoa_falha(db: Session, flow: Flow, auth_users: dict[s
     assert response.json() == GENERIC_401
     assert _failures(db) == 1
     db.expire_all()
-    assert db.get(User, matheus.id).failed_attempts == 1
+    # Chave de outra pessoa não prova o segundo fator: conta só para a origem.
+    assert db.get(User, matheus.id).failed_attempts == 0
+
+
+def _garbage_round(flow: Flow, client: TestClient, name: str, pin: str) -> None:
+    for _ in range(5):
+        started = flow.start(client, name, pin)
+        response = flow.finish(
+            client, started["attempt_id"], _device().authenticate(started["options"])
+        )
+        assert response.status_code == 401
+        assert response.json() == GENERIC_401
+
+
+def test_estranho_sem_aparelho_nao_trava_a_conta(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    """Só o nome não basta para travar a conta de alguém: sem a chave, a falha é da origem."""
+    ruth = auth_users["ruth"]
+    device = _device()
+    flow.register(ruth, device)
+    attacker = flow.new_client("10.9.9.9")
+    for round_ in range(4):  # 20 falhas em 45 min, da mesma origem
+        _garbage_round(flow, attacker, "Ruth", "000000" if round_ % 2 else PIN_RUTH)
+        blocked = attacker.post(
+            START, json={"name": "Ruth", "pin": PIN_RUTH, "device_label": "iPhone"}
+        )
+        assert blocked.status_code == 429
+        flow.clock.advance(minutes=15, seconds=1)
+    assert _failures(db) == 20
+    db.expire_all()
+    fresh = db.get(User, ruth.id)
+    assert fresh.locked_at is None
+    assert fresh.failed_attempts == 0
+    assert flow.login(ruth, device)[1].status_code == 200
+
+
+def test_cadastro_com_codigo_falso_nao_conta_para_a_conta(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    ruth = auth_users["ruth"]
+    client = flow.new_client()
+    for pin in ("000000", PIN_RUTH):
+        started = flow.start(client, "Ruth", pin, "AAAAA-BBBBB")
+        response = flow.finish(
+            client, started["attempt_id"], _device().register(started["options"])
+        )
+        assert response.status_code == 401
+        assert response.json() == GENERIC_401
+    assert _failures(db) == 2
+    db.expire_all()
+    assert db.get(User, ruth.id).failed_attempts == 0
+
+
+def test_cadastro_com_codigo_certo_e_pin_errado_conta_para_a_conta(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    ruth = auth_users["ruth"]
+    client = flow.new_client()
+    started = flow.start(client, "Ruth", "000000", flow.code(ruth))
+    response = flow.finish(client, started["attempt_id"], _device().register(started["options"]))
+    assert response.status_code == 401
+    assert response.json() == GENERIC_401
+    db.expire_all()
+    assert db.get(User, ruth.id).failed_attempts == 1
+
+
+def test_aparelho_certo_com_pin_errado_20_vezes_trava_a_conta(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    ruth = auth_users["ruth"]
+    device = _device()
+    flow.register(ruth, device)
+    for i in range(20):  # origens diferentes: o limite da origem não para antes
+        client = flow.new_client(f"10.0.1.{i}")
+        started = flow.start(client, "Ruth", "000000")
+        response = flow.finish(
+            client, started["attempt_id"], device.authenticate(started["options"])
+        )
+        assert response.status_code == 401
+        assert response.json() == GENERIC_401
+    db.expire_all()
+    assert db.get(User, ruth.id).locked_at is not None
+    client = flow.new_client("10.0.2.1")
+    started = flow.start(client, "Ruth", PIN_RUTH)
+    response = flow.finish(client, started["attempt_id"], device.authenticate(started["options"]))
+    assert response.status_code == 401
+    assert response.json() == GENERIC_401
 
 
 def test_conta_travada_nao_entra_mesmo_com_tudo_certo(

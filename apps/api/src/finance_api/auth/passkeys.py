@@ -4,6 +4,10 @@ O `start` nunca dá veredito: sempre devolve um desafio do mesmo formato e guard
 etapa 1 numa tentativa pendente (2 min, uso único, só o hash do identificador no banco). Também não
 conta falhas — se contasse, o bloqueio da origem (429) revelaria se o PIN estava certo. O `finish`
 é o único veredito: qualquer falha conta exatamente uma vez e responde igual.
+
+Toda falha conta para a origem; para a CONTA só quando o segundo fator foi provado (chave
+verificada da própria pessoa, ou código de liberação/emergência válido dela) e o PIN estava errado.
+Assim, quem só sabe o nome não consegue travar a conta de ninguém.
 """
 
 import hashlib
@@ -152,17 +156,18 @@ def start(
 
 # As verificações rodam sempre que a tentativa existe, com PIN certo ou não: o tempo de resposta
 # não pode revelar a etapa 1. Só gravam algo (contador, código) quando `apply` (tudo certo).
+# Devolvem também se o segundo fator foi provado (decide se a falha conta para a conta).
 
 
 def _check_login(
     db: Session, attempt: LoginAttempt, credential: dict[str, Any], settings: Settings, apply: bool
-) -> bool:
+) -> tuple[bool, bool]:
     raw_id = base64url_to_bytes(str(credential.get("rawId", "")))
     passkey = db.scalars(
         select(Passkey).where(Passkey.credential_id == raw_id).with_for_update()
     ).one_or_none()
     if passkey is None:
-        return False
+        return False, False
     verified = verify_authentication_response(
         credential=credential,
         expected_challenge=attempt.challenge,
@@ -172,12 +177,12 @@ def _check_login(
         credential_current_sign_count=passkey.sign_count,
         require_user_verification=True,
     )
-    if passkey.user_id != attempt.user_id:  # a chave tem de ser da pessoa do nome digitado
-        return False
+    if attempt.user_id is None or passkey.user_id != attempt.user_id:
+        return False, False  # a chave tem de ser da pessoa do nome digitado
     if apply:
         passkey.sign_count = verified.new_sign_count
         passkey.last_used_at = service.utcnow()
-    return True
+    return True, True
 
 
 def _check_register(
@@ -187,7 +192,7 @@ def _check_register(
     credential: dict[str, Any],
     settings: Settings,
     apply: bool,
-) -> Passkey | None:
+) -> tuple[Passkey | None, bool]:
     verified = verify_registration_response(
         credential=credential,
         expected_challenge=attempt.challenge,
@@ -197,28 +202,42 @@ def _check_register(
     )
     taken = db.scalar(select(Passkey.id).where(Passkey.credential_id == verified.credential_id))
     code_hash = attempt.code_hash or ""
+    now = service.utcnow()
     if not apply or user is None or taken is not None:
         # Mesma consulta, sem gastar o código: PIN errado não queima o código de ninguém.
-        db.scalar(
+        found = db.scalar(
             select(AccessCode.id).where(
-                AccessCode.user_id == (user.id if user else 0), AccessCode.code_hash == code_hash
+                AccessCode.user_id == (user.id if user else 0),
+                AccessCode.code_hash == code_hash,
+                AccessCode.used_at.is_(None),
+                (AccessCode.expires_at.is_(None)) | (AccessCode.expires_at > now),
             )
         )
-        return None
-    if codes.consume_code(db, user, code_hash, service.utcnow()) is None:
-        return None
+        return None, user is not None and found is not None
+    if codes.consume_code(db, user, code_hash, now) is None:
+        return None, False
     return Passkey(
         user_id=user.id,
         credential_id=verified.credential_id,
         public_key=verified.credential_public_key,
         sign_count=verified.sign_count,
         device_label=attempt.device_label,
-    )
+    ), True
 
 
-def _fail(db: Session, *, user: User | None, source: str, now: datetime) -> NoReturn:
-    """Conta exatamente uma falha, audita sem segredos e responde a falha genérica."""
-    limits.record_failure(db, source=source, user=user, now=now)
+def _fail(
+    db: Session, *, user: User | None, counts_for_account: bool, source: str, now: datetime
+) -> NoReturn:
+    """Conta exatamente uma falha, audita sem segredos e responde a falha genérica.
+
+    A falha sempre conta para a origem; para a conta só com `counts_for_account`. Sem ela, a mesma
+    contagem da conta roda só para leitura: o tempo de resposta fica equivalente.
+    """
+    if counts_for_account and user is not None:
+        limits.record_failure(db, source=source, user=user, now=now)
+    else:
+        limits.record_failure(db, source=source, user=None, now=now)
+        limits.account_failures(db, user.id if user else 0, now)
     record_audit(
         db,
         user_id=None,
@@ -285,22 +304,26 @@ def finish(
         attempt.used_at = now  # uso único, dê certo ou não
 
     new_key: Passkey | None = None
-    ok = False
+    ok = proven = False
     if attempt is not None:
         try:
             with db.begin_nested():  # erro no meio: desfaz só a verificação, não o `used_at`
                 if attempt.purpose == "register":
-                    new_key = _check_register(db, attempt, user, credential, settings, usable)
+                    new_key, proven = _check_register(
+                        db, attempt, user, credential, settings, usable
+                    )
                     ok = new_key is not None
                 else:
-                    ok = _check_login(db, attempt, credential, settings, usable)
+                    ok, proven = _check_login(db, attempt, credential, settings, usable)
         except Exception as exc:  # resposta forjada ou malformada: mesma falha genérica
             logger.info("Chave de acesso recusada: %s", type(exc).__name__)
-            new_key, ok = None, False
+            new_key, ok, proven = None, False, False
     ok = ok and usable
 
     if not ok or user is None or attempt is None:
-        _fail(db, user=user, source=source, now=now)
+        # Conta para a conta só quem provou o segundo fator dela e errou o PIN.
+        wrong_pin_only = proven and attempt is not None and not attempt.pin_ok
+        _fail(db, user=user, counts_for_account=wrong_pin_only, source=source, now=now)
 
     recovery: list[str] | None = None
     if new_key is not None:
