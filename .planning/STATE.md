@@ -23,6 +23,8 @@ de duplo clique; `auth_failures` nunca é limpo.
 **18/11/2026 — decisão do Matheus: branch mantido, sem merge.** `login-dois-fatores` fica separado do `master`
 (verificação final verde: api 610, web 489, build ok) até a VPS estar preparada. Antes do merge: preparar o ambiente
 da VPS (usuário, SSH por chave, firewall, atualizações automáticas, Docker, domínio, remoto git).
+Guia novo `docs/preparar-vps.md` (OVH, Ubuntu 26.04): SSH só chave em porta alta (49152–65535), ufw, fail2ban,
+atualizações automáticas, swap 2 GB, Docker, deploy key só leitura no GitHub. Endereço definitivo: subdomínio `app`.
 **Próximo:** preparar a VPS → merge no master + backup + `./tasks.ps1 up` no PC (migrações 0003/0004) → virada
 (`docs/deploy-vps.md`) → testes nos aparelhos (Face ID real só no endereço definitivo).
 

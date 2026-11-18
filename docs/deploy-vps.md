@@ -5,7 +5,7 @@ seu. Esta página parte do app já funcionando no PC ([deploy-pc.md](deploy-pc.m
 
 > ## ⚠️ Aviso importante: a origem do app muda
 >
-> Ao trocar o endereço `https://<pc>.<tailnet>.ts.net` pelo domínio próprio (`https://financas.seudominio.com.br`),
+> Ao trocar o endereço `https://<pc>.<tailnet>.ts.net` pelo domínio próprio (`https://app.seudominio.com.br`),
 > o navegador do celular trata como **outro site**. Por isso, em **cada celular** (Matheus, Ruth e o Galaxy A13):
 >
 > 1. **Reinstale o app (PWA)** a partir do endereço novo (apague o ícone antigo; veja
@@ -20,11 +20,15 @@ seu. Esta página parte do app já funcionando no PC ([deploy-pc.md](deploy-pc.m
 
 ## 1. O que você precisa
 
+> **Antes de tudo:** prepare e proteja o servidor com o [preparar-vps.md](preparar-vps.md) (SSH só com chave em
+> porta alta, firewall, fail2ban, atualizações automáticas, swap, Docker e chave de leitura do GitHub). Esta página
+> começa com a VPS já preparada.
+
 - Uma VPS Linux com acesso SSH. A escolhida: Ubuntu 26.04 LTS, 2 vCPU, 4 GB de RAM, 40 GB de SSD, IPv4, França.
   Em VPS pequena (2 GB de RAM ou menos), crie 2 GB de swap **antes** de construir as imagens:
   `sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`
   (e uma linha `/swapfile none swap sw 0 0` no `/etc/fstab` para sobreviver ao reinício).
-- Um domínio (ou subdomínio) com registro **A** apontando para o IP da VPS (por exemplo `financas.seudominio.com.br`).
+- Um domínio (ou subdomínio) com registro **A** apontando para o IP da VPS (por exemplo `app.seudominio.com.br`).
   **Não publique registro AAAA** (IPv6): o Caddy roda numa rede Docker só IPv4 e, por IPv6, todos os visitantes
   chegariam à api com o mesmo IP (o do Docker), o que estraga os limites de tentativas de login por origem. Operadora
   só IPv6 continua alcançando o app (por NAT64). Confira o IP real depois de subir (seção 4, "Confira").
@@ -35,7 +39,7 @@ seu. Esta página parte do app já funcionando no PC ([deploy-pc.md](deploy-pc.m
 ## 2. Preparar a VPS
 
 ```bash
-git clone <endereço-do-repositório> financas
+git clone git@github.com:<usuário>/<repositório>.git financas
 cd financas
 cp .env.example .env
 ```
@@ -43,7 +47,7 @@ cp .env.example .env
 Edite o `.env` (valores fictícios; use os seus):
 
 ```
-DOMAIN=financas.seudominio.com.br
+DOMAIN=app.seudominio.com.br
 POSTGRES_PASSWORD=troque-por-uma-senha-longa
 DATABASE_URL=postgresql+psycopg://financas:troque-por-uma-senha-longa@db:5432/financas
 OPENAI_API_KEY=sk-...
@@ -55,11 +59,11 @@ VAPID_SUBJECT=mailto:seu-email@exemplo.com
 INITIAL_PIN_MATHEUS=
 INITIAL_PIN_RUTH=
 # O domínio novo PRECISA estar aqui, senão toda requisição volta 400 "Invalid host header"
-ALLOWED_HOSTS=financas.seudominio.com.br,localhost,127.0.0.1
+ALLOWED_HOSTS=app.seudominio.com.br,localhost,127.0.0.1
 # Login em duas etapas (PIN + chave de acesso do aparelho). Ligado desde o primeiro dia na VPS
 REQUIRE_PASSKEY=true
-PASSKEY_RP_ID=financas.seudominio.com.br
-PASSKEY_ORIGIN=https://financas.seudominio.com.br
+PASSKEY_RP_ID=app.seudominio.com.br
+PASSKEY_ORIGIN=https://app.seudominio.com.br
 # Quem pode dizer o IP real do visitante (cabeçalho X-Forwarded-For): só o Caddy
 FORWARDED_ALLOW_IPS=*
 # Deixe desligado em produção (Swagger em /api/docs só para depurar)
@@ -89,7 +93,7 @@ docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env-file .env ps
 ```
 
-Abra `https://financas.seudominio.com.br/api/health`. O primeiro acesso demora alguns segundos enquanto o Caddy
+Abra `https://app.seudominio.com.br/api/health`. O primeiro acesso demora alguns segundos enquanto o Caddy
 obtém o certificado (se não sair, veja `logs caddy`: normalmente é DNS ainda não propagado ou porta 80/443 fechada).
 
 Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados do PC.
