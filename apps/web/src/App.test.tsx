@@ -21,7 +21,7 @@ function mockApi(routes: Routes) {
     vi.fn(async (req: Request) => {
       const key = `${req.method} ${new URL(req.url).pathname.replace(/^\/api/, "")}`;
       calls.push({ key, req });
-      const handler = routes[key];
+      const handler = routes[key] ?? (key === "GET /auth/config" ? () => json({ passkey_required: false }) : undefined);
       return handler ? handler(req) : json({ detail: "não mockado" }, 500);
     }),
   );

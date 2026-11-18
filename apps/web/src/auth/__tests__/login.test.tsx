@@ -26,6 +26,7 @@ beforeEach(() => {
       const path = new URL(req.url).pathname.replace(/^\/api/, "");
       paths.push(path);
       if (path === "/auth/me") return json({ detail: "sem sessão" }, 401);
+      if (path === "/auth/config") return json({ passkey_required: false });
       if (path === "/auth/login") {
         loginBodies.push(await req.json());
         return loginStatus === 200 ? json(RUTH) : json({ detail: "x" }, loginStatus);
@@ -39,7 +40,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderLogin() {
+async function renderLogin() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
@@ -53,6 +54,7 @@ function renderLogin() {
       </AuthProvider>
     </QueryClientProvider>,
   );
+  await screen.findByLabelText("Seu nome");
 }
 
 const nameField = () => screen.getByLabelText("Seu nome") as HTMLInputElement;
@@ -62,8 +64,8 @@ const tap = (digits: string) => {
 };
 
 describe("LoginPage", () => {
-  it("mostra a marca, o campo de nome e o teclado, sem lista de usuários", () => {
-    renderLogin();
+  it("mostra a marca, o campo de nome e o teclado, sem lista de usuários", async () => {
+    await renderLogin();
     expect(screen.getByRole("heading", { name: "Finanças", level: 1 })).toBeTruthy();
     const field = nameField();
     expect(field.getAttribute("autocomplete")).toBe("username");
@@ -74,8 +76,8 @@ describe("LoginPage", () => {
     expect(paths).not.toContain("/auth/users");
   });
 
-  it("teclado redondo: dígitos 0–9 e apagar, cada um com seu nome", () => {
-    renderLogin();
+  it("teclado redondo: dígitos 0–9 e apagar, cada um com seu nome", async () => {
+    await renderLogin();
     for (const d of "0123456789") {
       const key = screen.getByRole("button", { name: d });
       expect(key.classList.contains("login-key")).toBe(true);
@@ -88,15 +90,15 @@ describe("LoginPage", () => {
     expect(screen.getByRole("img", { name: "1 de 6 dígitos" })).toBeTruthy();
   });
 
-  it("anuncia o progresso do PIN numa região de status, sem revelar os dígitos", () => {
-    renderLogin();
+  it("anuncia o progresso do PIN numa região de status, sem revelar os dígitos", async () => {
+    await renderLogin();
     expect(screen.getByRole("status").textContent).toBe("Nenhum dígito digitado");
     tap("12");
     expect(screen.getByRole("status").textContent).toBe("2 de 6 dígitos digitados");
   });
 
   it("nome + 6 dígitos envia name, pin e device_label e entra", async () => {
-    renderLogin();
+    await renderLogin();
     typeName("  Ruth ");
     tap("123456");
     expect(await screen.findByText("Tela inicial")).toBeTruthy();
@@ -106,7 +108,7 @@ describe("LoginPage", () => {
 
   it("401 mostra a mensagem genérica e limpa o PIN", async () => {
     loginStatus = 401;
-    renderLogin();
+    await renderLogin();
     typeName("Ruth");
     tap("111111");
     expect((await screen.findByRole("alert")).textContent).toBe(GENERIC);
@@ -116,14 +118,14 @@ describe("LoginPage", () => {
 
   it("429 pede para aguardar", async () => {
     loginStatus = 429;
-    renderLogin();
+    await renderLogin();
     typeName("Matheus");
     tap("222222");
     expect((await screen.findByRole("alert")).textContent).toBe(TOO_MANY);
   });
 
-  it("PIN completo sem nome não envia e foca o campo de nome", () => {
-    renderLogin();
+  it("PIN completo sem nome não envia e foca o campo de nome", async () => {
+    await renderLogin();
     typeName("   ");
     tap("123456");
     expect(loginBodies).toEqual([]);

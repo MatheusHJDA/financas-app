@@ -4,10 +4,20 @@ import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Wallet } from "lucide-react";
 import { api } from "../api/client";
 import { Button } from "../ui/Button";
+import { ErrorState, LoadingState } from "../ui/States";
 import { useAuth, type Me } from "./AuthProvider";
 import { deviceLabel } from "./deviceLabel";
 import "./login.css";
-import { CANCELLED, LoginError, passkeyLogin, safeNext, useAuthConfig } from "./passkeyLogin";
+import {
+  CANCELLED,
+  completePasskey,
+  isFresh,
+  LoginError,
+  safeNext,
+  startPasskeyAttempt,
+  useAuthConfig,
+  type PasskeyAttempt,
+} from "./passkeyLogin";
 import { PIN_LENGTH, PinPad } from "./PinPad";
 import { RecoveryCodes } from "./RecoveryCodes";
 
@@ -44,7 +54,11 @@ export function LoginPage() {
   const [releaseCode, setReleaseCode] = useState("");
   const [step, setStep] = useState<1 | 2>(1);
   const [pending, setPending] = useState<{ me: Me; codes: string[] } | null>(null);
-  const attempt = useRef<Credentials | null>(null);
+  const creds = useRef<Credentials | null>(null);
+  const [attempt, setAttempt] = useState<PasskeyAttempt | null>(null);
+  const [pkBusy, setPkBusy] = useState(false);
+  const [pkError, setPkError] = useState<unknown>(null);
+  const [cancelled, setCancelled] = useState(false);
 
   const finish = (signedIn: Me) => {
     setMe(signedIn);
@@ -63,20 +77,52 @@ export function LoginPage() {
     onError: () => setPin(""),
   });
 
-  const passkeyMutation = useMutation({
-    mutationFn: passkeyLogin,
-    onSuccess: ({ me: signedIn, recoveryCodes }) => {
-      attempt.current = null;
-      if (recoveryCodes?.length) setPending({ me: signedIn, codes: recoveryCodes });
-      else finish(signedIn);
-    },
-    onError: (e) => {
-      if (e instanceof LoginError && e.message === CANCELLED) return; // fica no passo 2 para tentar de novo
-      attempt.current = null;
-      setPin("");
-      setStep(1);
-    },
-  });
+  const backToStart = (e: unknown) => {
+    creds.current = null;
+    setAttempt(null);
+    setPin("");
+    setStep(1);
+    setPkError(e);
+  };
+
+  // Passo 1 (e renovação de tentativa velha): só `start`; o WebAuthn espera um toque novo.
+  const runStart = async (c: Credentials) => {
+    setPkBusy(true);
+    try {
+      setAttempt(await startPasskeyAttempt(c));
+      setCancelled(false);
+      setPkError(null);
+      setStep(2);
+    } catch (e) {
+      backToStart(e);
+    } finally {
+      setPkBusy(false);
+    }
+  };
+
+  // Toque no botão do passo 2: WebAuthn direto do clique, sem await antes.
+  const confirmHere = () => {
+    if (!attempt || !creds.current) return;
+    if (!isFresh(attempt)) {
+      void runStart(creds.current);
+      return;
+    }
+    setPkBusy(true);
+    setCancelled(false);
+    completePasskey(attempt).then(
+      ({ me: signedIn, recoveryCodes }) => {
+        setPkBusy(false);
+        creds.current = null;
+        if (recoveryCodes?.length) setPending({ me: signedIn, codes: recoveryCodes });
+        else finish(signedIn);
+      },
+      (e: unknown) => {
+        setPkBusy(false);
+        if (e instanceof LoginError && e.message === CANCELLED) setCancelled(true);
+        else backToStart(e); // a tentativa foi gasta: volta ao passo 1
+      },
+    );
+  };
 
   if (pending) {
     return (
@@ -86,6 +132,8 @@ export function LoginPage() {
     );
   }
   if (me) return <Navigate to={next} replace />;
+  if (config.isError) return <ErrorState message="Não foi possível falar com o servidor." onRetry={() => void config.refetch()} />;
+  if (config.isPending) return <LoadingState />;
 
   const typedName = name.trim();
   const submitPasskey = () => {
@@ -95,9 +143,8 @@ export function LoginPage() {
       return;
     }
     setNotice("");
-    attempt.current = { name: typedName, pin, releaseCode: asking && releaseCode.trim() ? releaseCode.trim() : null };
-    setStep(2);
-    passkeyMutation.mutate(attempt.current);
+    creds.current = { name: typedName, pin, releaseCode: asking && releaseCode.trim() ? releaseCode.trim() : null };
+    void runStart(creds.current);
   };
 
   const changePin = (value: string) => {
@@ -113,10 +160,9 @@ export function LoginPage() {
     login.mutate({ name: typedName, pin: value });
   };
 
-  const cancelled = passkeyMutation.error instanceof LoginError && passkeyMutation.error.message === CANCELLED;
-  const failure = login.isError ? login.error : passkeyMutation.isError && !cancelled ? passkeyMutation.error : null;
+  const failure = login.isError ? login.error : pkError;
   const error = notice || (failure ? messageFor(failure) : "");
-  const busy = login.isPending || passkeyMutation.isPending;
+  const busy = login.isPending || pkBusy;
 
   return (
     <main className="login-page">
@@ -137,7 +183,7 @@ export function LoginPage() {
             block
             variant="primary"
             disabled={busy}
-            onClick={() => attempt.current && passkeyMutation.mutate(attempt.current)}
+            onClick={confirmHere}
           >
             Usar Face ID / digital / Windows Hello
           </Button>

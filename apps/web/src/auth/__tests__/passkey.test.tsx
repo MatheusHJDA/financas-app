@@ -22,6 +22,8 @@ let finishStatus = 200;
 let startMode: "login" | "register" = "login";
 let recovery: string[] | null = null;
 let signedIn = false;
+let configStatus = 200;
+let legacyLogins = 0;
 
 beforeEach(() => {
   starts = [];
@@ -29,6 +31,8 @@ beforeEach(() => {
   startMode = "login";
   recovery = null;
   signedIn = false;
+  configStatus = 200;
+  legacyLogins = 0;
   webauthn.startAuthentication.mockReset().mockResolvedValue({ id: "cred" });
   webauthn.startRegistration.mockReset().mockResolvedValue({ id: "new" });
   vi.stubGlobal(
@@ -36,7 +40,11 @@ beforeEach(() => {
     vi.fn(async (req: Request) => {
       const path = new URL(req.url).pathname.replace(/^\/api/, "");
       if (path === "/auth/me") return signedIn ? json(RUTH) : json({ detail: "x" }, 401);
-      if (path === "/auth/config") return json({ passkey_required: true });
+      if (path === "/auth/config") return configStatus === 200 ? json({ passkey_required: true }) : json({ detail: "x" }, configStatus);
+      if (path === "/auth/login") {
+        legacyLogins += 1;
+        return json(RUTH);
+      }
       if (path === "/auth/login/start") {
         starts.push(await req.json());
         return json({ attempt_id: "a1", mode: startMode, options: { challenge: "c" } });
@@ -85,6 +93,8 @@ const fill = async (name = "Ruth", pin = "123456") => {
   for (const d of pin) fireEvent.click(screen.getByRole("button", { name: d }));
 };
 const enter = () => fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+const CONFIRM = "Usar Face ID / digital / Windows Hello";
+const confirm = async () => fireEvent.click(await screen.findByRole("button", { name: CONFIRM }));
 
 describe("entrada com chave de acesso", () => {
   it("nome + PIN + Entrar: start sem código, startAuthentication e vai para o destino", async () => {
@@ -92,6 +102,7 @@ describe("entrada com chave de acesso", () => {
     await fill();
     expect(starts).toEqual([]); // o PIN não envia sozinho aos 6 dígitos
     enter();
+    await confirm();
     await screen.findByTestId("where");
     expect(starts).toEqual([{ name: "Ruth", pin: "123456", device_label: expect.any(String), release_code: null }]);
     expect(webauthn.startAuthentication).toHaveBeenCalledWith({ optionsJSON: { challenge: "c" } });
@@ -106,6 +117,7 @@ describe("entrada com chave de acesso", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tenho um código de liberação" }));
     fireEvent.change(screen.getByLabelText("Código de liberação"), { target: { value: "ABCDE-FGHJK" } });
     enter();
+    await confirm();
     expect(await screen.findByRole("heading", { name: "Guarde seus códigos de emergência" })).toBeTruthy();
     expect(starts[0]?.release_code).toBe("ABCDE-FGHJK");
     expect(webauthn.startRegistration).toHaveBeenCalledTimes(1);
@@ -121,22 +133,67 @@ describe("entrada com chave de acesso", () => {
     renderAt("/login");
     await fill();
     enter();
+    await confirm();
     expect(await screen.findByText(GENERIC)).toBeTruthy();
     expect(await screen.findByRole("img", { name: "0 de 6 dígitos" })).toBeTruthy();
     expect(screen.getByLabelText("Seu nome")).toBeTruthy();
   });
 
-  it("cancelado mostra aviso e só refaz ao tocar no botão", async () => {
+  it("Entrar só chama start; o WebAuthn espera o toque no passo 2", async () => {
+    renderAt("/login");
+    await fill();
+    enter();
+    expect(await screen.findByRole("heading", { name: "Confirme neste aparelho" })).toBeTruthy();
+    expect(starts).toHaveLength(1);
+    expect(webauthn.startAuthentication).not.toHaveBeenCalled();
+    await confirm();
+    expect(webauthn.startAuthentication).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancelado mostra aviso e refaz com a mesma tentativa, sem novo start", async () => {
     webauthn.startAuthentication.mockRejectedValueOnce(Object.assign(new Error("x"), { name: "NotAllowedError" }));
     renderAt("/login");
     await fill();
     enter();
+    await confirm();
     expect(await screen.findByText("Confirmação cancelada. Toque para tentar de novo.")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Confirme neste aparelho" })).toBeTruthy();
     expect(starts).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Usar Face ID / digital / Windows Hello" }));
+    await confirm();
     await screen.findByTestId("where");
-    expect(starts).toHaveLength(2);
+    expect(starts).toHaveLength(1);
+    expect(webauthn.startAuthentication).toHaveBeenCalledTimes(2);
+    expect(webauthn.startAuthentication.mock.calls[1]).toEqual(webauthn.startAuthentication.mock.calls[0]);
+  });
+
+  it("tentativa velha (> 100 s) refaz o start e pede outro toque antes do WebAuthn", async () => {
+    renderAt("/login");
+    await fill();
+    const now = Date.now();
+    const spy = vi.spyOn(Date, "now").mockReturnValue(now);
+    enter();
+    await screen.findByRole("heading", { name: "Confirme neste aparelho" });
+    spy.mockReturnValue(now + 101_000);
+    await confirm();
+    await waitFor(() => expect(starts).toHaveLength(2));
+    expect(webauthn.startAuthentication).not.toHaveBeenCalled();
+    await confirm();
+    await screen.findByTestId("where");
+    expect(webauthn.startAuthentication).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+});
+
+describe("configuração indisponível", () => {
+  it("falha em /auth/config mostra erro com nova tentativa e não envia o PIN", async () => {
+    configStatus = 500;
+    renderAt("/login");
+    expect(await screen.findByText("Não foi possível falar com o servidor.", {}, { timeout: 3000 })).toBeTruthy();
+    expect(screen.queryByLabelText("Seu nome")).toBeNull();
+    expect(legacyLogins).toBe(0);
+    configStatus = 200;
+    fireEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
+    expect(await screen.findByRole("button", { name: "Entrar" })).toBeTruthy();
+    expect(legacyLogins).toBe(0);
   });
 });
 
@@ -145,6 +202,7 @@ describe("volta ao destino", () => {
     renderAt("/lancar?meta=4");
     await fill();
     enter();
+    await confirm();
     await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/lancar?meta=4"));
   });
 
