@@ -34,16 +34,16 @@ Se já havia uma versão instalada antes, apague o ícone antigo e instale de no
 ## 4. Entrar com o PIN
 
 Escolha o seu usuário e digite o PIN de 6 dígitos. Você fica conectado neste aparelho por cerca de 30 dias.
-Para trocar um PIN, o Matheus redefine em **Mais → Painel admin → Usuários**.
+Para trocar um PIN, o Matheus redefine em **Mais → Administração → Usuários**.
 
 ## 5. Ativar as notificações
 
 1. Abra o app **pelo ícone** (não pelo navegador).
-2. Aba **Mais** → cartão **Notificações** → **Ativar notificações** → **Permitir**.
+2. **Mais → Preferências** → cartão **Notificações** → **Ativar notificações** → **Permitir**.
 3. Deve aparecer **"Ativadas neste aparelho"**.
 
 O app avisa o fechamento do dia ("Hora de enviar as movimentações de hoje") e as contas perto de vencer.
-O Matheus consegue mandar uma notificação de teste em **Mais → Painel admin → Notificações**.
+O Matheus consegue mandar uma notificação de teste em **Mais → Administração → Avisos do sistema**.
 
 ## Se a notificação não chegar
 
@@ -52,10 +52,10 @@ O Matheus consegue mandar uma notificação de teste em **Mais → Painel admin 
 | "Notificações não configuradas no servidor" | O servidor está sem as chaves de push. Avise o Matheus (configuração `VAPID_*` do servidor). |
 | "Instale o app na tela de início…" (iPhone) | O app foi aberto pelo Safari. Feche e abra **pelo ícone** na tela inicial. |
 | "Notificações bloqueadas" | Ajustes do celular → Notificações → **Finanças** → permitir. Volte ao app e ative de novo. |
-| Ativou, mas nada chega | No iPhone: o modo Foco/Não perturbe pode estar silenciando. Em **Mais**, desative e ative as notificações de novo. Confirme que o app abre pelo ícone e que o celular tem internet. |
-| Parou de chegar depois de uma troca de endereço ou de chaves do servidor | Em **Mais → Notificações**, desative e ative de novo (a inscrição antiga deixou de valer). Se mudou o endereço do app, reinstale o app. |
+| Ativou, mas nada chega | No iPhone: o modo Foco/Não perturbe pode estar silenciando. Em **Mais → Preferências**, desative e ative as notificações de novo. Confirme que o app abre pelo ícone e que o celular tem internet. |
+| Parou de chegar depois de uma troca de endereço ou de chaves do servidor | Em **Mais → Preferências → Notificações**, desative e ative de novo (a inscrição antiga deixou de valer). Se mudou o endereço do app, reinstale o app. |
 | Avisos duplicados ou ausentes | Cada aviso sai **uma vez por dia**; para repetir um teste, só no dia seguinte (o teste de admin pode ser repetido à vontade). |
 
 Se nada resolver, o Matheus confere no PC (ou na VPS) os logs do app procurando "Falha no tick de notificações" ou erro
-de envio, e o painel admin → **Sistema** (o agendador deve estar ativo). O roteiro completo de teste está em
+de envio, e **Mais → Administração → Sistema** (o agendador deve estar ativo). O roteiro completo de teste está em
 `.planning/teste-push.md`.

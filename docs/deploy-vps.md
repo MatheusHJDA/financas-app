@@ -10,7 +10,7 @@ seu. Esta página parte do app já funcionando no PC ([deploy-pc.md](deploy-pc.m
 >
 > 1. **Reinstale o app (PWA)** a partir do endereço novo (apague o ícone antigo; veja
 >    [instalar-no-celular.md](instalar-no-celular.md)).
-> 2. **Entre de novo com o PIN** e **reative as notificações** (aba **Mais → Notificações**). As inscrições de push
+> 2. **Entre de novo com o PIN** e **reative as notificações** (**Mais → Preferências → Notificações**). As inscrições de push
 >    do endereço antigo não valem para o novo.
 >
 > Os **dados não se perdem**: ficam no servidor (no banco restaurado na VPS). Só o app instalado e a permissão de
@@ -47,10 +47,15 @@ VAPID_PRIVATE_KEY=...
 VAPID_SUBJECT=mailto:seu-email@exemplo.com
 INITIAL_PIN_MATHEUS=
 INITIAL_PIN_RUTH=
+# O domínio novo PRECISA estar aqui, senão toda requisição volta 400 "Invalid host header"
+ALLOWED_HOSTS=financas.seudominio.com.br,localhost,127.0.0.1
+# Deixe desligado em produção (Swagger em /api/docs só para depurar)
+ENABLE_DOCS=false
 ```
 
 - Use uma senha de banco **nova e forte** (a da VPS não precisa ser igual à do PC; o dump não leva a senha).
 - Os PINs iniciais podem ficar vazios: os usuários e seus PINs vêm junto com o banco restaurado.
+- `ALLOWED_HOSTS` com o mesmo valor de `DOMAIN` (pode tirar o `*.ts.net` quando o Tailscale sair de cena).
 - `chmod 600 .env`.
 
 ## 3. Subir (Docker + Caddy)
@@ -87,6 +92,9 @@ Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados d
    scp .\backups\financas-AAAAMMDD-HHMMSS.dump usuario@IP-DA-VPS:~/financas/
    ```
 
+   O dump tem todos os dados financeiros: na VPS, `chmod 600 ~/financas/financas-*.dump`, e apague-o depois de
+   conferir a restauração (o serviço `backup` passa a gerar os seus).
+
 4. **Na VPS**, restaure (o script faz backup de segurança, para a api, restaura e sobe a api):
 
    ```bash
@@ -117,8 +125,8 @@ Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados d
 
 ## 6. Backup na VPS
 
-O serviço `backup` do compose já roda na VPS: às **03:00 de São Paulo** grava o dump no volume `backups` (o painel
-admin → Sistema mostra o último) e mantém 14 dias. Além disso:
+O serviço `backup` do compose já roda na VPS: às **03:00 de São Paulo** grava o dump no volume `backups` (**Mais → Administração →
+Sistema** mostra o último) e mantém 14 dias. Além disso:
 
 ```bash
 infra/scripts/backup.sh ~/backups          # backup agora + cópia na pasta do host

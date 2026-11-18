@@ -20,7 +20,13 @@ Mais → Categorias (os dois editam; excluir em uso → 409, incluindo metas); p
 `check` verde (api 535, web 469), e2e 91. Backup `financas-20261117-182307.dump`; `up` feito.
 Avisos no iPhone: era a notificação desligada no aparelho. "Sem categoria" da IA: Pix a destinatário desconhecido,
 a própria IA marcou categoria não identificada — comportamento esperado ("Confira").
-**Próximo:** Matheus testa os ajustes; merge `emprestimo` (contém `redesenho`) → `main`; preparar a VPS.
+**17/11/2026 — merge feito:** ajustes aprovados por Matheus; `emprestimo` (com `redesenho`) entrou no `master` por
+fast-forward (f943956, check verde: api 535, web 469); branches `emprestimo` e `redesenho` apagados. Não existe `main`
+nem remoto git: o branch principal é `master`. Docs: `instalar-no-celular.md` com os caminhos novos (Mais →
+Preferências / Administração) e `deploy-vps.md` com `ALLOWED_HOSTS`, `ENABLE_DOCS` e `chmod 600` no dump.
+
+**Próximo:** VPS — falta escolher provedor e domínio, e criar um remoto git (ou copiar o repositório) para o
+`git clone` do passo 2 de `docs/deploy-vps.md`.
 
 ## RETOMAR AQUI (16/11/2026 → 17/11) — itens 1 e 3 feitos em 17/11
 **Onde estamos:** redesenho completo e no ar no PC. Branch `redesenho`, commits `b36e9b4` (R3) e `7ca0860` (revisão
