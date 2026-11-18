@@ -27,8 +27,10 @@ o fluxo.
 - Sessão com `REQUIRE_PASSKEY=true`: 30 min sem atividade, 12 h no máximo, só sessões `two_factor=true` valem.
   Com `false`: 30 dias renováveis como hoje (`session_days`).
 - Web: voltar após **5 min** fora (`visibilitychange`) pede login de novo — só quando a chave é exigida.
-- Limites: origem **5 falhas / 15 min**; conta **20 falhas / 1 h** → `users.locked_until = agora + 60 min`
-  (escolha do plano; o spec não fixa a duração), liberável pelo admin.
+- Limites: origem **5 falhas / 15 min**; conta **20 falhas / 1 h** → conta travada **sem prazo**
+  (`users.locked_at`), só sai pela Administração (`POST /admin/users/{id}/unlock`) ou, se o travado for o próprio
+  admin, pelo comando no servidor `python -m finance_api.auth.release Matheus --desbloquear` (anti-meta: Matheus
+  nunca fica sem caminho de volta). `users.locked_until` deixa de ser usado (a migração o zera).
 - Código de liberação: 10 caracteres de `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, exibido `XXXXX-XXXXX`, aceito com/sem hífen,
   espaços e minúsculas; 24 h; uso único; só `sha256` no banco. Códigos de emergência: mesmo formato, 8 unidades, sem
   validade, gerados ao cadastrar a **primeira** chave de um **admin**, mostrados uma vez.
@@ -99,6 +101,7 @@ Infra/docs: `infra/docker-compose.yml`, `infra/docker-compose.vps.yml`, `.env.ex
 - Produces (Settings): `require_passkey: bool = False`, `passkey_rp_id: str = ""`, `passkey_origin: str = ""`,
   `session_idle_minutes: int = 30`, `session_max_hours: int = 12`.
 - Produces (models, `db/models.py`):
+  - `User.locked_at: datetime | None` (trava sem prazo; migração zera `locked_until`).
   - `User.webauthn_user_id: bytes | None` (`LargeBinary`, 16 bytes, preenchido na 1ª vez que alguém se cadastra).
   - `UserSession.two_factor: bool` (server_default false), `UserSession.max_expires_at: datetime | None`.
   - `Passkey` (`passkeys`): `id`, `user_id` FK users CASCADE, `credential_id: bytes` único, `public_key: bytes`,
@@ -138,13 +141,13 @@ Infra/docs: `infra/docker-compose.yml`, `infra/docker-compose.vps.yml`, `.env.ex
 **Interfaces:**
 - Produces (`auth/limits.py`):
   - `SOURCE_MAX_FAILURES = 5`, `SOURCE_WINDOW = timedelta(minutes=15)`, `ACCOUNT_MAX_FAILURES = 20`,
-    `ACCOUNT_WINDOW = timedelta(hours=1)`, `ACCOUNT_LOCK = timedelta(minutes=60)`.
+    `ACCOUNT_WINDOW = timedelta(hours=1)`.
   - `request_source(request: Request) -> str` — `request.client.host` (truncado a 64; `"desconhecida"` se ausente).
   - `source_retry_after(db, source: str, now) -> int | None` — segundos até sair do bloqueio, ou `None`.
   - `record_failure(db, *, source: str, user: User | None, now) -> None` — grava `AuthFailure`; se a conta chega a
-    20 na janela, `user.locked_until = now + ACCOUNT_LOCK` e grava auditoria `entity="users", action="update",
+    20 na janela, `user.locked_at = now` e grava auditoria `entity="users", action="update",
     after={"locked": True}`. Atualiza `user.failed_attempts` com a contagem da janela (o admin já exibe). Sem commit.
-  - `is_locked(user, now) -> bool`.
+  - `is_locked(user) -> bool` (`locked_at is not None`).
 - Produces (`auth/service.py`): `find_user_by_name(db, name: str) -> User | None` (strip + `func.lower`, só nomes de
   `OWNER_BY_USER_NAME`); `login(db, *, name, pin, device_label, source, settings) -> LoginResult` levanta
   `InvalidCredentials` ou `SourceBlocked(retry_after_seconds)`. `AccountLocked` deixa de existir (vira
@@ -162,8 +165,8 @@ Infra/docs: `infra/docker-compose.yml`, `infra/docker-compose.vps.yml`, `.env.ex
     com `Retry-After`; `clock.advance(minutes=15, seconds=1)` → PIN certo entra.
   - `test_estranho_nao_trava_conta_com_5_erros` — 5 erros de uma origem não travam a Ruth: de outra origem
     (`X-Forwarded-For` não vale; use `TestClient(..., client=("10.0.0.2", 50000))`) o PIN certo entra.
-  - `test_conta_trava_com_20_erros_em_1h` — 20 erros em 4 origens → PIN certo dá 401 genérico; `locked_until` ≈ +60
-    min; auditoria `users` com `{"locked": True}`; após `POST /admin/users/{id}/reset-pin` entra (o desbloqueio
+  - `test_conta_trava_com_20_erros_em_1h` — 20 erros em 4 origens → PIN certo dá 401 genérico; `locked_at` preenchido e,
+    mesmo com `clock.advance(days=30)`, continua 401; auditoria `users` com `{"locked": True}`; após `POST /admin/users/{id}/reset-pin` (que passa a zerar `locked_at` também) entra (o desbloqueio
     dedicado vem na Task 5).
   - `test_auth_config_publico` — `GET /api/auth/config` sem cookie → `{"passkey_required": false}`.
   - Atualize os testes antigos que esperavam 423 e o teste de `/auth/users`.
@@ -204,7 +207,7 @@ Infra/docs: `infra/docker-compose.yml`, `infra/docker-compose.vps.yml`, `.env.ex
   - `issue_recovery_codes(db, user, *, now) -> list[str]` — apaga emergência antiga não usada do usuário, grava 8.
   - `consume_code(db, user: User, code_hash: str, now) -> AccessCode | None` — acha código do usuário não usado e não
     vencido (`expires_at` nulo = sem validade), marca `used_at`, audita `action="update", after={"kind", "used": True}`.
-- Produces (CLI): `python -m finance_api.auth.release <Nome>` imprime `Código de liberação para <Nome>: XXXXX-XXXXX
+- Produces (CLI): `python -m finance_api.auth.release <Nome> [--desbloquear]` — sem a opção, imprime `Código de liberação para <Nome>: XXXXX-XXXXX
   (vale até dd/mm/aaaa hh:mm)` e sai 0; nome desconhecido → mensagem e saída 1. Usa `find_user_by_name` (Task 2).
 - Produces (HTTP): `POST /admin/users/{id}/release-code` → 201 `{code: str, expires_at: datetime}`.
 
@@ -212,7 +215,8 @@ Infra/docs: `infra/docker-compose.yml`, `infra/docker-compose.vps.yml`, `.env.ex
   `normalize_code(" abcde-fghjk ") == "ABCDEFGHJK"`; código vale uma vez; vencido após 24 h + 1 s; código da Ruth
   não serve para o Matheus; `issue_recovery_codes` devolve 8 distintos e invalida os anteriores; banco só tem hash
   (nenhuma coluna contém o código); CLI (`release.main(["Matheus"])` com `capsys`) imprime o código e grava 1 linha;
-  `release.main(["Fulano"])` → 1. Admin: Ruth → 403; Matheus gera para Ruth → 201 e auditoria sem o código.
+  `release.main(["Fulano"])` → 1; `release.main(["Matheus", "--desbloquear"])` zera `locked_at`/falhas, audita e
+  imprime "Conta de Matheus desbloqueada." sem gerar código. Admin: Ruth → 403; Matheus gera para Ruth → 201 e auditoria sem o código.
 - [ ] **Step 2:** `uv run pytest tests/auth/test_codes.py tests/admin -v` → FAIL.
 - [ ] **Step 3:** implemente (`secrets.choice`), rota admin e contrato.
 - [ ] **Step 4:** testes → PASS; commit `feat(auth): códigos de liberação e de emergência`.
@@ -308,7 +312,7 @@ Infra/docs: `infra/docker-compose.yml`, `infra/docker-compose.vps.yml`, `.env.ex
   - `DELETE /auth/passkeys/{id}` → 204; dono ou admin; senão 403; inexistente 404. Audita `entity="passkeys",
     action="delete"`. Remover a última chave é permitido.
   - `GET /admin/users/{id}/passkeys` → `PasskeyOut[]`.
-  - `POST /admin/users/{id}/unlock` → 204; zera `locked_until`, `failed_attempts`, apaga `AuthFailure` do usuário;
+  - `POST /admin/users/{id}/unlock` → 204; zera `locked_at`, `failed_attempts`, apaga `AuthFailure` do usuário;
     audita `after={"unlocked": True}`.
   - `AdminUserOut` ganha `passkey_count: int`.
 
@@ -375,7 +379,7 @@ Telas: `DevicesCard` (título "Aparelhos", ícone `KeyRound`) lista "nome do apa
 precisar de um código de liberação para entrar de novo."); vazio: "Nenhuma chave cadastrada." — o card aparece
 sempre (com a chave desligada também). Em Usuários, por pessoa: contagem de chaves, "Gerar código de liberação"
 (mostra o código formatado, a validade e "Copiar"), lista das chaves com "Remover", e "Desbloquear" quando
-`locked_until` está no futuro.
+`locked_at` está preenchido (texto "Travada por tentativas erradas — só a administração libera").
 
 - [ ] **Step 1: testes que falham:** card lista e remove (DELETE chamado após confirmar, lista recarrega); vazio;
   admin gera código e o mostra com validade; admin remove chave da Ruth; "Desbloquear" aparece só se travado e chama
