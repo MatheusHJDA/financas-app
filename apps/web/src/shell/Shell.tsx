@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Outlet } from "react-router-dom";
+import { useAuthConfig } from "../auth/passkeyLogin";
+import { useAwayLogout } from "../auth/useAwayLogout";
 import { BottomBar } from "./BottomBar";
 import { Header } from "./Header";
 import { PullIndicator } from "./PullIndicator";
@@ -14,6 +16,8 @@ import "./shell.css";
 export function Shell() {
   const desktop = useMediaQuery(DESKTOP_QUERY);
   const queryClient = useQueryClient();
+  const config = useAuthConfig();
+  useAwayLogout(config.data?.passkey_required === true);
   const { distance, refreshing, armed } = usePullToRefresh({
     enabled: !desktop,
     onRefresh: async () => {
