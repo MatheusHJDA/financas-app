@@ -1,7 +1,8 @@
 import re
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import Engine, delete, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from finance_api.auth import codes, release, service
@@ -114,3 +115,37 @@ def test_cli_unlock(
     assert log[0].before_json == {"locked": True}
     assert log[0].after_json == {"locked": False}
     assert service.find_user_by_name(db, "matheus") is not None
+
+
+def test_consume_code_locks_the_row_until_commit(db_engine: Engine, clock: Clock) -> None:
+    """Dois consumos do mesmo código: o segundo espera/falha até o primeiro terminar."""
+    with Session(db_engine) as setup:
+        user = User(name="Corrida de teste", role="member", pin_hash="x")
+        setup.add(user)
+        setup.flush()
+        user_id = user.id
+        code, _ = codes.issue_release_code(setup, user, actor_id=None, now=clock.now)
+        setup.commit()
+    code_hash = codes.hash_code(code)
+    try:
+        with Session(db_engine) as a, Session(db_engine) as b:
+            user_a = a.get(User, user_id)
+            user_b = b.get(User, user_id)
+            assert user_a is not None
+            assert user_b is not None
+            assert codes.consume_code(a, user_a, code_hash, clock.now) is not None  # sem commit
+            row_id = a.scalars(select(AccessCode.id).where(AccessCode.user_id == user_id)).one()
+            with pytest.raises(OperationalError):
+                b.execute(
+                    text("SELECT id FROM access_codes WHERE id = :id FOR UPDATE NOWAIT"),
+                    {"id": row_id},
+                )
+            b.rollback()
+            a.commit()
+            assert codes.consume_code(b, user_b, code_hash, clock.now) is None
+            b.rollback()
+    finally:
+        with Session(db_engine) as cleanup:
+            cleanup.execute(delete(AuditLog).where(AuditLog.entity == "access_codes"))
+            cleanup.execute(delete(User).where(User.id == user_id))
+            cleanup.commit()
