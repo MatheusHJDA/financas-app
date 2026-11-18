@@ -5,10 +5,6 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import App from "./app/App";
 
 const ME = { id: 1, name: "Matheus", role: "admin", owner: "MATHEUS" };
-const USERS = [
-  { id: 1, name: "Matheus" },
-  { id: 2, name: "Ruth" },
-];
 
 type Handler = (req: Request) => Response | Promise<Response>;
 type Routes = Record<string, Handler>;
@@ -46,8 +42,8 @@ async function typePin(pin: string) {
   for (const d of pin) fireEvent.click(await screen.findByRole("button", { name: d }));
 }
 
-async function chooseUser(name: string) {
-  fireEvent.click(await screen.findByRole("button", { name }));
+async function typeName(name: string) {
+  fireEvent.change(await screen.findByLabelText("Seu nome"), { target: { value: name } });
 }
 
 beforeEach(() => {
@@ -59,54 +55,55 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("sem sessão leva ao login e lista os usuários", async () => {
+it("sem sessão leva ao login, que pede o nome (sem lista de usuários)", async () => {
   mockApi({
     "GET /auth/me": () => json({ detail: "x" }, 401),
-    "GET /auth/users": () => json(USERS),
   });
   renderApp("/geral");
-  expect(await screen.findByText("Quem está entrando?")).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Ruth" })).toBeTruthy();
+  expect(await screen.findByLabelText("Seu nome")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Ruth" })).toBeNull();
+  expect(calls.some((c) => c.key === "GET /auth/users")).toBe(false);
 });
 
-it("login com sucesso envia user_id, pin e device_label e abre o app", async () => {
+it("login com sucesso envia name, pin e device_label e abre o app", async () => {
   mockApi({
     "GET /auth/me": () => json({ detail: "x" }, 401),
-    "GET /auth/users": () => json(USERS),
     "POST /auth/login": () => json(ME),
   });
   renderApp();
-  await chooseUser("Matheus");
+  await typeName("Matheus");
   await typePin("123456");
   expect(await screen.findByRole("navigation", { name: "Principal" })).toBeTruthy();
   const login = calls.find((c) => c.key === "POST /auth/login")!;
-  expect(await login.req.json()).toEqual({ user_id: 1, pin: "123456", device_label: "iPhone" });
+  expect(await login.req.json()).toEqual({ name: "Matheus", pin: "123456", device_label: "iPhone" });
   expect(login.req.credentials).toBe("include");
 });
 
 it("PIN errado mostra erro legível e limpa os dígitos", async () => {
   mockApi({
     "GET /auth/me": () => json({ detail: "x" }, 401),
-    "GET /auth/users": () => json(USERS),
-    "POST /auth/login": () => json({ detail: "PIN inválido" }, 401),
+    "POST /auth/login": () => json({ detail: "x" }, 401),
   });
   renderApp();
-  await chooseUser("Ruth");
+  await typeName("Ruth");
   await typePin("000000");
-  expect((await screen.findByRole("alert")).textContent).toContain("PIN incorreto");
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    "Não foi possível entrar. Confira o nome e o PIN.",
+  );
   expect(screen.getByRole("img", { name: "0 de 6 dígitos" })).toBeTruthy();
 });
 
-it("conta bloqueada (423) explica o bloqueio", async () => {
+it("muitas tentativas (429) pede para aguardar", async () => {
   mockApi({
     "GET /auth/me": () => json({ detail: "x" }, 401),
-    "GET /auth/users": () => json(USERS),
-    "POST /auth/login": () => json({ detail: "bloqueado" }, 423),
+    "POST /auth/login": () => json({ detail: "x" }, 429),
   });
   renderApp();
-  await chooseUser("Ruth");
+  await typeName("Ruth");
   await typePin("111111");
-  expect((await screen.findByRole("alert")).textContent).toContain("bloqueado");
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
+  );
 });
 
 it("um 401 durante o uso redireciona para o login", async () => {
@@ -117,11 +114,10 @@ it("um 401 durante o uso redireciona para o login", async () => {
       return json(ME);
     },
     "POST /auth/logout": () => json({ detail: "x" }, 401),
-    "GET /auth/users": () => json(USERS),
   });
   renderApp("/mais");
   fireEvent.click(await screen.findByRole("button", { name: "Sair" }));
-  expect(await screen.findByText("Quem está entrando?")).toBeTruthy();
+  expect(await screen.findByLabelText("Seu nome")).toBeTruthy();
   expect(meCalls).toBe(1);
 });
 
@@ -152,10 +148,9 @@ it("Sair encerra a sessão e volta ao login", async () => {
   mockApi({
     "GET /auth/me": () => json(ME),
     "POST /auth/logout": () => new Response(null, { status: 204 }),
-    "GET /auth/users": () => json(USERS),
   });
   renderApp("/mais");
   fireEvent.click(await screen.findByRole("button", { name: "Sair" }));
   await waitFor(() => expect(calls.some((c) => c.key === "POST /auth/logout")).toBe(true));
-  expect(await screen.findByText("Quem está entrando?")).toBeTruthy();
+  expect(await screen.findByLabelText("Seu nome")).toBeTruthy();
 });

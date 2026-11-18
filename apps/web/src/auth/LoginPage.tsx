@@ -1,16 +1,14 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { Wallet } from "lucide-react";
 import { api } from "../api/client";
-import type { components } from "../api/schema";
-import { ChevronRight, Wallet } from "lucide-react";
-import { Avatar, EmptyState, ErrorState, Skeleton, SkeletonGroup } from "../ui";
 import { useAuth } from "./AuthProvider";
 import { deviceLabel } from "./deviceLabel";
 import "./login.css";
 import { PIN_LENGTH, PinPad } from "./PinPad";
 
-type LoginUser = components["schemas"]["LoginUser"];
+const NAME_FIRST = "Digite seu nome antes do PIN.";
 
 class LoginError extends Error {
   constructor(
@@ -21,31 +19,27 @@ class LoginError extends Error {
   }
 }
 
+// Mesma mensagem para nome errado, PIN errado ou conta travada: não revela o que falhou.
 function messageFor(error: unknown): string {
   if (error instanceof LoginError) {
-    if (error.status === 401) return "PIN incorreto. Confira os 6 dígitos e tente de novo.";
-    if (error.status === 423) return "Acesso bloqueado por tentativas erradas. Aguarde cerca de 15 minutos e tente de novo.";
+    if (error.status === 401) return "Não foi possível entrar. Confira o nome e o PIN.";
+    if (error.status === 429) return "Muitas tentativas. Aguarde alguns minutos e tente de novo.";
   }
   return "Não foi possível entrar. Verifique a conexão e tente de novo.";
-}
-
-async function fetchUsers(): Promise<LoginUser[]> {
-  const { data, response } = await api.GET("/auth/users");
-  if (!data) throw new Error(`HTTP ${response.status}`);
-  return data;
 }
 
 export function LoginPage() {
   const { me, setMe } = useAuth();
   const navigate = useNavigate();
-  const [user, setUser] = useState<LoginUser | null>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState("");
   const [pin, setPin] = useState("");
-  const users = useQuery({ queryKey: ["login-users"], queryFn: fetchUsers, retry: false });
+  const [notice, setNotice] = useState("");
 
   const login = useMutation({
-    mutationFn: async ({ userId, pin }: { userId: number; pin: string }) => {
+    mutationFn: async (body: { name: string; pin: string }) => {
       const { data, response } = await api.POST("/auth/login", {
-        body: { user_id: userId, pin, device_label: deviceLabel() },
+        body: { ...body, device_label: deviceLabel() },
       });
       if (!data) throw new LoginError(response.status, `HTTP ${response.status}`);
       return data;
@@ -61,64 +55,19 @@ export function LoginPage() {
 
   const changePin = (next: string) => {
     setPin(next);
-    if (user && next.length === PIN_LENGTH) login.mutate({ userId: user.id, pin: next });
+    if (next.length !== PIN_LENGTH) return;
+    const typed = name.trim();
+    if (!typed) {
+      setPin("");
+      setNotice(NAME_FIRST);
+      nameRef.current?.focus();
+      return;
+    }
+    setNotice("");
+    login.mutate({ name: typed, pin: next });
   };
 
-  let body;
-  if (users.isPending)
-    body = (
-      <SkeletonGroup label="Carregando usuários">
-        <div className="login-skel">
-          <Skeleton variant="block" height="64px" />
-          <Skeleton variant="block" height="64px" />
-        </div>
-      </SkeletonGroup>
-    );
-  else if (users.isError) body = <ErrorState message="Não foi possível carregar os usuários." onRetry={() => void users.refetch()} />;
-  else if (users.data.length === 0) body = <EmptyState title="Nenhum usuário cadastrado" hint="Peça ao administrador para criar os acessos." />;
-  else if (!user) {
-    body = (
-      <section aria-labelledby="who">
-        <h2 id="who" className="login-sub">
-          Quem está entrando?
-        </h2>
-        <ul className="login-users">
-          {users.data.map((u) => (
-            <li key={u.id}>
-              <button type="button" className="login-user" onClick={() => setUser(u)}>
-                <Avatar name={u.name} tone="income" />
-                <span className="login-user__name">{u.name}</span>
-                <ChevronRight aria-hidden="true" size={20} className="login-user__chev" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-    );
-  } else {
-    body = (
-      <section aria-labelledby="pin-title">
-        <h2 id="pin-title" className="login-sub">
-          Olá, {user.name}. Digite seu PIN
-        </h2>
-        <p role="alert" className="login-error">
-          {login.isError ? messageFor(login.error) : ""}
-        </p>
-        <PinPad value={pin} disabled={login.isPending} onChange={changePin} />
-        <button
-          type="button"
-          className="login-back"
-          onClick={() => {
-            setUser(null);
-            setPin("");
-            login.reset();
-          }}
-        >
-          Não sou {user.name}
-        </button>
-      </section>
-    );
-  }
+  const error = notice || (login.isError ? messageFor(login.error) : "");
 
   return (
     <main className="login-page">
@@ -129,7 +78,34 @@ export function LoginPage() {
         <h1>Finanças</h1>
         <p className="login-brand__tag">Dinheiro do casal, em ordem</p>
       </header>
-      {body}
+      <section aria-labelledby="login-title">
+        <h2 id="login-title" className="visually-hidden">
+          Entrar
+        </h2>
+        <div className="login-name">
+          <label htmlFor="login-name">Seu nome</label>
+          <input
+            ref={nameRef}
+            id="login-name"
+            name="username"
+            type="text"
+            autoComplete="username"
+            autoCapitalize="words"
+            autoCorrect="off"
+            spellCheck={false}
+            maxLength={80}
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (notice) setNotice("");
+            }}
+          />
+        </div>
+        <p role="alert" className="login-error">
+          {error}
+        </p>
+        <PinPad value={pin} disabled={login.isPending} onChange={changePin} />
+      </section>
     </main>
   );
 }

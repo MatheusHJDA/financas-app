@@ -21,15 +21,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/users": {
+    "/auth/config": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Usuários exibidos na tela de PIN */
-        get: operations["listLoginUsers"];
+        /** Como a tela de entrada deve funcionar (se a chave de acesso é exigida) */
+        get: operations["getAuthConfig"];
         put?: never;
         post?: never;
         delete?: never;
@@ -47,7 +47,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Login com PIN; define o cookie `session` */
+        /**
+         * Login com nome digitado e PIN; define o cookie `session`
+         * @description Nome sem espaços nas pontas e sem diferenciar maiúsculas. Qualquer falha (nome, PIN, conta
+         *     travada) responde 401 com a mesma mensagem. Origem com 5 falhas em 15 min recebe 429 com
+         *     `Retry-After`; conta com 20 falhas em 1 h fica travada até a administração liberar.
+         */
         post: operations["login"];
         delete?: never;
         options?: never;
@@ -896,14 +901,11 @@ export interface components {
          * @enum {string}
          */
         BillStatus: "open" | "paid" | "prepaid";
-        LoginUser: {
-            /** Format: int64 */
-            id: number;
-            name: string;
+        AuthConfig: {
+            passkey_required: boolean;
         };
         LoginRequest: {
-            /** Format: int64 */
-            user_id: number;
+            name: string;
             pin: string;
             device_label: string;
         };
@@ -1814,7 +1816,7 @@ export interface operations {
             };
         };
     };
-    listLoginUsers: {
+    getAuthConfig: {
         parameters: {
             query?: never;
             header?: never;
@@ -1823,13 +1825,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Lista de usuários */
+            /** @description Configuração do login */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LoginUser"][];
+                    "application/json": components["schemas"]["AuthConfig"];
                 };
             };
         };
@@ -1859,7 +1861,17 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error"];
-            423: components["responses"]["Error"];
+            /** @description Muitas tentativas desta origem */
+            429: {
+                headers: {
+                    /** @description Segundos até poder tentar de novo */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     logout: {

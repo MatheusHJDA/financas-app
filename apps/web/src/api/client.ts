@@ -10,8 +10,8 @@ export function onUnauthorized(listener: UnauthorizedListener | null): void {
   unauthorizedListener = listener;
 }
 
-// 401 esperado nestas rotas: tratado pelo próprio chamador (PIN errado / sem sessão).
-const SILENT_401 = ["/auth/login", "/auth/me"];
+// 401 esperado nestas rotas: tratado pelo próprio chamador (login recusado / sem sessão).
+const SILENT_401 = ["/auth/login", "/auth/me", "/auth/login/start", "/auth/login/finish"];
 
 const unauthorizedMiddleware: Middleware = {
   onResponse({ response, schemaPath }) {
