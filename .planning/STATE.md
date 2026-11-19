@@ -2,7 +2,24 @@
 
 > Mantido pelo lead. Workers leem; não editam (exceto quando o brief mandar).
 
-## RETOMAR AQUI (18/11/2026, fim do dia)
+## RETOMAR AQUI (18/11/2026, noite) — VPS preparada
+`docs/preparar-vps.md` concluído e conferido (seção 12 toda ok): VPS `159.173.142.235` (`vps-210c92d2`), DNS
+`app.precei.com` → esse IP, SSH só chave na porta anotada no `.env` do PC (fora do git; `ssh financas` no PC),
+porta 22 fechada, ufw (SSH, 80, 443), fail2ban vendo falhas do `sshd-session` (`fail2ban-regex`: 40), swap 2 GB,
+Docker ok, fuso America/Sao_Paulo. Remoto `origin` = `git@github.com:MatheusHJDA/financas-app.git` (privado, padrão
+`master`); `master` e `login-dois-fatores` enviados. Deploy key `vps-financas` só leitura (`git ls-remote` ok na VPS).
+Achado na OVH/Ubuntu 26.04: o `ssh.socket` não lê o `Port` do sshd_config.d — porta via drop-in do socket (guia
+corrigido em `44d2ac1`).
+19/11: o `check` antes do merge achou um teste instável (`passkey.test.tsx`, 1º teste, ~40% das rodadas com a suíte
+inteira). Causa: `finish` do LoginPage navegava no mesmo tique do `setMe`; o react-query notifica depois
+(setTimeout), o RequireAuth via `me = null` e devolvia para /login (vai-e-volta). Correção: `finish` só grava a sessão
+e o `<Navigate>` do próprio LoginPage leva ao destino. 8/8 rodadas verdes, `check` verde (api 610, web 489), e2e 99
+(2 ignorados, os de sempre).
+**Próximo:** merge `login-dois-fatores` → `master` + backup + `./tasks.ps1 up` no PC (migrações 0003/0004) →
+`docs/deploy-vps.md` (clone pelo endereço SSH acima, `ALLOWED_HOSTS`/`PASSKEY_*` com `app.precei.com`) → testes nos
+aparelhos.
+
+### (anterior) 18/11/2026, fim do dia
 Branch atual `login-dois-fatores` (não juntado no `master`, de propósito). Nada foi feito ainda na VPS, no DNS nem no
 GitHub. Retomar por estes passos manuais do Matheus, na ordem de `docs/preparar-vps.md`:
 1. Painel OVH: anotar o IPv4; (re)instalar Ubuntu 26.04 colando a chave `~/.ssh/id_ed25519.pub` do PC; backup
