@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { Wallet } from "lucide-react";
 import { api } from "../api/client";
 import { Button } from "../ui/Button";
@@ -43,7 +43,6 @@ interface Credentials {
 
 export function LoginPage() {
   const { me, setMe } = useAuth();
-  const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = safeNext(params.get("next"));
   const config = useAuthConfig();
@@ -62,9 +61,12 @@ export function LoginPage() {
   const [pkError, setPkError] = useState<unknown>(null);
   const [cancelled, setCancelled] = useState(false);
 
+  // Só grava a sessão: o `<Navigate to={next}>` abaixo leva ao destino quando `me` já chegou à árvore. Navegar aqui
+  // mesmo corria à frente da notificação do react-query (setTimeout) e o RequireAuth, ainda com `me = null`,
+  // devolvia para /login (vai-e-volta /destino → /login → /destino).
   const finish = (signedIn: Me) => {
+    setPending(null);
     setMe(signedIn);
-    void navigate(next, { replace: true });
   };
 
   const login = useMutation({
