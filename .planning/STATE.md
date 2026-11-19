@@ -25,7 +25,11 @@ total pago (era principal − saldo = R$ 4.231,23; agora R$ 8.187,99 = 37,22% de
 4. [x] Cópia no Google Drive (19/11): cron da VPS às 04:00, `gdrive:financas-backups`, 30 dias, escopo `drive.file`
    (Matheus autorizou a conta; blob do rclone novo convertido para o formato do 1.60). 1º envio ok (md5),
    rodada em ambiente de cron ok; o PC avisa se o último envio tiver mais de 2 dias.
-5. [ ] Pendências pequenas do login.
+5. [x] Pendências pequenas do login (19/11, `49e45db`, no ar; backup antes `~/backups/financas-20261119-115725.dump`):
+   `auth_failures` (IP/hora/conta) guarda 7 dias; Retry-After para cima; chave dos identificadores falsos no banco
+   (`settings.auth.decoy_key`); só tentativa nova e no prazo conta falha para a conta; Remover com o nome do aparelho;
+   Desbloquear sem pedido repetido. `restore.sh:9` já estava certo. check verde (api 619, web 490), e2e 99.
+   Ainda aberta: PIN trivial (ex.: 123456) é aceito — PIN se troca em Administração → Usuários → Redefinir PIN.
 
 **Se algo falhar:** o lead lê o log pela VPS (`ssh financas`; compose sempre com
 `-f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env-file .env`): `logs api` mostra "Chave de acesso
