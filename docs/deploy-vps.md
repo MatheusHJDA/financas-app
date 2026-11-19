@@ -222,6 +222,16 @@ recente da VPS para `backups/vps/` (confere sha256, guarda 30 dias, log em `back
 falhar, mostra um aviso e tenta de novo no próximo desbloqueio; também avisa se o backup mais novo da VPS tiver mais
 de 2 dias. Copiar na hora: `./tasks.ps1 backup-vps`.
 
+**Cópia no Google Drive (feito):** o cron do usuário `ubuntu` roda `infra/scripts/enviar-backup-drive.sh` às 04:00
+(`crontab -l`): manda o dump mais recente para `gdrive:financas-backups` (rclone, escopo `drive.file`: só enxerga o
+que ele mesmo criou), confere o md5 e apaga do Drive os de mais de 30 dias. Log em `~/backups/drive.log` (saída do
+cron em `~/backups/drive-cron.log`); último sucesso em `~/backups/.drive-ok`, que o script do PC confere (avisa se
+tiver mais de 2 dias). Refazer a autorização (token revogado/expirado): no PC
+`rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"` (base64 de `{"scope":"drive.file"}`, sem `=`); o rclone
+novo devolve um blob base64 com `client_id`, `client_secret` e `token`, mas o rclone 1.60 da VPS (apt) quer
+`client_id`, `client_secret` e `token` (JSON) separados em `~/.config/rclone/rclone.conf` (seção `[gdrive]`,
+`type = drive`, `scope = drive.file`, arquivo 600). Teste: `rclone lsd gdrive:`.
+
 **Leve cópias para fora do servidor** (VPS que some leva o backup junto): por exemplo um `cron` no host que roda
 `infra/scripts/backup.sh` e um `rclone`/`scp` mandando a pasta para outro lugar. Teste a restauração num banco
 descartável antes de confiar (veja a seção de teste em [deploy-pc.md](deploy-pc.md#7-backup-e-restauração)).

@@ -22,7 +22,9 @@ total pago (era principal − saldo = R$ 4.231,23; agora R$ 8.187,99 = 37,22% de
    (pago + parcelas em aberto) — com 22.000 a meta passa de 100% antes de quitar.
 3. [x] Cópia do backup no PC (19/11): tarefa do Windows "Financas - backup da VPS" ao entrar/desbloquear, uma vez
    por dia, em `backups/vps/` (deploy-vps seção 6). Testada à mão e pelo Agendador (resultado 0).
-4. [ ] Cópia também no Google Drive pela VPS (rclone) — Matheus sugeriu; confirmar detalhes e ele autoriza a conta.
+4. [x] Cópia no Google Drive (19/11): cron da VPS às 04:00, `gdrive:financas-backups`, 30 dias, escopo `drive.file`
+   (Matheus autorizou a conta; blob do rclone novo convertido para o formato do 1.60). 1º envio ok (md5),
+   rodada em ambiente de cron ok; o PC avisa se o último envio tiver mais de 2 dias.
 5. [ ] Pendências pequenas do login.
 
 **Se algo falhar:** o lead lê o log pela VPS (`ssh financas`; compose sempre com
