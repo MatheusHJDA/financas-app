@@ -20,7 +20,10 @@ total pago (era principal − saldo = R$ 4.231,23; agora R$ 8.187,99 = 37,22% de
 1. [x] iPhone conferido pelo Matheus (19/11): edição da conta fixa sem rolagem lateral.
 2. [x] Alvo da meta: Matheus mantém R$ 22.000 (19/11), ciente de que o total com juros é ≈ R$ 26.616
    (pago + parcelas em aberto) — com 22.000 a meta passa de 100% antes de quitar.
-3. [ ] Cópia de backup para fora da VPS (deploy-vps seção 6) e pendências pequenas do login.
+3. [x] Cópia do backup no PC (19/11): tarefa do Windows "Financas - backup da VPS" ao entrar/desbloquear, uma vez
+   por dia, em `backups/vps/` (deploy-vps seção 6). Testada à mão e pelo Agendador (resultado 0).
+4. [ ] Cópia também no Google Drive pela VPS (rclone) — Matheus sugeriu; confirmar detalhes e ele autoriza a conta.
+5. [ ] Pendências pequenas do login.
 
 **Se algo falhar:** o lead lê o log pela VPS (`ssh financas`; compose sempre com
 `-f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env-file .env`): `logs api` mostra "Chave de acesso

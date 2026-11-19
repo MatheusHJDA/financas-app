@@ -216,6 +216,12 @@ infra/scripts/restore.sh ~/backups/ARQUIVO.dump            # só explica
 infra/scripts/restore.sh ~/backups/ARQUIVO.dump --confirmar
 ```
 
+**Cópia no PC (feito):** a tarefa do Windows "Financas - backup da VPS" (`./tasks.ps1 backup-vps-agendar`) roda
+`infra/scripts/puxar-backup-vps.ps1` ao entrar no Windows e ao desbloquear a tela; uma vez por dia copia o dump mais
+recente da VPS para `backups/vps/` (confere sha256, guarda 30 dias, log em `backups/vps/puxar-backup.log`). Se
+falhar, mostra um aviso e tenta de novo no próximo desbloqueio; também avisa se o backup mais novo da VPS tiver mais
+de 2 dias. Copiar na hora: `./tasks.ps1 backup-vps`.
+
 **Leve cópias para fora do servidor** (VPS que some leva o backup junto): por exemplo um `cron` no host que roda
 `infra/scripts/backup.sh` e um `rclone`/`scp` mandando a pasta para outro lugar. Teste a restauração num banco
 descartável antes de confiar (veja a seção de teste em [deploy-pc.md](deploy-pc.md#7-backup-e-restauração)).

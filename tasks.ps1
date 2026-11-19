@@ -162,11 +162,30 @@ switch ($Task) {
         if (-not $Arg) { Write-Host "Uso: ./tasks.ps1 web <script do package.json>" -ForegroundColor Red; exit 2 }
         Invoke-Step "web: npm run $Arg" $Web { npm run $Arg }
     }
+    "backup-vps" {
+        # Copia agora o backup mais recente da VPS para backups/vps (ignora a marca de "ja copiado hoje").
+        Invoke-Step "backup-vps: copiar da VPS" $Root { powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/puxar-backup-vps.ps1 -Forcar -SemAviso }
+    }
+    "backup-vps-agendar" {
+        # Tarefa do Windows: ao entrar no Windows e ao desbloquear a tela (1 min depois), copia o backup da VPS.
+        # O script faz isso uma vez por dia. Roda como o usuario atual (precisa da chave SSH dele), so logado.
+        $script = Join-Path $Root "infra/scripts/puxar-backup-vps.ps1"
+        $usuario = "$env:USERDOMAIN\$env:USERNAME"
+        $acao = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$script`""
+        $aoEntrar = New-ScheduledTaskTrigger -AtLogOn -User $usuario
+        $aoEntrar.Delay = "PT1M"
+        $classe = Get-CimClass -Namespace "ROOT\Microsoft\Windows\TaskScheduler" -ClassName "MSFT_TaskSessionStateChangeTrigger"
+        $aoDesbloquear = New-CimInstance -CimClass $classe -ClientOnly -Property @{ StateChange = 8; UserId = $usuario; Delay = "PT1M"; Enabled = $true }
+        $config = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
+        $principal = New-ScheduledTaskPrincipal -UserId $usuario -LogonType Interactive -RunLevel Limited
+        Register-ScheduledTask -TaskName "Financas - backup da VPS" -Description "Copia para o PC o backup mais recente da VPS, uma vez por dia (infra/scripts/puxar-backup-vps.ps1)." -Action $acao -Trigger @($aoEntrar, $aoDesbloquear) -Settings $config -Principal $principal -Force | Out-Null
+        Write-Host "Tarefa 'Financas - backup da VPS' registrada (ao entrar no Windows e ao desbloquear; uma vez por dia)." -ForegroundColor Green
+    }
     "up" { Invoke-Step "docker compose up" $Root { docker compose -f infra/docker-compose.yml --env-file .env up -d --build } }
     "down" { Invoke-Step "docker compose down" $Root { docker compose -f infra/docker-compose.yml --env-file .env down } }
     "vapid" { Invoke-Step "gen-vapid" $Api { uv run python ../../infra/scripts/gen-vapid.py } }
     default {
-        Write-Host "Tarefa desconhecida: $Task. Use: check, e2e, ai-live, size, up, down, vapid, backup, restore, testdb, setup, web <script>." -ForegroundColor Red
+        Write-Host "Tarefa desconhecida: $Task. Use: check, e2e, ai-live, size, up, down, vapid, backup, backup-vps, backup-vps-agendar, restore, testdb, setup, web <script>." -ForegroundColor Red
         exit 2
     }
 }
