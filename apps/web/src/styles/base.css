@@ -240,3 +240,21 @@ button {
   background: var(--color-surface-2);
   color: var(--color-muted);
 }
+
+/* iPhone (Safari): campos nativos de data/mês/hora têm largura mínima própria e ignoram width: 100%, passando da
+   borda e fazendo o painel rolar para o lado. Sem a aparência nativa eles respeitam a largura do formulário; o valor
+   fica à esquerda, como nos outros campos. `-webkit-touch-callout` só existe no Safari do iOS. */
+@supports (-webkit-touch-callout: none) {
+  input[type="date"],
+  input[type="month"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+  }
+  input::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}

@@ -4,7 +4,9 @@ from finance_api.db.models import AuditLog, Goal
 
 
 def _audits(db):
-    return list(db.scalars(select(AuditLog).where(AuditLog.entity == "categories")))
+    return list(
+        db.scalars(select(AuditLog).where(AuditLog.entity == "categories").order_by(AuditLog.id))
+    )
 
 
 def test_create_list_update_delete_with_audit(client_as, users, db):

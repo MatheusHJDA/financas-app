@@ -2,26 +2,21 @@
 
 > Mantido pelo lead. Workers leem; não editam (exceto quando o brief mandar).
 
-## RETOMAR AQUI (19/11/2026, ~01:35) — app no ar na VPS; faltam os testes nos aparelhos
-**Situação:** `https://app.precei.com` é o app oficial desde o corte de 19/11 00:43 (dados do PC restaurados e
-conferidos). Código em `master` = `dc0d0db`, igual no GitHub e na VPS. Login em duas etapas ligado
-(`REQUIRE_PASSKEY=true`). App do PC **ainda ligado** (tailnet) — ninguém deve lançar nele.
-**Chaves cadastradas na VPS:** só a do Matheus `id 2` "Navegador" (01:08, Wi-Fi de casa). A do iPhone (`id 1`) foi
-removida às 01:09 depois do incidente (ver 01:30 abaixo). Ruth: nenhuma chave ainda.
+## RETOMAR AQUI (19/11/2026, ~10:10) — aparelhos testados; falta publicar o ajuste do iPhone
+**Situação:** `https://app.precei.com` é o app oficial desde o corte de 19/11 00:43. Login em duas etapas ligado
+(`REQUIRE_PASSKEY=true`). Testes nos aparelhos feitos em 19/11 manhã (checklist abaixo). App do PC **desligado**
+(contêineres `api`/`backup`/`db` parados com `docker stop`; dados preservados) e `tailscale serve` zerado.
+**Chaves:** Matheus — "Navegador" (PC) + iPhone; Ruth — A13. Códigos de emergência: **só o admin**, por decisão do
+Matheus em 19/11 (Ruth recupera com código de liberação gerado por ele).
+**Atenção:** a linha 16 do `.env` do PC é uma anotação (código de liberação colado), não variável → `docker compose`
+recusa o arquivo e o `tasks.ps1 up/down/backup` falham até o Matheus comentá-la ou apagá-la.
 
-**Checklist para retomar (na ordem):**
-1. [ ] Descobrir qual aparelho é a chave "Navegador" (Mais → Preferências → Aparelhos). Se for o iPhone: entrar
-   nele só com nome + PIN + Face ID, sem código. Se for o PC: gerar código novo no PC (Mais → Administração →
-   Usuários → Matheus → Chaves e código) e cadastrar o iPhone.
-2. [ ] Aparelho restante do Matheus (PC ou iPhone): um código por aparelho, mesmo caminho.
-3. [ ] Ruth: Matheus gera o código dela (Administração → Usuários → Ruth → Chaves e código); ela entra com nome,
-   PIN e código, confirma o Face ID e guarda os 8 códigos de emergência.
-4. [ ] Testar a correção nova: num aparelho já cadastrado, tentar entrar COM código → deve aparecer "Este aparelho
-   já tem chave de acesso. Entre sem o código de liberação." e a chave continuar funcionando.
-5. [ ] Notificações nos dois celulares (Mais → Preferências → Notificações) e reinstalar o ícone pelo endereço novo.
-6. [ ] Conferir saldos/lançamentos e abrir um anexo antigo (os 3 foram copiados).
-7. [ ] Com os dois celulares no endereço novo: no PC `./tasks.ps1 down` + `tailscale serve reset` (o lead faz).
-8. [ ] Depois: cópia de backup para fora da VPS (deploy-vps seção 6) e pendências pequenas do login.
+**Feito em 19/11:** itens 1–7 do checklist anterior (chaves, correção do `excludeCredentials` confirmada no aparelho,
+notificações nos dois celulares, saldos/anexos conferidos, app do PC desligado).
+**Próximo:**
+1. [ ] Publicar na VPS o ajuste do iPhone (campo de mês/data estourava a largura no Safari e a tela de editar conta
+   fixa rolava para o lado; correção em `styles/base.css`, só iOS) e o Matheus conferir no iPhone.
+2. [ ] Cópia de backup para fora da VPS (deploy-vps seção 6) e pendências pequenas do login.
 
 **Se algo falhar:** o lead lê o log pela VPS (`ssh financas`; compose sempre com
 `-f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env-file .env`): `logs api` mostra "Chave de acesso
