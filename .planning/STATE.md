@@ -2,14 +2,13 @@
 
 > Mantido pelo lead. Workers leem; não editam (exceto quando o brief mandar).
 
-## RETOMAR AQUI (19/11/2026, ~10:10) — aparelhos testados; falta publicar o ajuste do iPhone
+## RETOMAR AQUI (19/11/2026, ~12:15) — checklist de 19/11 concluído; resta decidir sobre PIN trivial
 **Situação:** `https://app.precei.com` é o app oficial desde o corte de 19/11 00:43. Login em duas etapas ligado
 (`REQUIRE_PASSKEY=true`). Testes nos aparelhos feitos em 19/11 manhã (checklist abaixo). App do PC **desligado**
 (contêineres `api`/`backup`/`db` parados com `docker stop`; dados preservados) e `tailscale serve` zerado.
 **Chaves:** Matheus — "Navegador" (PC) + iPhone; Ruth — A13. Códigos de emergência: **só o admin**, por decisão do
 Matheus em 19/11 (Ruth recupera com código de liberação gerado por ele).
-**Atenção:** a linha 16 do `.env` do PC é uma anotação (código de liberação colado), não variável → `docker compose`
-recusa o arquivo e o `tasks.ps1 up/down/backup` falham até o Matheus comentá-la ou apagá-la.
+`.env` do PC: anotação da linha 16 (código colado) apagada pelo Matheus em 19/11 — compose volta a ler o arquivo.
 
 **Feito em 19/11:** itens 1–7 do checklist anterior (chaves, correção do `excludeCredentials` confirmada no aparelho,
 notificações nos dois celulares, saldos/anexos conferidos, app do PC desligado).
@@ -30,6 +29,8 @@ total pago (era principal − saldo = R$ 4.231,23; agora R$ 8.187,99 = 37,22% de
    (`settings.auth.decoy_key`); só tentativa nova e no prazo conta falha para a conta; Remover com o nome do aparelho;
    Desbloquear sem pedido repetido. `restore.sh:9` já estava certo. check verde (api 619, web 490), e2e 99.
    Ainda aberta: PIN trivial (ex.: 123456) é aceito — PIN se troca em Administração → Usuários → Redefinir PIN.
+6. [ ] **Próxima sessão:** perguntado ao Matheus (19/11) se o app deve recusar PIN trivial (123456, 111111,
+   sequências) ao redefinir/criar — aguardando resposta. Se sim: TDD na validação do PIN (api + mensagem na tela).
 
 **Se algo falhar:** o lead lê o log pela VPS (`ssh financas`; compose sempre com
 `-f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env-file .env`): `logs api` mostra "Chave de acesso
