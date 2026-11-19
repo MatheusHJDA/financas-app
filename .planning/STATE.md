@@ -13,10 +13,14 @@ recusa o arquivo e o `tasks.ps1 up/down/backup` falham até o Matheus comentá-l
 
 **Feito em 19/11:** itens 1–7 do checklist anterior (chaves, correção do `excludeCredentials` confirmada no aparelho,
 notificações nos dois celulares, saldos/anexos conferidos, app do PC desligado).
+**No ar em 19/11 10:28 (`4dacdd3`, backup antes `~/backups/financas-20261119-102813.dump`):** ajuste do iPhone
+(campo de mês/data estourava a largura no Safari; `styles/base.css`, só iOS) e meta "Quitar o empréstimo" com o
+total pago (era principal − saldo = R$ 4.231,23; agora R$ 8.187,99 = 37,22% de R$ 22.000, conferido na VPS).
 **Próximo:**
-1. [ ] Publicar na VPS o ajuste do iPhone (campo de mês/data estourava a largura no Safari e a tela de editar conta
-   fixa rolava para o lado; correção em `styles/base.css`, só iOS) e o Matheus conferir no iPhone.
-2. [ ] Cópia de backup para fora da VPS (deploy-vps seção 6) e pendências pequenas do login.
+1. [ ] Matheus conferir no iPhone a edição da conta fixa (sem rolagem lateral) e a meta em Metas.
+2. [ ] Decidir o alvo da meta: está R$ 22.000 (≈ principal), mas o total a pagar com juros é ≈ R$ 26.616
+   (pago + parcelas em aberto) — com 22.000 a meta passa de 100% antes de quitar.
+3. [ ] Cópia de backup para fora da VPS (deploy-vps seção 6) e pendências pequenas do login.
 
 **Se algo falhar:** o lead lê o log pela VPS (`ssh financas`; compose sempre com
 `-f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env-file .env`): `logs api` mostra "Chave de acesso
