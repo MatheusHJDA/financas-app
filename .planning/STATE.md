@@ -18,7 +18,15 @@ e o `<Navigate>` do próprio LoginPage leva ao destino. 8/8 rodadas verdes, `che
 **19/11 — feito:** merge rápido `login-dois-fatores` → `master` (`fe73876`, enviado ao GitHub); backup
 `backups/financas-20261119-001856.dump`; `./tasks.ps1 up` aplicou 0003 e 0004 (`alembic current` = 0004 head),
 health 200 local e tailnet.
-**Próximo:** testar a entrada no PC (nome + PIN, `REQUIRE_PASSKEY` desligado) →
+**19/11 (madrugada) — VPS no ar com os dados do PC (corte feito).** `https://app.precei.com` (Let's Encrypt até
+17/02/2027), `~/financas` no `master`, `.env` 600 (senha do banco nova, OpenAI/VAPID do PC, `REQUIRE_PASSKEY=true`).
+Dump de corte `backups/financas-20261119-004306.dump` (sha256 igual nos dois lados) restaurado: 23 tabelas com
+contagens idênticas ao PC; 3 anexos copiados (hash igual); 20 sessões vindas do PC apagadas. Corrigido no caminho:
+`restore.sh`/`backup.sh` sem o override da VPS (`dc3363e`), scripts sem bit de execução e `deploy-vps.md` (`7560e3b`).
+GitHub: ramo padrão ainda `login-dois-fatores` (trocar para `master` em Settings → General).
+**Próximo:** Matheus gera o próprio código de liberação no servidor e cadastra o iPhone → código do PC → código da
+Ruth pelo app → conferir IP real (deploy-vps 4.7) → notificações → PC `down` + `tailscale serve reset`.
+**(antigo)** testar a entrada no PC (nome + PIN, `REQUIRE_PASSKEY` desligado) →
 `docs/deploy-vps.md` (clone pelo endereço SSH acima, `ALLOWED_HOSTS`/`PASSKEY_*` com `app.precei.com`) → testes nos
 aparelhos.
 
