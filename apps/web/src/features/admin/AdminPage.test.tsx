@@ -514,7 +514,7 @@ it("usuários: remove a chave da Ruth depois de confirmar", async () => {
   const ruth = await screen.findByRole("article", { name: "Ruth" });
   fireEvent.click(within(ruth).getByRole("button", { name: "Acesso de Ruth" }));
   expect(await within(ruth).findByText("Celular da Ruth")).toBeTruthy();
-  fireEvent.click(within(ruth).getByRole("button", { name: "Remover" }));
+  fireEvent.click(within(ruth).getByRole("button", { name: "Remover Celular da Ruth" }));
   expect(writes()).toEqual([]);
   fireEvent.click(within(ruth).getByRole("button", { name: "Remover chave" }));
   await waitFor(() => expect(writes()).toEqual(["DELETE /auth/passkeys/9"]));
@@ -525,6 +525,10 @@ it("usuários: Desbloquear só aparece para quem está travado e chama a rota", 
   const matheus = await screen.findByRole("article", { name: "Matheus" });
   expect(within(matheus).queryByRole("button", { name: /Desbloquear/ })).toBeNull();
   const ruth = screen.getByRole("article", { name: "Ruth" });
-  fireEvent.click(within(ruth).getByRole("button", { name: "Desbloquear Ruth" }));
+  const unlock = within(ruth).getByRole("button", { name: "Desbloquear Ruth" });
+  fireEvent.click(unlock);
+  fireEvent.click(unlock); // duplo clique: um pedido só
   await waitFor(() => expect(writes()).toEqual(["POST /admin/users/2/unlock"]));
+  expect(await screen.findByText("Conta de Ruth desbloqueada.")).toBeTruthy();
+  expect(writes()).toEqual(["POST /admin/users/2/unlock"]);
 });

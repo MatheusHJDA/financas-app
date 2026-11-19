@@ -190,7 +190,7 @@ describe("DevicesCard", () => {
     expect(await within(card).findByText("iPhone da Ruth")).toBeTruthy();
     expect(within(card).getByText(/cadastrado em 10\/11\/2026/)).toBeTruthy();
     expect(within(card).getByText(/último uso 17\/11\/2026 09:30/)).toBeTruthy();
-    fireEvent.click(within(card).getByRole("button", { name: "Remover" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Remover iPhone da Ruth" }));
     expect(calls.some((c) => c.startsWith("DELETE"))).toBe(false);
     expect(within(card).getByText(/Remover a chave deste aparelho\? Ele vai precisar de um código de liberação/)).toBeTruthy();
     fireEvent.click(within(card).getByRole("button", { name: "Remover chave" }));

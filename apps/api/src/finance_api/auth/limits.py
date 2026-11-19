@@ -3,14 +3,16 @@
 - Origem: 5 falhas em 15 min bloqueiam aquela origem até a mais antiga sair da janela.
 - Início da entrada em duas etapas: 20 por origem em 15 min, certos ou errados.
 - Conta: 20 falhas em 1 h travam a conta (`users.locked_at`) até a administração liberar.
+- As falhas (com o IP de origem) ficam 7 dias para consulta e somem ao gravar uma nova.
 
 O relógio vem de quem chama (`now`), para os testes simularem o tempo. Nada aqui faz commit.
 """
 
+import math
 from datetime import datetime, timedelta
 
 from fastapi import Request
-from sqlalchemy import func, select, text, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.orm import Session
 
 from finance_api.core.audit import record_audit
@@ -23,6 +25,8 @@ SOURCE_WINDOW = timedelta(minutes=15)
 SOURCE_MAX_STARTS = 20
 ACCOUNT_MAX_FAILURES = 20
 ACCOUNT_WINDOW = timedelta(hours=1)
+# Quanto tempo as falhas ficam guardadas (bem mais que as janelas acima, para consulta).
+FAILURE_RETENTION = timedelta(days=7)
 
 _SOURCE_MAX_LENGTH = 64
 # Primeira chave das travas consultivas por origem (separa de outros usos de pg_advisory_lock).
@@ -59,7 +63,7 @@ def source_retry_after(db: Session, source: str, now: datetime) -> int | None:
         return None
     # Libera quando a mais antiga das últimas 5 sair da janela.
     release_at = recent[-1] + SOURCE_WINDOW
-    return max(1, int((release_at - now).total_seconds()))
+    return max(1, math.ceil((release_at - now).total_seconds()))
 
 
 def is_locked(user: User) -> bool:
@@ -78,6 +82,7 @@ def account_failures(db: Session, user_id: int, now: datetime) -> int:
 
 def record_failure(db: Session, *, source: str, user: User | None, now: datetime) -> None:
     """Grava a falha; atualiza a contagem da conta e a trava ao chegar a 20 na janela."""
+    db.execute(delete(AuthFailure).where(AuthFailure.at < now - FAILURE_RETENTION))
     db.add(
         AuthFailure(source=source[:_SOURCE_MAX_LENGTH], user_id=user.id if user else None, at=now)
     )

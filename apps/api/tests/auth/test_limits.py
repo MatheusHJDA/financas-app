@@ -108,3 +108,20 @@ def test_lock_source_serializes_the_same_source_only(db: Session, db_engine: Eng
         other.rollback()
     assert same is False  # preso até o commit/rollback de quem chamou
     assert different is True
+
+
+def test_retry_after_arredonda_para_cima(db: Session) -> None:
+    for minute in range(5):
+        limits.record_failure(db, source="3.3.3.3", user=None, now=T0 + timedelta(minutes=minute))
+    # faltam 599,5 s: dizer 599 faria a pessoa tentar meio segundo cedo e levar outro 429
+    now = T0 + timedelta(minutes=5, milliseconds=500)
+    assert limits.source_retry_after(db, "3.3.3.3", now) == 600
+
+
+def test_falhas_com_mais_de_7_dias_sao_apagadas(db: Session) -> None:
+    limits.record_failure(db, source="4.4.4.4", user=None, now=T0)
+    limits.record_failure(db, source="4.4.4.4", user=None, now=T0 + timedelta(days=6))
+    limits.record_failure(db, source="5.5.5.5", user=None, now=T0 + timedelta(days=7, minutes=1))
+    kept = db.scalars(select(AuthFailure.at).order_by(AuthFailure.at)).all()
+    assert kept == [T0 + timedelta(days=6), T0 + timedelta(days=7, minutes=1)]
+    assert limits.FAILURE_RETENTION == timedelta(days=7)

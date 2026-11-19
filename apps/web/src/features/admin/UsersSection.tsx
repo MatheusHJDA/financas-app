@@ -112,12 +112,19 @@ export function UsersSection() {
   }
 
   async function unlock(user: AdminUser) {
+    // Duplo clique: o segundo toque chega antes do re-render; a ref barra o pedido repetido.
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
     try {
       await unlockUser(user.id);
-      setNotice({ kind: "ok", text: `${user.name} desbloqueada.` });
+      setNotice({ kind: "ok", text: `Conta de ${user.name} desbloqueada.` });
       await queryClient.invalidateQueries({ queryKey: USERS_KEY });
     } catch (error) {
       setNotice({ kind: "error", text: errorText(error, "Não foi possível desbloquear. Tente de novo.") });
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
   }
 
@@ -239,7 +246,12 @@ export function UsersSection() {
           Chaves e código
         </Button>
         {user.locked_at != null ? (
-          <Button icon={LockOpen} aria-label={`Desbloquear ${user.name}`} onClick={() => void unlock(user)}>
+          <Button
+            icon={LockOpen}
+            aria-label={`Desbloquear ${user.name}`}
+            disabled={busy}
+            onClick={() => void unlock(user)}
+          >
             Desbloquear
           </Button>
         ) : null}

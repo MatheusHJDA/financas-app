@@ -28,7 +28,14 @@ from webauthn.helpers.structs import (
 
 from finance_api.auth import codes, passkeys, service
 from finance_api.core.config import Settings
-from finance_api.db.models import AuthFailure, Passkey, PushSubscription, User, UserSession
+from finance_api.db.models import (
+    AuthFailure,
+    Passkey,
+    PushSubscription,
+    Setting,
+    User,
+    UserSession,
+)
 from finance_api.db.session import get_session_factory
 from finance_api.notifications.channels import SendResult, get_channel
 
@@ -975,3 +982,48 @@ def test_sessoes_so_pin_nao_aparecem_com_chave_exigida(
     listed = client.get("/api/auth/sessions").json()
     assert len(listed) == 1
     assert listed[0]["current"] is True
+
+
+def test_reenvio_de_tentativa_usada_ou_vencida_nao_conta_para_a_conta(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    """Quem capturou um `finish` (chave certa, PIN errado) não trava a conta reenviando-o."""
+    ruth = auth_users["ruth"]
+    device = _device()
+    flow.register(ruth, device)
+    client = flow.new_client()
+    started = flow.start(client, "Ruth", "000000")
+    credential = device.authenticate(started["options"])
+    assert flow.finish(client, started["attempt_id"], credential).status_code == 401
+    db.expire_all()
+    assert db.get(User, ruth.id).failed_attempts == 1
+    for i in range(3):
+        replay = flow.finish(flow.new_client(f"10.0.3.{i}"), started["attempt_id"], credential)
+        assert replay.status_code == 401
+        assert replay.json() == GENERIC_401
+
+    late_client = flow.new_client("10.0.4.1")
+    late = flow.start(late_client, "Ruth", "000000")
+    flow.clock.advance(minutes=2, seconds=1)
+    response = flow.finish(late_client, late["attempt_id"], device.authenticate(late["options"]))
+    assert response.status_code == 401
+    db.expire_all()
+    assert db.get(User, ruth.id).failed_attempts == 1  # só a primeira, que era nova e no prazo
+    assert _failures(db) == 5  # para a origem, todas contam
+
+
+def test_chave_dos_identificadores_falsos_fica_no_banco(db: Session, flow: Flow) -> None:
+    """A chave sobrevive a reinícios: o user.id de nome inventado não muda ao reiniciar."""
+    client = flow.new_client()
+    first = flow.start(client, "Fulano", "123456", "AAAAA-BBBBB")["options"]
+    db.expire_all()
+    row = db.get(Setting, passkeys.DECOY_KEY_SETTING)
+    assert row is not None and len(bytes.fromhex(row.value_json)) == 32
+    assert (
+        flow.start(client, "Fulano", "123456", "AAAAA-BBBBB")["options"]["user"]["id"]
+        == (first["user"]["id"])
+    )
+    row.value_json = "00" * 32
+    db.flush()
+    changed = flow.start(client, "Fulano", "123456", "AAAAA-BBBBB")["options"]
+    assert changed["user"]["id"] != first["user"]["id"]

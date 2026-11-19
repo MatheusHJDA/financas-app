@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 from typing import Any, NoReturn
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 from webauthn import (
     base64url_to_bytes,
@@ -40,7 +41,7 @@ from webauthn.helpers.structs import (
 from finance_api.auth import codes, limits, service
 from finance_api.core.audit import record_audit
 from finance_api.core.config import Settings
-from finance_api.db.models import AccessCode, LoginAttempt, Passkey, User
+from finance_api.db.models import AccessCode, LoginAttempt, Passkey, Setting, User
 from finance_api.db.session import SessionFactory
 from finance_api.notifications.channels import NotificationChannel
 from finance_api.notifications.service import deliver
@@ -51,9 +52,25 @@ ATTEMPT_TTL = timedelta(minutes=2)
 RP_NAME = "Finanças"
 NEW_DEVICE_TYPE = "new_device"
 
-# Chave do processo para o user.id de nomes que não existem: estável por nome (como o de um usuário
-# real), então repetir o início não mostra que o nome é inventado.
-_UNKNOWN_USER_KEY = secrets.token_bytes(32)
+# Chave dos identificadores falsos (user.id de nome inventado e chaves falsas do
+# `excludeCredentials`): estável por nome, como os de um usuário real, então repetir o início não
+# mostra que o nome é inventado.
+# Fica no banco (tabela `settings`, fora das chaves editáveis do admin) para sobreviver a reinícios:
+# se mudasse a cada reinício, comparar respostas de antes e depois separaria o real do inventado.
+DECOY_KEY_SETTING = "auth.decoy_key"
+
+
+def _decoy_key(db: Session) -> bytes:
+    """Chave dos identificadores falsos; criada no primeiro uso (32 bytes aleatórios, em hex)."""
+    stored = db.scalar(select(Setting.value_json).where(Setting.key == DECOY_KEY_SETTING))
+    if stored is None:
+        db.execute(
+            pg_insert(Setting)
+            .values(key=DECOY_KEY_SETTING, value_json=secrets.token_hex(32))
+            .on_conflict_do_nothing(index_elements=["key"])
+        )
+        stored = db.scalar(select(Setting.value_json).where(Setting.key == DECOY_KEY_SETTING))
+    return bytes.fromhex(stored)
 
 
 @dataclass(frozen=True)
@@ -64,9 +81,9 @@ class FinishResult:
     new_device_label: str | None = None  # cadastrou chave: quem chama agenda o aviso
 
 
-def _webauthn_user_id(user: User | None, typed_name: str) -> bytes:
+def _webauthn_user_id(key: bytes, user: User | None, typed_name: str) -> bytes:
     if user is None:
-        digest = hmac.new(_UNKNOWN_USER_KEY, typed_name.lower().encode(), hashlib.sha256)
+        digest = hmac.new(key, typed_name.lower().encode(), hashlib.sha256)
         return digest.digest()[:16]
     if user.webauthn_user_id is None:
         user.webauthn_user_id = secrets.token_bytes(16)
@@ -74,7 +91,7 @@ def _webauthn_user_id(user: User | None, typed_name: str) -> bytes:
 
 
 def _exclude_credentials(
-    db: Session, user: User | None, webauthn_user_id: bytes
+    db: Session, key: bytes, user: User | None, webauthn_user_id: bytes
 ) -> list[PublicKeyCredentialDescriptor]:
     """Chaves que o aparelho NÃO deve recriar no cadastro (`excludeCredentials`).
 
@@ -90,12 +107,10 @@ def _exclude_credentials(
         real = list(
             db.scalars(select(Passkey.credential_id).where(Passkey.user_id == user.id)).all()
         )
-    seed = hmac.new(_UNKNOWN_USER_KEY, b"decoy:" + webauthn_user_id, hashlib.sha256).digest()
+    seed = hmac.new(key, b"decoy:" + webauthn_user_id, hashlib.sha256).digest()
     decoys = 1 if user is not None else 1 + seed[0] % 2
     fake = [
-        hmac.new(_UNKNOWN_USER_KEY, b"decoy:%d:" % i + webauthn_user_id, hashlib.sha256).digest()[
-            :20
-        ]
+        hmac.new(key, b"decoy:%d:" % i + webauthn_user_id, hashlib.sha256).digest()[:20]
         for i in range(decoys)
     ]
     return [PublicKeyCredentialDescriptor(id=raw) for raw in sorted(real + fake)]
@@ -146,14 +161,15 @@ def start(
 
     typed_name = name.strip()
     if release_code:
-        webauthn_user_id = _webauthn_user_id(user, typed_name)
+        decoy_key = _decoy_key(db)
+        webauthn_user_id = _webauthn_user_id(decoy_key, user, typed_name)
         options: Any = generate_registration_options(
             rp_id=settings.passkey_rp_id,
             rp_name=RP_NAME,
             user_name=typed_name,
             user_display_name=typed_name,
             user_id=webauthn_user_id,
-            exclude_credentials=_exclude_credentials(db, user, webauthn_user_id),
+            exclude_credentials=_exclude_credentials(db, decoy_key, user, webauthn_user_id),
             authenticator_selection=AuthenticatorSelectionCriteria(
                 resident_key=ResidentKeyRequirement.REQUIRED,
                 user_verification=UserVerificationRequirement.REQUIRED,
@@ -336,10 +352,14 @@ def finish(
         if attempt is not None and attempt.user_id is not None
         else None
     )
+    # Nova e no prazo: só ela pode contar falha para a CONTA. Um `finish` capturado e reenviado (ou
+    # atrasado) ainda verifica a assinatura, mas não pode somar falhas e travar a conta de alguém.
+    fresh = (
+        attempt is not None and attempt.used_at is None and service._aware(attempt.expires_at) > now
+    )
     usable = (
-        attempt is not None
-        and attempt.used_at is None
-        and service._aware(attempt.expires_at) > now
+        fresh
+        and attempt is not None
         and attempt.pin_ok
         and user is not None
         and not limits.is_locked(user)
@@ -366,7 +386,7 @@ def finish(
 
     if not ok or user is None or attempt is None:
         # Conta para a conta só quem provou o segundo fator dela e errou o PIN.
-        wrong_pin_only = proven and attempt is not None and not attempt.pin_ok
+        wrong_pin_only = proven and fresh and attempt is not None and not attempt.pin_ok
         _fail(db, user=user, counts_for_account=wrong_pin_only, source=source, now=now)
 
     recovery: list[str] | None = None

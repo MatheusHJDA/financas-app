@@ -61,6 +61,7 @@ export function PasskeyList({ keys, confirmMessage, onRemoved }: Props) {
             />
           ) : (
             <Button
+              aria-label={`Remover ${k.device_label}`}
               onClick={() => {
                 setError(null);
                 setAsking(k.id);
