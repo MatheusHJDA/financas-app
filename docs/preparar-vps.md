@@ -77,6 +77,16 @@ type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh ubuntu@<IP_DA_VPS> "mkdir -p ~/.
 Teste: `ssh ubuntu@<IP_DA_VPS>` deve entrar **sem pedir a senha da VPS** (no máximo a senha da sua chave, se ela tiver
 uma). Se pedir a senha da VPS, a chave não foi aceita: não siga adiante.
 
+Teste que **prova** a chave (proíbe a senha; deve entrar):
+
+```powershell
+ssh -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no ubuntu@<IP_DA_VPS>
+```
+
+Se der `Permission denied (publickey)`, compare a impressão digital dos dois lados (devem ser iguais):
+`ssh-keygen -lf $env:USERPROFILE\.ssh\id_ed25519.pub` no PC e `ssh-keygen -lf ~/.ssh/authorized_keys` na VPS
+(`~/.ssh` com `drwx------`, `authorized_keys` com `-rw-------`).
+
 ## 4. Atualizar o sistema e acertar o fuso (na VPS)
 
 ```bash
@@ -127,27 +137,53 @@ EOF
 Troque `<PORTA_SSH>` pelo número escolhido **dentro do arquivo** (o `tee` grava o texto exatamente como está; confira
 com `cat /etc/ssh/sshd_config.d/00-financas.conf`).
 
-Verifique e aplique (no Ubuntu 26.04 o SSH é iniciado pelo `ssh.socket`, que lê a porta desse arquivo):
+No Ubuntu 26.04 o SSH é iniciado pelo `ssh.socket`, que **não** lê o `Port` desse arquivo (o gerador automático que
+fazia isso não existe na imagem da OVH; testado em 18/11/2026). A porta é dada ao socket à parte. Primeiro com a 22
+**e** a nova, para não ficar trancado fora:
 
 ```bash
 sudo sshd -t && echo "configuração ok"
+sudo mkdir -p /etc/systemd/system/ssh.socket.d
+sudo tee /etc/systemd/system/ssh.socket.d/00-financas.conf >/dev/null <<'EOF'
+[Socket]
+ListenStream=
+ListenStream=0.0.0.0:22
+ListenStream=[::]:22
+ListenStream=0.0.0.0:<PORTA_SSH>
+ListenStream=[::]:<PORTA_SSH>
+EOF
 sudo systemctl daemon-reload
-sudo systemctl restart ssh.socket ssh.service
-sudo ss -tlnp | grep -E "ssh|:<PORTA_SSH>"
+sudo systemctl restart ssh.socket
+sudo ss -tlnp | grep -E ":22|:<PORTA_SSH>"
 ```
 
-O `ss` deve mostrar o SSH escutando em `<PORTA_SSH>`. **Sem fechar a janela atual**, abra outra no PC e teste:
+O `ss` deve mostrar a 22 e a `<PORTA_SSH>`. **Sem fechar a janela atual**, abra outra no PC e teste:
 
 ```powershell
 ssh -p <PORTA_SSH> ubuntu@<IP_DA_VPS>
 ```
 
-Entrou? Então feche a porta 22 no firewall (na VPS):
+`Connection refused` = nada escutando na porta (o socket não pegou a porta nova). `Permission denied (publickey)` = a
+porta está certa, mas a chave não está na VPS (volte ao teste do passo 3).
+
+Entrou? Então tire a 22 do socket e do firewall (na VPS):
 
 ```bash
+sudo tee /etc/systemd/system/ssh.socket.d/00-financas.conf >/dev/null <<'EOF'
+[Socket]
+ListenStream=
+ListenStream=0.0.0.0:<PORTA_SSH>
+ListenStream=[::]:<PORTA_SSH>
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart ssh.socket
+sudo ss -tlnp | grep -E ":22|:<PORTA_SSH>"
 sudo ufw delete allow 22/tcp
 sudo ufw status
 ```
+
+O `ss` deve mostrar só a `<PORTA_SSH>`. Teste de novo `ssh -p <PORTA_SSH> ubuntu@<IP_DA_VPS>` antes de fechar a
+janela antiga.
 
 Para não ter de digitar porta e usuário toda vez, crie no PC o arquivo `C:\Users\<você>\.ssh\config` (sem extensão):
 
@@ -162,7 +198,7 @@ Host financas
 A partir daí basta `ssh financas`.
 
 **Se não entrou pela porta nova:** volte à primeira janela (que ainda está conectada), rode
-`sudo rm /etc/ssh/sshd_config.d/00-financas.conf && sudo systemctl daemon-reload && sudo systemctl restart ssh.socket ssh.service`
+`sudo rm /etc/ssh/sshd_config.d/00-financas.conf /etc/systemd/system/ssh.socket.d/00-financas.conf && sudo systemctl daemon-reload && sudo systemctl restart ssh.socket`
 e me mostre a saída do `ss` e do `sshd -t`.
 
 ## 7. `fail2ban`
