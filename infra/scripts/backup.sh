@@ -9,7 +9,11 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 DEST="$(mkdir -p "${1:-./backups}" && cd "${1:-./backups}" && pwd)"
-COMPOSE=(docker compose -f infra/docker-compose.yml --env-file .env)
+COMPOSE=(docker compose -f infra/docker-compose.yml)
+# Na VPS (DOMAIN no .env) entra o override: sem ele, um `up -d api` recriaria a api sem o FORWARDED_ALLOW_IPS
+# (todo mundo com o IP do Caddy nos limites de login) e com a porta 8000 publicada no host.
+if grep -q '^DOMAIN=.' .env 2>/dev/null; then COMPOSE+=(-f infra/docker-compose.vps.yml); fi
+COMPOSE+=(--env-file .env)
 
 "${COMPOSE[@]}" run --rm -T -e COPY_TO=/host-backups -v "$DEST:/host-backups" backup sh /scripts/db-backup.sh once
 echo "cópia no host: $DEST"

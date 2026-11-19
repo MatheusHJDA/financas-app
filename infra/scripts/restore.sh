@@ -6,7 +6,8 @@
 #   1. faz um backup de segurança do banco atual (a menos que --sem-seguranca);
 #   2. para a api;
 #   3. pg_restore --clean --if-exists --no-owner (numa transação: se falhar, o banco fica como estava);
-#   4. sobe a api de novo (o alembic migra o banco se o dump for de uma versão mais antiga).
+#   4. sobe a api de novo. O dump tem de ser da MESMA versão do alembic que o código (o --clean de um dump
+#      mais antigo esbarra nas tabelas novas e a transação inteira é desfeita; atualize a origem antes).
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
@@ -24,7 +25,11 @@ done
 
 [ -f "$FILE" ] || { echo "arquivo não encontrado: $FILE" >&2; exit 1; }
 FILE="$(cd "$(dirname "$FILE")" && pwd)/$(basename "$FILE")"
-COMPOSE=(docker compose -f infra/docker-compose.yml --env-file .env)
+COMPOSE=(docker compose -f infra/docker-compose.yml)
+# Na VPS (DOMAIN no .env) entra o override: sem ele, um `up -d api` recriaria a api sem o FORWARDED_ALLOW_IPS
+# (todo mundo com o IP do Caddy nos limites de login) e com a porta 8000 publicada no host.
+if grep -q '^DOMAIN=.' .env 2>/dev/null; then COMPOSE+=(-f infra/docker-compose.vps.yml); fi
+COMPOSE+=(--env-file .env)
 
 if [ "$CONFIRMAR" -ne 1 ]; then
   cat <<EOF
