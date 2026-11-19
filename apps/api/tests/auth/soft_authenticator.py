@@ -24,6 +24,10 @@ def b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
 
+class ExcludedCredentialError(Exception):
+    """O aparelho já tem uma das chaves da lista de exclusão (no navegador: `InvalidStateError`)."""
+
+
 class SoftAuthenticator:
     def __init__(self, rp_id: str, origin: str) -> None:
         self.rp_id = rp_id
@@ -54,6 +58,9 @@ class SoftAuthenticator:
         )
 
     def register(self, options: dict[str, Any]) -> dict[str, Any]:
+        excluded = {c["id"] for c in options.get("excludeCredentials", [])}
+        if self.user_handle is not None and b64url(self.credential_id) in excluded:
+            raise ExcludedCredentialError
         self.user_handle = options["user"]["id"]
         attested = (
             bytes(16)  # aaguid

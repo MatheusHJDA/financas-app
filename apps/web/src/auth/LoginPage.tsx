@@ -9,6 +9,7 @@ import { useAuth, type Me } from "./AuthProvider";
 import { deviceLabel } from "./deviceLabel";
 import "./login.css";
 import {
+  ALREADY_REGISTERED,
   CANCELLED,
   completePasskey,
   isFresh,
@@ -29,6 +30,8 @@ const NEW_DEVICE_HINT = "Aparelho novo? Volte e use “Tenho um código de liber
 // Mesma mensagem para nome errado, PIN errado ou conta travada: não revela o que falhou.
 function messageFor(error: unknown): string {
   if (error instanceof LoginError) {
+    // Só o próprio aparelho sabe disso (o servidor não deu veredito): não revela nada a ninguém.
+    if (error.message === ALREADY_REGISTERED) return "Este aparelho já tem chave de acesso. Entre sem o código de liberação.";
     if (error.status === 401) return "Não foi possível entrar. Confira o nome e o PIN.";
     if (error.status === 429) return "Muitas tentativas. Aguarde alguns minutos e tente de novo.";
   }

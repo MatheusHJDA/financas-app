@@ -3,6 +3,7 @@
 import base64
 import contextlib
 import json
+import logging
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any
@@ -32,7 +33,7 @@ from finance_api.db.session import get_session_factory
 from finance_api.notifications.channels import SendResult, get_channel
 
 from .conftest import PIN_MATHEUS, PIN_RUTH, Clock
-from .soft_authenticator import SoftAuthenticator, b64url
+from .soft_authenticator import ExcludedCredentialError, SoftAuthenticator, b64url
 
 RP_ID = "testserver"
 ORIGIN = "https://testserver"
@@ -242,12 +243,21 @@ def test_start_nao_revela_veredito(db: Session, flow: Flow, auth_users: dict[str
         options = started["options"]
         assert set(options) == set(registers[0]["options"])
         assert len(_decode(options["user"]["id"])) == 16
-        assert options["excludeCredentials"] == []
+        # Nunca vazia: nome inventado e pessoa sem chave também recebem identificadores (falsos).
+        assert options["excludeCredentials"]
+        assert all(c["type"] == "public-key" for c in options["excludeCredentials"])
         assert options["authenticatorSelection"]["residentKey"] == "required"
         assert options["authenticatorSelection"]["userVerification"] == "required"
     assert registers[2]["options"]["user"]["name"] == "Fulano"
     # O mesmo user.id do Matheus com PIN certo ou errado: o PIN não muda nada visível.
     assert registers[0]["options"]["user"]["id"] == registers[1]["options"]["user"]["id"]
+    assert (
+        registers[0]["options"]["excludeCredentials"]
+        == registers[1]["options"]["excludeCredentials"]
+    )
+    # Nome inventado: a mesma lista a cada início, como a de uma pessoa de verdade.
+    again = flow.start(client, "Fulano", "123456", "AAAAA-BBBBB")
+    assert again["options"]["excludeCredentials"] == registers[2]["options"]["excludeCredentials"]
     db.expire_all()
     assert _decode(registers[0]["options"]["user"]["id"]) == matheus.webauthn_user_id
     # Só a etapa final dá veredito (e conta falhas): o início não conta nada.
@@ -539,6 +549,67 @@ def test_credencial_malformada_falha_generico(
     assert response.status_code == 401
     assert response.json() == GENERIC_401
     assert _failures(db) == 1
+
+
+# --- aparelho que já tem chave (excludeCredentials) ------------------------------------------
+
+
+def _excluded_ids(started: dict[str, Any]) -> set[str]:
+    return {c["id"] for c in started["options"]["excludeCredentials"]}
+
+
+def test_cadastro_exclui_as_chaves_que_a_pessoa_ja_tem(
+    flow: Flow, auth_users: dict[str, User]
+) -> None:
+    matheus, ruth = auth_users["matheus"], auth_users["ruth"]
+    iphone, pc = _device(), _device()
+    flow.register(matheus, iphone)
+    flow.register(matheus, pc)
+    started = flow.start(flow.new_client(), "Matheus", PIN_MATHEUS, flow.code(matheus))
+    assert {b64url(iphone.credential_id), b64url(pc.credential_id)} <= _excluded_ids(started)
+    other = flow.start(flow.new_client(), "Ruth", PIN_RUTH, flow.code(ruth))
+    assert b64url(iphone.credential_id) not in _excluded_ids(other)
+
+
+def test_aparelho_ja_cadastrado_recusa_novo_cadastro_e_segue_entrando(
+    db: Session, flow: Flow, auth_users: dict[str, User]
+) -> None:
+    """O caso do iPhone em 19/11: código de liberação num aparelho que já tem chave.
+
+    Sem a lista de exclusão, o aparelho trocava a chave boa por uma que o servidor recusava.
+    """
+    matheus = auth_users["matheus"]
+    iphone = _device()
+    flow.register(matheus, iphone)
+    started = flow.start(flow.new_client(), "Matheus", PIN_MATHEUS, "AAAAA-BBBBB")
+    with pytest.raises(ExcludedCredentialError):
+        iphone.register(started["options"])
+    _, response = flow.login(matheus, iphone)
+    assert response.status_code == 200, response.text
+
+
+def test_chave_desconhecida_vai_para_o_log(
+    flow: Flow, auth_users: dict[str, User], caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="finance_api.auth.passkeys"):
+        _, response = flow.login(auth_users["ruth"], _device())
+    assert response.status_code == 401
+    assert any("desconhecida" in r.getMessage() for r in caplog.records)
+
+
+def test_chave_recusada_vai_para_o_log(
+    flow: Flow, auth_users: dict[str, User], caplog: pytest.LogCaptureFixture
+) -> None:
+    device = _device()
+    flow.register(auth_users["ruth"], device)
+    client = flow.new_client()
+    first = flow.start(client, "Ruth", PIN_RUTH)
+    second = flow.start(client, "Ruth", PIN_RUTH)
+    with caplog.at_level(logging.WARNING, logger="finance_api.auth.passkeys"):
+        # Assinatura do desafio de outra tentativa: a verificação levanta exceção.
+        response = flow.finish(client, first["attempt_id"], device.authenticate(second["options"]))
+    assert response.status_code == 401
+    assert any("recusada" in r.getMessage() for r in caplog.records)
 
 
 class _FakeChannel:

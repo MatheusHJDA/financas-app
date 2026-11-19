@@ -32,6 +32,7 @@ from webauthn import (
 )
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
+    PublicKeyCredentialDescriptor,
     ResidentKeyRequirement,
     UserVerificationRequirement,
 )
@@ -70,6 +71,34 @@ def _webauthn_user_id(user: User | None, typed_name: str) -> bytes:
     if user.webauthn_user_id is None:
         user.webauthn_user_id = secrets.token_bytes(16)
     return user.webauthn_user_id
+
+
+def _exclude_credentials(
+    db: Session, user: User | None, webauthn_user_id: bytes
+) -> list[PublicKeyCredentialDescriptor]:
+    """Chaves que o aparelho NÃO deve recriar no cadastro (`excludeCredentials`).
+
+    O user.id do WebAuthn é fixo por pessoa: sem esta lista, um aparelho que já tem a chave dela a
+    troca por uma nova antes do servidor dar o veredito (código usado/errado), e a chave boa some.
+    Com ela, o aparelho recusa (`InvalidStateError`) e a chave antiga continua valendo.
+
+    Sempre há identificadores falsos fixos (derivados do user.id): nome inventado parece uma pessoa
+    com 0 ou 1 chave, e o PIN não muda nada na lista.
+    """
+    real: list[bytes] = []
+    if user is not None:
+        real = list(
+            db.scalars(select(Passkey.credential_id).where(Passkey.user_id == user.id)).all()
+        )
+    seed = hmac.new(_UNKNOWN_USER_KEY, b"decoy:" + webauthn_user_id, hashlib.sha256).digest()
+    decoys = 1 if user is not None else 1 + seed[0] % 2
+    fake = [
+        hmac.new(_UNKNOWN_USER_KEY, b"decoy:%d:" % i + webauthn_user_id, hashlib.sha256).digest()[
+            :20
+        ]
+        for i in range(decoys)
+    ]
+    return [PublicKeyCredentialDescriptor(id=raw) for raw in sorted(real + fake)]
 
 
 def _starts_retry_after(db: Session, source: str, now: datetime) -> int | None:
@@ -117,13 +146,14 @@ def start(
 
     typed_name = name.strip()
     if release_code:
+        webauthn_user_id = _webauthn_user_id(user, typed_name)
         options: Any = generate_registration_options(
             rp_id=settings.passkey_rp_id,
             rp_name=RP_NAME,
             user_name=typed_name,
             user_display_name=typed_name,
-            user_id=_webauthn_user_id(user, typed_name),
-            exclude_credentials=[],
+            user_id=webauthn_user_id,
+            exclude_credentials=_exclude_credentials(db, user, webauthn_user_id),
             authenticator_selection=AuthenticatorSelectionCriteria(
                 resident_key=ResidentKeyRequirement.REQUIRED,
                 user_verification=UserVerificationRequirement.REQUIRED,
@@ -169,6 +199,8 @@ def _check_login(
         select(Passkey).where(Passkey.credential_id == raw_id).with_for_update()
     ).one_or_none()
     if passkey is None:
+        # Típico de aparelho que trocou a chave por uma que nunca foi salva aqui: vale o log.
+        logger.warning("Chave de acesso desconhecida (não cadastrada neste servidor)")
         return False, False
     verified = verify_authentication_response(
         credential=credential,
@@ -328,7 +360,7 @@ def finish(
                 else:
                     ok, proven = _check_login(db, attempt, credential, settings, usable)
         except Exception as exc:  # resposta forjada ou malformada: mesma falha genérica
-            logger.info("Chave de acesso recusada: %s", type(exc).__name__)
+            logger.warning("Chave de acesso recusada: %s", type(exc).__name__)
             new_key, ok, proven = None, False, False
     ok = ok and usable
 

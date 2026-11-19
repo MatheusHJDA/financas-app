@@ -14,6 +14,8 @@ export class LoginError extends Error {
 }
 
 export const CANCELLED = "cancelado";
+/** O aparelho já tem uma chave desta pessoa (`excludeCredentials`): recusou criar outra no lugar. */
+export const ALREADY_REGISTERED = "ja-cadastrado";
 
 export async function fetchAuthConfig(): Promise<{ passkey_required: boolean }> {
   const { data, response } = await api.GET("/auth/config");
@@ -75,6 +77,7 @@ export function completePasskey(attempt: PasskeyAttempt): Promise<{ me: Me; reco
     },
     (e: unknown) => {
       if (e instanceof Error && e.name === "NotAllowedError") throw new LoginError(0, CANCELLED);
+      if (e instanceof Error && e.name === "InvalidStateError") throw new LoginError(0, ALREADY_REGISTERED);
       throw e;
     },
   );

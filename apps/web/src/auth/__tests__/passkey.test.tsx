@@ -128,6 +128,26 @@ describe("entrada com chave de acesso", () => {
     expect((await screen.findByTestId("where")).textContent).toBe("/");
   });
 
+  it("aparelho que já tem a chave recusa o cadastro: avisa para entrar sem o código", async () => {
+    startMode = "register";
+    webauthn.startRegistration.mockRejectedValueOnce(
+      Object.assign(new Error("The authenticator was previously registered"), {
+        name: "InvalidStateError",
+        code: "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED",
+      }),
+    );
+    renderAt("/login");
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Tenho um código de liberação" }));
+    fireEvent.change(screen.getByLabelText("Código de liberação"), { target: { value: "ABCDE-FGHJK" } });
+    enter();
+    await confirm();
+    expect(
+      await screen.findByText("Este aparelho já tem chave de acesso. Entre sem o código de liberação."),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Seu nome")).toBeTruthy();
+  });
+
   it("401 em finish mostra a mensagem genérica, limpa o PIN e volta ao passo 1", async () => {
     finishStatus = 401;
     renderAt("/login");
