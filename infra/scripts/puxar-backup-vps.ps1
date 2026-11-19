@@ -114,6 +114,19 @@ try {
         Write-Log "ATENCAO: o backup mais novo da VPS tem $idadeDias dias ($nome)."
         Show-Aviso "O backup mais novo da VPS e de $idadeDias dias atras ($nome).`nO backup automatico da VPS pode ter parado."
     }
+
+    # Copia no Google Drive (cron da VPS, infra/scripts/enviar-backup-drive.sh): avisa se o ultimo envio envelheceu
+    $drive = & ssh @Ssh $Host_ "cat ~/backups/.drive-ok 2>/dev/null" 2>$null
+    if ("$drive" -match '^(\d{4}-\d{2}-\d{2})\s+(\S+)') {
+        $diasDrive = ((Get-Date).Date - [datetime]::ParseExact($Matches[1], "yyyy-MM-dd", $null)).Days
+        if ($diasDrive -gt 2) {
+            Write-Log "ATENCAO: o ultimo envio ao Google Drive foi ha $diasDrive dias ($($Matches[2]))."
+            Show-Aviso "O ultimo envio do backup ao Google Drive foi ha $diasDrive dias.`nVeja ~/backups/drive.log na VPS."
+        }
+    }
+    else {
+        Write-Log "Google Drive: nenhum envio registrado ainda na VPS."
+    }
     exit 0
 }
 finally {
