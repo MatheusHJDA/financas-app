@@ -2,7 +2,7 @@
 
 > Mantido pelo lead. Workers leem; não editam (exceto quando o brief mandar).
 
-## RETOMAR AQUI (19/11/2026, ~12:15) — checklist de 19/11 concluído; resta decidir sobre PIN trivial
+## RETOMAR AQUI (19/11/2026, ~12:15) — PIN fácil bloqueado; falta o Matheus trocar os PINs
 **Situação:** `https://app.precei.com` é o app oficial desde o corte de 19/11 00:43. Login em duas etapas ligado
 (`REQUIRE_PASSKEY=true`). Testes nos aparelhos feitos em 19/11 manhã (checklist abaixo). App do PC **desligado**
 (contêineres `api`/`backup`/`db` parados com `docker stop`; dados preservados) e `tailscale serve` zerado.
@@ -29,8 +29,11 @@ total pago (era principal − saldo = R$ 4.231,23; agora R$ 8.187,99 = 37,22% de
    (`settings.auth.decoy_key`); só tentativa nova e no prazo conta falha para a conta; Remover com o nome do aparelho;
    Desbloquear sem pedido repetido. `restore.sh:9` já estava certo. check verde (api 619, web 490), e2e 99.
    Ainda aberta: PIN trivial (ex.: 123456) é aceito — PIN se troca em Administração → Usuários → Redefinir PIN.
-6. [ ] **Próxima sessão:** perguntado ao Matheus (19/11) se o app deve recusar PIN trivial (123456, 111111,
-   sequências) ao redefinir/criar — aguardando resposta. Se sim: TDD na validação do PIN (api + mensagem na tela).
+6. [x] PIN fácil recusado ao redefinir (19/11, `ee65b90`, no ar; backup antes `~/backups/financas-20261119-181022.dump`):
+   repetição, sequência (com volta), padrão de 2/3 dígitos e lista curta; regra igual na api e na tela. O login
+   segue aceitando PINs já gravados (sem risco de bloqueio). check verde (api 649, web 517).
+7. [ ] Matheus troca os PINs atuais (fáceis) em Administração → Usuários → Redefinir PIN; o da Ruth encerra as
+   sessões dela (entra de novo com PIN novo + chave, que continua valendo).
 
 **Se algo falhar:** o lead lê o log pela VPS (`ssh financas`; compose sempre com
 `-f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env-file .env`): `logs api` mostra "Chave de acesso
