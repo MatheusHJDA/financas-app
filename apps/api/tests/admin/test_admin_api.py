@@ -162,6 +162,24 @@ def test_reset_pin_requires_exactly_six_digits(
     assert _login_status(new_client(), ruth, PIN_RUTH) == 200
 
 
+@pytest.mark.parametrize("pin", ["234567", "000000", "909090"])
+def test_reset_pin_recusa_pin_facil(
+    login: Login,
+    new_client: Callable[[], TestClient],
+    real_users: dict[str, User],
+    db: Session,
+    pin: str,
+) -> None:
+    admin = login("matheus")
+    ruth = real_users["ruth"]
+    response = admin.post(f"/api/admin/users/{ruth.id}/reset-pin", json={"new_pin": pin})
+    assert response.status_code == 422
+    assert "fácil" in response.json()["detail"]
+    assert pin not in response.text
+    assert _audit(db, "users") == []
+    assert _login_status(new_client(), ruth, PIN_RUTH) == 200
+
+
 def test_reset_pin_unknown_user_is_404(login: Login) -> None:
     response = login("matheus").post("/api/admin/users/999999/reset-pin", json={"new_pin": NEW_PIN})
     assert response.status_code == 404

@@ -35,6 +35,43 @@ def is_valid_pin(pin: str) -> bool:
     return len(pin) == PIN_LENGTH and pin.isascii() and pin.isdigit()
 
 
+# PINs muito usados que não caem nas regras de repetição/sequência (teclado, espelho, pares).
+_COMMON_PINS = frozenset(
+    {
+        "112233",
+        "332211",
+        "111222",
+        "000111",
+        "123321",
+        "654456",
+        "102030",
+        "121314",
+        "147258",
+        "258369",
+        "159753",
+        "159357",
+        "147852",
+        "123654",
+        "789456",
+        "456123",
+    }
+)
+
+WEAK_PIN_MESSAGE = (
+    "PIN fácil demais: evite sequências (123456), repetições (111111) e padrões (121212)."
+)
+
+
+def is_weak_pin(pin: str) -> bool:
+    """PIN fácil de adivinhar. Vale só para criar/trocar PIN; o login aceita os PINs já gravados."""
+    if pin in _COMMON_PINS or len(set(pin)) == 1:
+        return True
+    steps = {(int(b) - int(a)) % 10 for a, b in zip(pin, pin[1:], strict=False)}
+    if steps in ({1}, {9}):  # sequência subindo ou descendo (com volta: 890123)
+        return True
+    return any(pin == (pin[:n] * len(pin))[: len(pin)] for n in (2, 3))
+
+
 def hash_pin(pin: str) -> str:
     return _hasher.hash(pin)
 
@@ -247,6 +284,8 @@ def change_pin(db: Session, user: User, new_pin: str, *, actor_id: int | None) -
     """Troca/reseta o PIN, destrava a conta e audita (sem gravar PIN nem hash)."""
     if not is_valid_pin(new_pin):
         raise ValueError(f"O PIN deve ter {PIN_LENGTH} dígitos.")
+    if is_weak_pin(new_pin):
+        raise ValueError(WEAK_PIN_MESSAGE)
     user.pin_hash = hash_pin(new_pin)
     limits.release_account(db, user)
     record_audit(

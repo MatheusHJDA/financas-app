@@ -15,6 +15,7 @@ import {
   USERS_KEY,
   type AdminUser,
 } from "./adminApi";
+import { isWeakPin, WEAK_PIN_MESSAGE } from "./pinRules";
 import { UserAccessPanel } from "./UserAccessPanel";
 import { Notice, type NoticeValue } from "./Notice";
 import { SectionSkeleton } from "./SectionSkeleton";
@@ -34,7 +35,8 @@ export function UsersSection() {
   const [pending, setPending] = useState<Pending | null>(null);
   const [pin, setPin] = useState("");
   const [pin2, setPin2] = useState("");
-  const pinReady = PIN_PATTERN.test(pin) && pin === pin2;
+  const pinWeak = PIN_PATTERN.test(pin) && isWeakPin(pin);
+  const pinReady = PIN_PATTERN.test(pin) && !pinWeak && pin === pin2;
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<NoticeValue | null>(null);
   const [accessFor, setAccessFor] = useState<number | null>(null);
@@ -183,7 +185,11 @@ export function UsersSection() {
                 }
               />
             </div>
-            {pin2.length === PIN_LENGTH && pin !== pin2 ? (
+            {pinWeak ? (
+              <p className="admin-notice--error" role="alert">
+                {WEAK_PIN_MESSAGE}
+              </p>
+            ) : pin2.length === PIN_LENGTH && pin !== pin2 ? (
               <p className="admin-notice--error" role="alert">
                 Os dois PINs não são iguais.
               </p>

@@ -147,6 +147,8 @@ def reset_pin(
     """
     if not auth_service.is_valid_pin(body.new_pin) or len(body.new_pin) != PIN_LENGTH:
         raise _unprocessable(f"O PIN deve ter exatamente {PIN_LENGTH} dígitos.")
+    if auth_service.is_weak_pin(body.new_pin):
+        raise _unprocessable(auth_service.WEAK_PIN_MESSAGE)
     user = _get_user(db, id)
     keep: str | None = None
     if user.id == admin.id:

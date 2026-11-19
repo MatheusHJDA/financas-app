@@ -67,6 +67,19 @@ it("redefinir PIN só grava depois de confirmar, com 6 dígitos", async () => {
   expect(screen.queryByLabelText(/Novo PIN de Ruth/)).toBeNull(); // o PIN sai da tela
 });
 
+it("redefinir PIN: PIN fácil é recusado na tela, sem chamar a API", async () => {
+  setup();
+  const ruth = await screen.findByRole("article", { name: "Ruth" });
+  fireEvent.click(within(ruth).getByRole("button", { name: "Redefinir PIN de Ruth" }));
+  fireEvent.change(screen.getByLabelText(/Novo PIN de Ruth/), { target: { value: "111111" } });
+  expect(screen.getByRole("alert").textContent).toMatch(/fácil demais/);
+  fireEvent.change(screen.getByLabelText("Repita o novo PIN"), { target: { value: "111111" } });
+  const confirm = screen.getByRole("button", { name: "Confirmar redefinição" }) as HTMLButtonElement;
+  expect(confirm.disabled).toBe(true);
+  fireEvent.click(confirm);
+  expect(writes()).toEqual([]);
+});
+
 it("cancelar a redefinição não grava nada", async () => {
   setup();
   const ruth = await screen.findByRole("article", { name: "Ruth" });

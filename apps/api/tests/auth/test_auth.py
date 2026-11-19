@@ -489,6 +489,49 @@ def test_change_pin_rejects_invalid_pin(db: Session, auth_users: dict[str, User]
         service.change_pin(db, auth_users["ruth"], "12", actor_id=None)
 
 
+@pytest.mark.parametrize(
+    "pin",
+    [
+        "000000",
+        "111111",
+        "999999",  # repetido
+        "123456",
+        "234567",
+        "456789",
+        "012345",
+        "890123",  # sequência subindo
+        "654321",
+        "987654",
+        "543210",
+        "210987",  # sequência descendo
+        "121212",
+        "909090",
+        "123123",
+        "112112",  # padrão que se repete
+        "112233",
+        "123321",
+        "147258",
+        "159753",
+        "102030",  # muito usados
+    ],
+)
+def test_pin_facil_e_reconhecido(pin: str) -> None:
+    assert service.is_weak_pin(pin)
+
+
+@pytest.mark.parametrize("pin", ["246810", "739104", "580317", "120458", "903712"])
+def test_pin_comum_nao_e_marcado_como_facil(pin: str) -> None:
+    assert not service.is_weak_pin(pin)
+
+
+def test_change_pin_recusa_pin_facil(db: Session, auth_users: dict[str, User]) -> None:
+    ruth = auth_users["ruth"]
+    old_hash = ruth.pin_hash
+    with pytest.raises(ValueError, match="fácil"):
+        service.change_pin(db, ruth, "111111", actor_id=None)
+    assert ruth.pin_hash == old_hash
+
+
 def _settings(matheus: str, ruth: str) -> Settings:
     return Settings(initial_pin_matheus=matheus, initial_pin_ruth=ruth)
 
