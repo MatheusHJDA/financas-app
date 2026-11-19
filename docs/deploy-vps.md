@@ -39,12 +39,13 @@ seu. Esta página parte do app já funcionando no PC ([deploy-pc.md](deploy-pc.m
 ## 2. Preparar a VPS
 
 ```bash
-git clone git@github.com:<usuário>/<repositório>.git financas
+git clone -b master git@github.com:<usuário>/<repositório>.git financas
 cd financas
 cp .env.example .env
 ```
 
-Edite o `.env` (valores fictícios; use os seus):
+Edite o `.env` (valores fictícios; use os seus). **Não** copie o `.env` do PC inteiro: ele pode ter coisas que não
+são do app (senhas anotadas); traga só as chaves da OpenAI e as VAPID.
 
 ```
 DOMAIN=app.seudominio.com.br
@@ -82,6 +83,9 @@ ENABLE_DOCS=false
   escapar do limite. O `infra/Caddyfile` fixa `header_up X-Forwarded-For {remote_host}` no `reverse_proxy`: o Caddy
   troca qualquer `X-Forwarded-For` mandado pelo visitante pelo IP de quem conectou de fato.
 - `chmod 600 .env`.
+- Senha do banco: `openssl rand -hex 24` (só letras e números, não quebra o `DATABASE_URL`).
+- Os comandos `docker compose` desta página levam `--env-file .env`: o compose procura o `.env` na pasta do
+  primeiro arquivo (`infra/`), não na raiz.
 
 ## 3. Subir (Docker + Caddy)
 
@@ -102,7 +106,7 @@ Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados d
 
 1. **No PC, atualize para esta versão antes do backup de corte**: junte o código no `master` e rode `./tasks.ps1 up`
    (a api aplica as migrações até a **0004** do alembic; confira com
-   `docker compose -f infra/docker-compose.yml exec api alembic current`, deve mostrar `0004_login_attempts_source_idx`). Na VPS a api já sobe nessa
+   `docker compose -f infra/docker-compose.yml --env-file .env exec api alembic current`, deve mostrar `0004_login_attempts_source_idx`). Na VPS a api já sobe nessa
    versão e cria as tabelas novas do login em duas etapas; um dump de versão mais antiga (por exemplo, migração
    0002) **não restaura** num banco já atualizado: o `pg_restore --clean` tenta apagar tabelas das quais as novas
    dependem e a restauração inteira é desfeita. O alembic não conserta isso depois.
@@ -125,7 +129,9 @@ Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados d
    ```
 
    O dump tem todos os dados financeiros: na VPS, `chmod 600 ~/financas/financas-*.dump`, e apague-o depois de
-   conferir a restauração (o serviço `backup` passa a gerar os seus).
+   conferir a restauração (o serviço `backup` passa a gerar os seus). Os anexos (passo 9) vêm à parte.
+   Depois de restaurar, apague as sessões vindas do PC (foram abertas só com PIN):
+   `docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env-file .env exec db psql -U financas -d financas -c "delete from sessions"`.
 
 5. **Na VPS**, restaure (o script faz backup de segurança, para a api, restaura e sobe a api):
 
@@ -144,7 +150,7 @@ Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados d
    1. Matheus gera o próprio código **no servidor**:
 
       ```bash
-      docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml exec api python -m finance_api.auth.release Matheus
+      docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env-file .env exec api python -m finance_api.auth.release Matheus
       ```
 
       No celular: nome, PIN, "Tenho um código de liberação", código, confirmar no aparelho. **Guarde os 8 códigos de
@@ -162,7 +168,7 @@ Neste ponto o banco da VPS está vazio (só as tabelas). Falta trazer os dados d
    falha; não chega perto de travar nada). Depois, na VPS:
 
    ```bash
-   docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml exec db psql -U financas -d financas -c "select source, at from auth_failures order by at desc limit 3"
+   docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env-file .env exec db psql -U financas -d financas -c "select source, at from auth_failures order by at desc limit 3"
    ```
 
    O `source` mais recente tem de ser o IP público do celular (o mesmo que um site "qual é meu IP" mostra nos dados
@@ -194,7 +200,7 @@ Se a conta do Matheus travar (20 falhas em 1 h; a conta fica travada sem prazo),
 destravá-la pelo app. No servidor:
 
 ```bash
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml exec api python -m finance_api.auth.release Matheus --desbloquear
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env-file .env exec api python -m finance_api.auth.release Matheus --desbloquear
 ```
 
 Depois gere um código novo (comando sem `--desbloquear`) e entre de novo.
@@ -223,4 +229,5 @@ docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.vps.yml --env-file .env logs api --since 10m
 ```
 
-Atualize o sistema da VPS regularmente, mantenha só as portas 22, 80 e 443 abertas e proteja o SSH (chave, sem senha).
+Atualize o sistema da VPS regularmente e mantenha só a porta do SSH (alta, só chave; ver preparar-vps.md), a 80 e
+a 443 abertas.
