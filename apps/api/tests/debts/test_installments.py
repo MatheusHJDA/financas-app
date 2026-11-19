@@ -372,3 +372,17 @@ def test_resplit_audits_installment_and_instance(db, users, loan):
         and r.after_json["paid_on"] == "2026-12-18"
         for r in inst_rows
     )
+
+
+def test_goal_quitar_emprestimo_uses_total_paid(db, users, loan):
+    """A meta de quitar mostra o mesmo "total pago" da tela do empréstimo, não principal − saldo
+    (principal é sem juros e o saldo é a soma das parcelas com juros)."""
+    from finance_api.db.models import Goal
+    from finance_api.goals.service import compute_progress
+
+    goal = Goal(owner="AMBOS", type="debt_payoff", name="Quitar o empréstimo", target_cents=2200000)
+    db.add(goal)
+    db.flush()
+    assert compute_progress(db, goal, HOJE)["current_cents"] == 818799
+    _prepay_last_two(db, users, loan)
+    assert compute_progress(db, goal, HOJE)["current_cents"] == 818799 + 185367

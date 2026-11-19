@@ -96,7 +96,7 @@ def test_apply_keeps_goal_matching_debt(db, setup, users):
     loan_nubank.run(db, apply=True, debt_id=debt.id)
     db.refresh(debt)
     progress = compute_progress(db, goal, date(2026, 11, 17))
-    assert progress["current_cents"] == debt.principal_cents - debt.current_balance_cents > 0
+    assert progress["current_cents"] == debt.paid_before_app_cents > 0
 
 
 def test_guard_refuses_other_debt_name(db, setup):

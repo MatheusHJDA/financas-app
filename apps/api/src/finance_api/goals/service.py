@@ -16,7 +16,15 @@ from typing import Any
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from finance_api.db.models import Account, Category, Debt, Goal, GoalEntry, Transaction
+from finance_api.db.models import (
+    Account,
+    Category,
+    Debt,
+    DebtInstallment,
+    Goal,
+    GoalEntry,
+    Transaction,
+)
 
 GOAL_TYPES = ("accumulate", "debt_payoff", "income_period", "category_cap")
 INCOME_PERIODS = ("daily", "weekly", "monthly")
@@ -90,6 +98,27 @@ def _matching_debts(db: Session, goal: Goal) -> list[Debt]:
     return [d for d in db.scalars(select(Debt)).all() if d.name.casefold() in name]
 
 
+def _debt_paid_cents(db: Session, debt: Debt) -> int:
+    """Quanto já foi pago da dívida.
+
+    Com parcelas: o "total pago" da tela do empréstimo (pago antes do app + parcelas pagas ou
+    adiantadas). Não dá para usar principal − saldo: o principal é sem juros e o saldo soma as
+    parcelas com juros.
+    Sem parcelas: o saldo é informado à mão, então vale principal − saldo.
+    """
+    paid = db.execute(
+        select(
+            func.count(DebtInstallment.id),
+            func.coalesce(
+                func.sum(case((DebtInstallment.status != "open", DebtInstallment.paid_cents))), 0
+            ),
+        ).where(DebtInstallment.debt_id == debt.id)
+    ).one()
+    if paid[0] == 0:
+        return max(0, debt.principal_cents - debt.current_balance_cents)
+    return debt.paid_before_app_cents + int(paid[1])
+
+
 def _percent(current: int, target: int) -> float:
     if target <= 0:
         return 0.0
@@ -121,11 +150,9 @@ def compute_progress(db: Session, goal: Goal, today: date) -> dict[str, Any]:
             )
     elif goal.type == "debt_payoff":
         debts = _matching_debts(db, goal)
-        principal = sum(d.principal_cents for d in debts)
-        balance = sum(d.current_balance_cents for d in debts)
-        current = max(0, principal - balance)
+        current = sum(_debt_paid_cents(db, d) for d in debts)
         if target <= 0:
-            target = principal
+            target = sum(d.principal_cents for d in debts)
     elif goal.type == "income_period" and goal.linked_category_id:
         start, end = period_range(goal.period, today)
         current = _sum_by_kind(db, "income", goal.linked_category_id, start, end, goal.owner)
