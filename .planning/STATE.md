@@ -23,7 +23,14 @@ health 200 local e tailnet.
 Dump de corte `backups/financas-20261119-004306.dump` (sha256 igual nos dois lados) restaurado: 23 tabelas com
 contagens idênticas ao PC; 3 anexos copiados (hash igual); 20 sessões vindas do PC apagadas. Corrigido no caminho:
 `restore.sh`/`backup.sh` sem o override da VPS (`dc3363e`), scripts sem bit de execução e `deploy-vps.md` (`7560e3b`).
-GitHub: ramo padrão ainda `login-dois-fatores` (trocar para `master` em Settings → General).
+GitHub: ramo padrão já é `master` (Matheus trocou).
+**19/11 01:30 — correção no ar (`b84ea16`).** No 1º teste real, código de liberação usado num iPhone já cadastrado fez
+o iCloud trocar a chave boa por uma que o servidor nunca salvou (user.id fixo por pessoa + `excludeCredentials`
+vazio) → logins seguintes com chave desconhecida → 5 falhas → origem bloqueada 15 min. Agora o cadastro manda as
+chaves da pessoa + identificadores falsos fixos em `excludeCredentials`; o aparelho recusa (`InvalidStateError`) e
+o app diz "Este aparelho já tem chave de acesso. Entre sem o código de liberação.". Chave desconhecida/recusada vão
+ao log (warning). check verde (api 614, web 490), e2e 99. Backup antes na VPS: `~/backups/financas-20261119-012952.dump`.
+Confirmado na VPS: IP real chega certo (`189.93.225.26` nos dados móveis).
 **Próximo:** Matheus gera o próprio código de liberação no servidor e cadastra o iPhone → código do PC → código da
 Ruth pelo app → conferir IP real (deploy-vps 4.7) → notificações → PC `down` + `tailscale serve reset`.
 **(antigo)** testar a entrada no PC (nome + PIN, `REQUIRE_PASSKEY` desligado) →
