@@ -18,7 +18,7 @@ notificações nos dois celulares, saldos/anexos conferidos, app do PC desligado
 total pago (era principal − saldo = R$ 4.231,23; agora R$ 8.187,99 = 37,22% de R$ 22.000, conferido na VPS).
 **Próximo:**
 1. [ ] Matheus conferir no iPhone a edição da conta fixa (sem rolagem lateral) e a meta em Metas.
-2. [ ] Decidir o alvo da meta: está R$ 22.000 (≈ principal), mas o total a pagar com juros é ≈ R$ 26.616
+2. [x] Alvo da meta: Matheus mantém R$ 22.000 (19/11), ciente de que o total com juros é ≈ R$ 26.616
    (pago + parcelas em aberto) — com 22.000 a meta passa de 100% antes de quitar.
 3. [ ] Cópia de backup para fora da VPS (deploy-vps seção 6) e pendências pequenas do login.
 
