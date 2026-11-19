@@ -15,7 +15,10 @@ inteira). Causa: `finish` do LoginPage navegava no mesmo tique do `setMe`; o rea
 (setTimeout), o RequireAuth via `me = null` e devolvia para /login (vai-e-volta). Correção: `finish` só grava a sessão
 e o `<Navigate>` do próprio LoginPage leva ao destino. 8/8 rodadas verdes, `check` verde (api 610, web 489), e2e 99
 (2 ignorados, os de sempre).
-**Próximo:** merge `login-dois-fatores` → `master` + backup + `./tasks.ps1 up` no PC (migrações 0003/0004) →
+**19/11 — feito:** merge rápido `login-dois-fatores` → `master` (`fe73876`, enviado ao GitHub); backup
+`backups/financas-20261119-001856.dump`; `./tasks.ps1 up` aplicou 0003 e 0004 (`alembic current` = 0004 head),
+health 200 local e tailnet.
+**Próximo:** testar a entrada no PC (nome + PIN, `REQUIRE_PASSKEY` desligado) →
 `docs/deploy-vps.md` (clone pelo endereço SSH acima, `ALLOWED_HOSTS`/`PASSKEY_*` com `app.precei.com`) → testes nos
 aparelhos.
 
